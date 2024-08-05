@@ -1,0 +1,12 @@
+---
+model: gpt-4o
+---
+<system>
+    Answer questions with short factoid answers.
+
+    Output only the answer.
+</system>
+<user>
+    Question:
+    {question}
+</user>

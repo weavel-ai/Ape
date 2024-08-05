@@ -1,0 +1,685 @@
+{
+ "cells": [
+  {
+   "cell_type": "code",
+   "execution_count": 1,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "/Users/aschung/dev/devan/.venv/lib/python3.12/site-packages/tqdm/auto.py:21: TqdmWarning: IProgress not found. Please update jupyter and ipywidgets. See https://ipywidgets.readthedocs.io/en/stable/user_install.html\n",
+      "  from .autonotebook import tqdm as notebook_tqdm\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Number of parallel jobs:  11\n"
+     ]
+    }
+   ],
+   "source": [
+    "import logging\n",
+    "import dspy\n",
+    "import json\n",
+    "from dspy.datasets import DataLoader\n",
+    "from dspy import Example\n",
+    "import os \n",
+    "num_parallel_jobs = os.cpu_count() \n",
+    "print(\"Number of parallel jobs: \", num_parallel_jobs)\n",
+    "\n",
+    "NUM_THREADS = 5\n",
+    "\n",
+    "dl = DataLoader()\n",
+    "\n",
+    "from dotenv import load_dotenv\n",
+    "load_dotenv()\n",
+    "\n",
+    "mini = dspy.OpenAI(model='gpt-4o-mini')\n",
+    "gpt_4o = dspy.OpenAI(model='gpt-4o')\n",
+    "\n",
+    "dspy.settings.configure(lm=mini)\n",
+    "\n",
+    "from dspy.teleprompt import BootstrapFewShot, BootstrapFewShotWithRandomSearch, MIPRO, MIPROv2\n",
+    "from dspy.evaluate import Evaluate\n",
+    "from dspy.datasets.gsm8k import GSM8K, gsm8k_metric\n",
+    "\n",
+    "from rich.logging import RichHandler\n",
+    "\n",
+    "# Configure the root logger\n",
+    "logging.basicConfig(\n",
+    "    level=logging.ERROR,\n",
+    "    format=\"%(message)s\",\n",
+    "    datefmt=\"[%X]\",\n",
+    "    handlers=[RichHandler(rich_tracebacks=True)],\n",
+    ")\n",
+    "\n",
+    "\n",
+    "\n",
+    "# read pickled data\n",
+    "import pickle\n",
+    "\n",
+    "# check if data file exists\n",
+    "if not os.path.exists('./.gsm8k/trainset.pkl') or not os.path.exists('./.gsm8k/devset.pkl'):\n",
+    "    print(\"Data not found. Loading data from GSM8K\")\n",
+    "    loaded = False\n",
+    "else:\n",
+    "    with open('./.gsm8k/trainset.pkl', 'rb') as f:\n",
+    "        trainset = pickle.load(f)\n",
+    "        \n",
+    "    with open('./.gsm8k/devset.pkl', 'rb') as f:\n",
+    "        devset = pickle.load(f)\n",
+    "    # check if the data is loaded correctly\n",
+    "    loaded = True\n",
+    "    if not trainset or not devset:\n",
+    "        loaded = False\n",
+    "        print(\"Data not loaded correctly or doesn't exist\")\n",
+    "\n",
+    "    elif len(trainset) < 100 or len(devset) < 100:\n",
+    "        loaded = False\n",
+    "        print(\"Data not loaded correctly or doesn't exist\")\n",
+    "\n",
+    "if not loaded:\n",
+    "\n",
+    "    gms8k = GSM8K()\n",
+    "\n",
+    "    trainset, devset = gms8k.train, gms8k.dev\n",
+    "\n",
+    "    evaluate = Evaluate(devset=devset[:], metric=gsm8k_metric, num_threads=NUM_THREADS, display_progress=True, display_table=False)\n",
+    "    # shuffle\n",
+    "    import random\n",
+    "    random.seed(23)\n",
+    "    random.shuffle(trainset)\n",
+    "    random.shuffle(devset)\n",
+    "\n",
+    "    trainset = trainset[:200]\n",
+    "    devset = devset[:200]\n",
+    "\n",
+    "    with open('./.gsm8k/trainset.pkl', 'wb') as f:\n",
+    "        pickle.dump(trainset, f)\n",
+    "        \n",
+    "    with open('./.gsm8k/devset.pkl', 'wb') as f:\n",
+    "        pickle.dump(devset, f)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 2,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "from dspy.teleprompt import MIPROv2\n",
+    "\n",
+    "\n",
+    "class BasicQA(dspy.Signature):\n",
+    "    \"\"\"Answer questions with short factoid answers.\"\"\"\n",
+    "\n",
+    "    question = dspy.InputField()\n",
+    "    answer = dspy.OutputField()\n",
+    "    \n",
+    "generate_answer = dspy.ChainOfThought(BasicQA)\n",
+    "# generate_answer = dspy.Predict(BasicQA)\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 3,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# teleprompter = MIPROv2(\n",
+    "#     prompt_model=gpt_4o, \n",
+    "#     task_model=mini, \n",
+    "#     metric=gsm8k_metric,\n",
+    "#     num_candidates=10, \n",
+    "#     verbose=False\n",
+    "# )\n",
+    "# kwargs = dict(num_threads=10, display_progress=True, display_table=0)\n",
+    "\n",
+    "# compiled_program_optimized_bayesian_signature = teleprompter.compile(\n",
+    "#     generate_answer, \n",
+    "#     trainset=trainset, \n",
+    "#     max_bootstrapped_demos=5, \n",
+    "#     max_labeled_demos=5, \n",
+    "#     eval_kwargs=kwargs,\n",
+    "#     program_aware_proposer=False,\n",
+    "#     requires_permission_to_run=False,\n",
+    "#     num_batches=30,\n",
+    "# )"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "- Prompt Model: 10 data summarizer calls + 10 * 1 lm calls in program = 20 prompt model calls\n",
+    "- Task Model: 25 examples in minibatch * 30 batches + 10 examples in train set * 3 full evals = 780 task model calls\n",
+    "\n",
+    "Estimated Cost Calculation:"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 4,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# compiled_program_optimized_bayesian_signature.demos"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 5,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# from dspy.signatures import signature_to_template\n",
+    "# from dspy import InputField\n",
+    "\n",
+    "# signature = kwargs.pop(\"new_signature\", compiled_program_optimized_bayesian_signature._predict.extended_signature if compiled_program_optimized_bayesian_signature.activated else compiled_program_optimized_bayesian_signature.signature)\n",
+    "# demos = kwargs.pop(\"demos\", compiled_program_optimized_bayesian_signature.demos)\n",
+    "# print(signature)\n",
+    "# print(signature.instructions)\n",
+    "# print(demos)\n",
+    "# print({k: \"{{\" + k + \"}}\" for k in signature.fields})\n",
+    "# demos = Example(demos=demos, **{k: \"{{\" + k + \"}}\" for k in signature.input_fields})\n",
+    "# template = signature_to_template(signature)\n",
+    "# print(template)\n",
+    "# prompt = template(demos)\n",
+    "# print(prompt)\n",
+    "# new_prompt = prompt.replace(\"}\", \"}}\").replace(\"{\", \"{{\").replace(\"}}}}\", \"}\").replace(\"{{{{\", \"{\")\n",
+    "# print(new_prompt)\n",
+    "\n",
+    "# print(compiled_program_optimized_bayesian_signature.score)\n",
+    "\n",
+    "# res = mini(new_prompt.format(question=\"1+2=?\"))"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 6,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "from dspy.evaluate import Evaluate\n",
+    "from dspy.datasets.gsm8k import gsm8k_metric, parse_integer_answer\n",
+    "\n",
+    "evaluate = Evaluate(devset=devset, metric=gsm8k_metric, num_threads=NUM_THREADS, display_progress=True, display_table=False)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 7,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# compiled_program_optimized_bayesian_signature.save(\"./mipro_logs/dspy-miprov2.json\")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 8,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# evaluate(compiled_program_optimized_bayesian_signature)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 9,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "wv_trainset = [\n",
+    "    {\n",
+    "        \"inputs\": {\"question\": data[\"question\"]},\n",
+    "        \"outputs\": { \"gold_reasoning\": data[\"gold_reasoning\"], \"answer\": data[\"answer\"]}\n",
+    "    } for data in trainset\n",
+    "]\n",
+    " \n",
+    "wv_devset = [\n",
+    "    {\n",
+    "        \"inputs\": {\"question\": data[\"question\"]},\n",
+    "        \"outputs\": {\"answer\": data[\"answer\"]}\n",
+    "    } for data in devset\n",
+    "]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 10,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "from peter.optimizer.mipro import MIPRO\n",
+    "import promptfile as pf"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 11,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "def wv_gsm8k_metric(gold, pred, trace=None):\n",
+    "    return int(parse_integer_answer(str(gold[\"outputs\"][\"answer\"]))) == int(parse_integer_answer(pred[\"answer\"]))\n",
+    "    \n",
+    "mipro = MIPRO(\n",
+    "    prompt_model=\"gpt-4o\",\n",
+    "    task_model=\"gpt-4o-mini\",\n",
+    "    metric=wv_gsm8k_metric,\n",
+    "    verbose=True\n",
+    ")\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 12,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "  0%|          | 0/20 [00:00<?, ?it/s]"
+     ]
+    },
+    {
+     "data": {
+      "text/html": [
+       "<pre style=\"white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\"><span style=\"color: #7fbfbf; text-decoration-color: #7fbfbf\">[15:23:37] </span><span style=\"color: #800000; text-decoration-color: #800000; font-weight: bold\">ERROR   </span> Failed to run or to evaluate example <span style=\"font-weight: bold\">{</span><span style=\"color: #008000; text-decoration-color: #008000\">'inputs'</span>: <span style=\"font-weight: bold\">{</span><span style=\"color: #008000; text-decoration-color: #008000\">'question'</span>: <span style=\"color: #008000; text-decoration-color: #008000\">'Chad </span>    <a href=\"file:///Users/aschung/dev/devan/peter/optimizer/bootstrap_fewshot.py\" target=\"_blank\"><span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">bootstrap_fewshot.py</span></a><span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">:</span><a href=\"file:///Users/aschung/dev/devan/peter/optimizer/bootstrap_fewshot.py#172\" target=\"_blank\"><span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">172</span></a>\n",
+       "<span style=\"color: #7fbfbf; text-decoration-color: #7fbfbf\">           </span>         <span style=\"color: #008000; text-decoration-color: #008000\">saves 40% of the money he earns/receives in a year.  This year, he </span>    <span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">                        </span>\n",
+       "<span style=\"color: #7fbfbf; text-decoration-color: #7fbfbf\">           </span>         <span style=\"color: #008000; text-decoration-color: #008000\">made $600 mowing yards and received $250.00 for his birthday/holidays.</span> <span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">                        </span>\n",
+       "<span style=\"color: #7fbfbf; text-decoration-color: #7fbfbf\">           </span>         <span style=\"color: #008000; text-decoration-color: #008000\">He also made $150.00 by selling some old video games and another </span>      <span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">                        </span>\n",
+       "<span style=\"color: #7fbfbf; text-decoration-color: #7fbfbf\">           </span>         <span style=\"color: #008000; text-decoration-color: #008000\">$150.00 doing odd jobs.  How much will he save?'</span><span style=\"font-weight: bold\">}</span>, <span style=\"color: #008000; text-decoration-color: #008000\">'outputs'</span>:          <span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">                        </span>\n",
+       "<span style=\"color: #7fbfbf; text-decoration-color: #7fbfbf\">           </span>         <span style=\"font-weight: bold\">{</span><span style=\"color: #008000; text-decoration-color: #008000\">'gold_reasoning'</span>: <span style=\"color: #008000; text-decoration-color: #008000\">'He made $600.00 mowing yards, $250.00 for his </span>     <span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">                        </span>\n",
+       "<span style=\"color: #7fbfbf; text-decoration-color: #7fbfbf\">           </span>         <span style=\"color: #008000; text-decoration-color: #008000\">birthday, $150.00 selling items and $150.00 doing odd jobs so he made </span> <span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">                        </span>\n",
+       "<span style=\"color: #7fbfbf; text-decoration-color: #7fbfbf\">           </span>         <span style=\"color: #008000; text-decoration-color: #008000\">600+250+150+150 = $&lt;&lt;600+250+150+150=1150.00&gt;&gt;1,150.00 He made </span>        <span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">                        </span>\n",
+       "<span style=\"color: #7fbfbf; text-decoration-color: #7fbfbf\">           </span>         <span style=\"color: #008000; text-decoration-color: #008000\">$1,150.00 and will save 40% so he saves 1150*.40 = </span>                    <span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">                        </span>\n",
+       "<span style=\"color: #7fbfbf; text-decoration-color: #7fbfbf\">           </span>         <span style=\"color: #008000; text-decoration-color: #008000\">$&lt;&lt;1150*.40=460.00&gt;&gt;460.00'</span><span style=\"color: #000000; text-decoration-color: #000000\">, </span><span style=\"color: #008000; text-decoration-color: #008000\">'answer'</span><span style=\"color: #000000; text-decoration-color: #000000\">: </span><span style=\"color: #008000; text-decoration-color: #008000\">'460'</span><span style=\"color: #000000; text-decoration-color: #000000; font-weight: bold\">}}</span><span style=\"color: #000000; text-decoration-color: #000000\"> with &lt;function </span>         <span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">                        </span>\n",
+       "<span style=\"color: #7fbfbf; text-decoration-color: #7fbfbf\">           </span>         <span style=\"color: #000000; text-decoration-color: #000000\">wv_gsm8k_metric at </span><span style=\"color: #008080; text-decoration-color: #008080; font-weight: bold\">0x171bf72e0</span><span style=\"font-weight: bold\">&gt;</span> due to object bool can't be used in    <span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">                        </span>\n",
+       "<span style=\"color: #7fbfbf; text-decoration-color: #7fbfbf\">           </span>         <span style=\"color: #008000; text-decoration-color: #008000\">'await'</span> expression.                                                    <span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">                        </span>\n",
+       "</pre>\n"
+      ],
+      "text/plain": [
+       "\u001b[2;36m[15:23:37]\u001b[0m\u001b[2;36m \u001b[0m\u001b[1;31mERROR   \u001b[0m Failed to run or to evaluate example \u001b[1m{\u001b[0m\u001b[32m'inputs'\u001b[0m: \u001b[1m{\u001b[0m\u001b[32m'question'\u001b[0m: \u001b[32m'Chad \u001b[0m    \u001b]8;id=908655;file:///Users/aschung/dev/devan/peter/optimizer/bootstrap_fewshot.py\u001b\\\u001b[2mbootstrap_fewshot.py\u001b[0m\u001b]8;;\u001b\\\u001b[2m:\u001b[0m\u001b]8;id=709512;file:///Users/aschung/dev/devan/peter/optimizer/bootstrap_fewshot.py#172\u001b\\\u001b[2m172\u001b[0m\u001b]8;;\u001b\\\n",
+       "\u001b[2;36m           \u001b[0m         \u001b[32msaves 40% of the money he earns/receives in a year.  This year, he \u001b[0m    \u001b[2m                        \u001b[0m\n",
+       "\u001b[2;36m           \u001b[0m         \u001b[32mmade $600 mowing yards and received $250.00 for his birthday/holidays.\u001b[0m \u001b[2m                        \u001b[0m\n",
+       "\u001b[2;36m           \u001b[0m         \u001b[32mHe also made $150.00 by selling some old video games and another \u001b[0m      \u001b[2m                        \u001b[0m\n",
+       "\u001b[2;36m           \u001b[0m         \u001b[32m$150.00 doing odd jobs.  How much will he save?'\u001b[0m\u001b[1m}\u001b[0m, \u001b[32m'outputs'\u001b[0m:          \u001b[2m                        \u001b[0m\n",
+       "\u001b[2;36m           \u001b[0m         \u001b[1m{\u001b[0m\u001b[32m'gold_reasoning'\u001b[0m: \u001b[32m'He made $600.00 mowing yards, $250.00 for his \u001b[0m     \u001b[2m                        \u001b[0m\n",
+       "\u001b[2;36m           \u001b[0m         \u001b[32mbirthday, $150.00 selling items and $150.00 doing odd jobs so he made \u001b[0m \u001b[2m                        \u001b[0m\n",
+       "\u001b[2;36m           \u001b[0m         \u001b[32m600+250+150+150 = $\u001b[0m\u001b[32m<\u001b[0m\u001b[32m<600+250+150+\u001b[0m\u001b[32m150\u001b[0m\u001b[32m=\u001b[0m\u001b[32m1150\u001b[0m\u001b[32m.00>>1,150.00 He made \u001b[0m        \u001b[2m                        \u001b[0m\n",
+       "\u001b[2;36m           \u001b[0m         \u001b[32m$1,150.00 and will save 40% so he saves 1150*.40 = \u001b[0m                    \u001b[2m                        \u001b[0m\n",
+       "\u001b[2;36m           \u001b[0m         \u001b[32m$<<1150*.\u001b[0m\u001b[32m40\u001b[0m\u001b[32m=\u001b[0m\u001b[32m460\u001b[0m\u001b[32m.00>>460.00'\u001b[0m\u001b[39m, \u001b[0m\u001b[32m'answer'\u001b[0m\u001b[39m: \u001b[0m\u001b[32m'460'\u001b[0m\u001b[1;39m}\u001b[0m\u001b[1;39m}\u001b[0m\u001b[39m with <function \u001b[0m         \u001b[2m                        \u001b[0m\n",
+       "\u001b[2;36m           \u001b[0m         \u001b[39mwv_gsm8k_metric at \u001b[0m\u001b[1;36m0x171bf72e0\u001b[0m\u001b[1m>\u001b[0m due to object bool can't be used in    \u001b[2m                        \u001b[0m\n",
+       "\u001b[2;36m           \u001b[0m         \u001b[32m'await'\u001b[0m expression.                                                    \u001b[2m                        \u001b[0m\n"
+      ]
+     },
+     "metadata": {},
+     "output_type": "display_data"
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "  5%|▌         | 1/20 [00:00<00:12,  1.50it/s]"
+     ]
+    },
+    {
+     "data": {
+      "text/html": [
+       "<pre style=\"white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\"><span style=\"color: #7fbfbf; text-decoration-color: #7fbfbf\">           </span><span style=\"color: #800000; text-decoration-color: #800000; font-weight: bold\">ERROR   </span> Failed to run or to evaluate example <span style=\"font-weight: bold\">{</span><span style=\"color: #008000; text-decoration-color: #008000\">'inputs'</span>: <span style=\"font-weight: bold\">{</span><span style=\"color: #008000; text-decoration-color: #008000\">'question'</span>: <span style=\"color: #008000; text-decoration-color: #008000\">'Jen buys</span> <a href=\"file:///Users/aschung/dev/devan/peter/optimizer/bootstrap_fewshot.py\" target=\"_blank\"><span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">bootstrap_fewshot.py</span></a><span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">:</span><a href=\"file:///Users/aschung/dev/devan/peter/optimizer/bootstrap_fewshot.py#172\" target=\"_blank\"><span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">172</span></a>\n",
+       "<span style=\"color: #7fbfbf; text-decoration-color: #7fbfbf\">           </span>         <span style=\"color: #008000; text-decoration-color: #008000\">and sells candy bars. She buys candy bars for 80 cents each and sells </span> <span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">                        </span>\n",
+       "<span style=\"color: #7fbfbf; text-decoration-color: #7fbfbf\">           </span>         <span style=\"color: #008000; text-decoration-color: #008000\">them for a dollar each. If she buys 50 candy bars and sells 48 of </span>     <span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">                        </span>\n",
+       "<span style=\"color: #7fbfbf; text-decoration-color: #7fbfbf\">           </span>         <span style=\"color: #008000; text-decoration-color: #008000\">them, how much profit does she make in cents?'</span><span style=\"font-weight: bold\">}</span>, <span style=\"color: #008000; text-decoration-color: #008000\">'outputs'</span>:            <span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">                        </span>\n",
+       "<span style=\"color: #7fbfbf; text-decoration-color: #7fbfbf\">           </span>         <span style=\"font-weight: bold\">{</span><span style=\"color: #008000; text-decoration-color: #008000\">'gold_reasoning'</span>: <span style=\"color: #008000; text-decoration-color: #008000\">'It costs Jen 80 * 50 = &lt;&lt;80*50=4000&gt;&gt;4000 cents to</span> <span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">                        </span>\n",
+       "<span style=\"color: #7fbfbf; text-decoration-color: #7fbfbf\">           </span>         <span style=\"color: #008000; text-decoration-color: #008000\">buy 50 candy bars. Since a dollar is 100 cents, she earns 48 * 100 = </span>  <span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">                        </span>\n",
+       "<span style=\"color: #7fbfbf; text-decoration-color: #7fbfbf\">           </span>         <span style=\"color: #008000; text-decoration-color: #008000\">&lt;&lt;48*100=4800&gt;&gt;4800 cents by selling 48 of them. Thus her total profit</span> <span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">                        </span>\n",
+       "<span style=\"color: #7fbfbf; text-decoration-color: #7fbfbf\">           </span>         <span style=\"color: #008000; text-decoration-color: #008000\">is 4800 - 4000 = &lt;&lt;4800-4000=800&gt;&gt;800 cents.'</span><span style=\"color: #000000; text-decoration-color: #000000\">, </span><span style=\"color: #008000; text-decoration-color: #008000\">'answer'</span><span style=\"color: #000000; text-decoration-color: #000000\">: </span><span style=\"color: #008000; text-decoration-color: #008000\">'800'</span><span style=\"color: #000000; text-decoration-color: #000000; font-weight: bold\">}}</span><span style=\"color: #000000; text-decoration-color: #000000\"> with </span> <span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">                        </span>\n",
+       "<span style=\"color: #7fbfbf; text-decoration-color: #7fbfbf\">           </span>         <span style=\"color: #000000; text-decoration-color: #000000\">&lt;function wv_gsm8k_metric at </span><span style=\"color: #008080; text-decoration-color: #008080; font-weight: bold\">0x171bf72e0</span><span style=\"font-weight: bold\">&gt;</span> due to object bool can't be  <span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">                        </span>\n",
+       "<span style=\"color: #7fbfbf; text-decoration-color: #7fbfbf\">           </span>         used in <span style=\"color: #008000; text-decoration-color: #008000\">'await'</span> expression.                                            <span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">                        </span>\n",
+       "</pre>\n"
+      ],
+      "text/plain": [
+       "\u001b[2;36m          \u001b[0m\u001b[2;36m \u001b[0m\u001b[1;31mERROR   \u001b[0m Failed to run or to evaluate example \u001b[1m{\u001b[0m\u001b[32m'inputs'\u001b[0m: \u001b[1m{\u001b[0m\u001b[32m'question'\u001b[0m: \u001b[32m'Jen buys\u001b[0m \u001b]8;id=941933;file:///Users/aschung/dev/devan/peter/optimizer/bootstrap_fewshot.py\u001b\\\u001b[2mbootstrap_fewshot.py\u001b[0m\u001b]8;;\u001b\\\u001b[2m:\u001b[0m\u001b]8;id=634072;file:///Users/aschung/dev/devan/peter/optimizer/bootstrap_fewshot.py#172\u001b\\\u001b[2m172\u001b[0m\u001b]8;;\u001b\\\n",
+       "\u001b[2;36m           \u001b[0m         \u001b[32mand sells candy bars. She buys candy bars for 80 cents each and sells \u001b[0m \u001b[2m                        \u001b[0m\n",
+       "\u001b[2;36m           \u001b[0m         \u001b[32mthem for a dollar each. If she buys 50 candy bars and sells 48 of \u001b[0m     \u001b[2m                        \u001b[0m\n",
+       "\u001b[2;36m           \u001b[0m         \u001b[32mthem, how much profit does she make in cents?'\u001b[0m\u001b[1m}\u001b[0m, \u001b[32m'outputs'\u001b[0m:            \u001b[2m                        \u001b[0m\n",
+       "\u001b[2;36m           \u001b[0m         \u001b[1m{\u001b[0m\u001b[32m'gold_reasoning'\u001b[0m: \u001b[32m'It costs Jen 80 * 50 = \u001b[0m\u001b[32m<\u001b[0m\u001b[32m<80*\u001b[0m\u001b[32m50\u001b[0m\u001b[32m=\u001b[0m\u001b[32m4000\u001b[0m\u001b[32m>>4000 cents to\u001b[0m \u001b[2m                        \u001b[0m\n",
+       "\u001b[2;36m           \u001b[0m         \u001b[32mbuy 50 candy bars. Since a dollar is 100 cents, she earns 48 * 100 = \u001b[0m  \u001b[2m                        \u001b[0m\n",
+       "\u001b[2;36m           \u001b[0m         \u001b[32m<<48*\u001b[0m\u001b[32m100\u001b[0m\u001b[32m=\u001b[0m\u001b[32m4800\u001b[0m\u001b[32m>>4800 cents by selling 48 of them. Thus her total profit\u001b[0m \u001b[2m                        \u001b[0m\n",
+       "\u001b[2;36m           \u001b[0m         \u001b[32mis 4800 - 4000 = <<4800-\u001b[0m\u001b[32m4000\u001b[0m\u001b[32m=\u001b[0m\u001b[32m800\u001b[0m\u001b[32m>>800 cents.'\u001b[0m\u001b[39m, \u001b[0m\u001b[32m'answer'\u001b[0m\u001b[39m: \u001b[0m\u001b[32m'800'\u001b[0m\u001b[1;39m}\u001b[0m\u001b[1;39m}\u001b[0m\u001b[39m with \u001b[0m \u001b[2m                        \u001b[0m\n",
+       "\u001b[2;36m           \u001b[0m         \u001b[39m<function wv_gsm8k_metric at \u001b[0m\u001b[1;36m0x171bf72e0\u001b[0m\u001b[1m>\u001b[0m due to object bool can't be  \u001b[2m                        \u001b[0m\n",
+       "\u001b[2;36m           \u001b[0m         used in \u001b[32m'await'\u001b[0m expression.                                            \u001b[2m                        \u001b[0m\n"
+      ]
+     },
+     "metadata": {},
+     "output_type": "display_data"
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 10%|█         | 2/20 [00:01<00:11,  1.60it/s]"
+     ]
+    },
+    {
+     "data": {
+      "text/html": [
+       "<pre style=\"white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\"><span style=\"color: #7fbfbf; text-decoration-color: #7fbfbf\">[15:23:38] </span><span style=\"color: #800000; text-decoration-color: #800000; font-weight: bold\">ERROR   </span> Failed to run or to evaluate example <span style=\"font-weight: bold\">{</span><span style=\"color: #008000; text-decoration-color: #008000\">'inputs'</span>: <span style=\"font-weight: bold\">{</span><span style=\"color: #008000; text-decoration-color: #008000\">'question'</span>: <span style=\"color: #008000; text-decoration-color: #008000\">\"Elroy </span>   <a href=\"file:///Users/aschung/dev/devan/peter/optimizer/bootstrap_fewshot.py\" target=\"_blank\"><span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">bootstrap_fewshot.py</span></a><span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">:</span><a href=\"file:///Users/aschung/dev/devan/peter/optimizer/bootstrap_fewshot.py#172\" target=\"_blank\"><span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">172</span></a>\n",
+       "<span style=\"color: #7fbfbf; text-decoration-color: #7fbfbf\">           </span>         <span style=\"color: #008000; text-decoration-color: #008000\">decides to enter a walk-a-thon and wants to make sure he ties last </span>    <span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">                        </span>\n",
+       "<span style=\"color: #7fbfbf; text-decoration-color: #7fbfbf\">           </span>         <span style=\"color: #008000; text-decoration-color: #008000\">year's winner's cash collection. Last year, walkers earned $4 a mile. </span> <span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">                        </span>\n",
+       "<span style=\"color: #7fbfbf; text-decoration-color: #7fbfbf\">           </span>         <span style=\"color: #008000; text-decoration-color: #008000\">This year walkers earn $2.75 a mile. If last year's winner collected </span>  <span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">                        </span>\n",
+       "<span style=\"color: #7fbfbf; text-decoration-color: #7fbfbf\">           </span>         <span style=\"color: #008000; text-decoration-color: #008000\">$44, how many more miles will Elroy walk than last year's winner to </span>   <span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">                        </span>\n",
+       "<span style=\"color: #7fbfbf; text-decoration-color: #7fbfbf\">           </span>         <span style=\"color: #008000; text-decoration-color: #008000\">collect the same amount of money?\"</span><span style=\"font-weight: bold\">}</span>, <span style=\"color: #008000; text-decoration-color: #008000\">'outputs'</span>: <span style=\"font-weight: bold\">{</span><span style=\"color: #008000; text-decoration-color: #008000\">'gold_reasoning'</span>:     <span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">                        </span>\n",
+       "<span style=\"color: #7fbfbf; text-decoration-color: #7fbfbf\">           </span>         <span style=\"color: #008000; text-decoration-color: #008000\">\"Last year's winner walked 11 miles because 44 / 4 = &lt;&lt;44/4=11&gt;&gt;11 </span>    <span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">                        </span>\n",
+       "<span style=\"color: #7fbfbf; text-decoration-color: #7fbfbf\">           </span>         <span style=\"color: #008000; text-decoration-color: #008000\">Elroy has to walk 16 miles to collect $44 because 44 / 2.75 = </span>         <span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">                        </span>\n",
+       "<span style=\"color: #7fbfbf; text-decoration-color: #7fbfbf\">           </span>         <span style=\"color: #008000; text-decoration-color: #008000\">&lt;&lt;44/2.75=16&gt;&gt;16 Elroy will walk 5 more miles because 16 - 11 = </span>       <span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">                        </span>\n",
+       "<span style=\"color: #7fbfbf; text-decoration-color: #7fbfbf\">           </span>         <span style=\"color: #008000; text-decoration-color: #008000\">&lt;&lt;16-11=5&gt;&gt;5\"</span><span style=\"color: #000000; text-decoration-color: #000000\">, </span><span style=\"color: #008000; text-decoration-color: #008000\">'answer'</span><span style=\"color: #000000; text-decoration-color: #000000\">: </span><span style=\"color: #008000; text-decoration-color: #008000\">'5'</span><span style=\"color: #000000; text-decoration-color: #000000; font-weight: bold\">}}</span><span style=\"color: #000000; text-decoration-color: #000000\"> with &lt;function wv_gsm8k_metric at </span>      <span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">                        </span>\n",
+       "<span style=\"color: #7fbfbf; text-decoration-color: #7fbfbf\">           </span>         <span style=\"color: #008080; text-decoration-color: #008080; font-weight: bold\">0x171bf72e0</span><span style=\"font-weight: bold\">&gt;</span> due to object bool can't be used in <span style=\"color: #008000; text-decoration-color: #008000\">'await'</span> expression.   <span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">                        </span>\n",
+       "</pre>\n"
+      ],
+      "text/plain": [
+       "\u001b[2;36m[15:23:38]\u001b[0m\u001b[2;36m \u001b[0m\u001b[1;31mERROR   \u001b[0m Failed to run or to evaluate example \u001b[1m{\u001b[0m\u001b[32m'inputs'\u001b[0m: \u001b[1m{\u001b[0m\u001b[32m'question'\u001b[0m: \u001b[32m\"Elroy \u001b[0m   \u001b]8;id=646604;file:///Users/aschung/dev/devan/peter/optimizer/bootstrap_fewshot.py\u001b\\\u001b[2mbootstrap_fewshot.py\u001b[0m\u001b]8;;\u001b\\\u001b[2m:\u001b[0m\u001b]8;id=734106;file:///Users/aschung/dev/devan/peter/optimizer/bootstrap_fewshot.py#172\u001b\\\u001b[2m172\u001b[0m\u001b]8;;\u001b\\\n",
+       "\u001b[2;36m           \u001b[0m         \u001b[32mdecides to enter a walk-a-thon and wants to make sure he ties last \u001b[0m    \u001b[2m                        \u001b[0m\n",
+       "\u001b[2;36m           \u001b[0m         \u001b[32myear's winner's cash collection. Last year, walkers earned $4 a mile. \u001b[0m \u001b[2m                        \u001b[0m\n",
+       "\u001b[2;36m           \u001b[0m         \u001b[32mThis year walkers earn $2.75 a mile. If last year's winner collected \u001b[0m  \u001b[2m                        \u001b[0m\n",
+       "\u001b[2;36m           \u001b[0m         \u001b[32m$44, how many more miles will Elroy walk than last year's winner to \u001b[0m   \u001b[2m                        \u001b[0m\n",
+       "\u001b[2;36m           \u001b[0m         \u001b[32mcollect the same amount of money?\"\u001b[0m\u001b[1m}\u001b[0m, \u001b[32m'outputs'\u001b[0m: \u001b[1m{\u001b[0m\u001b[32m'gold_reasoning'\u001b[0m:     \u001b[2m                        \u001b[0m\n",
+       "\u001b[2;36m           \u001b[0m         \u001b[32m\"Last year's winner walked 11 miles because 44 / 4 = \u001b[0m\u001b[32m<\u001b[0m\u001b[32m<44/\u001b[0m\u001b[32m4\u001b[0m\u001b[32m=\u001b[0m\u001b[32m11\u001b[0m\u001b[32m>>11 \u001b[0m    \u001b[2m                        \u001b[0m\n",
+       "\u001b[2;36m           \u001b[0m         \u001b[32mElroy has to walk 16 miles to collect $44 because 44 / 2.75 = \u001b[0m         \u001b[2m                        \u001b[0m\n",
+       "\u001b[2;36m           \u001b[0m         \u001b[32m<<44/2.\u001b[0m\u001b[32m75\u001b[0m\u001b[32m=\u001b[0m\u001b[32m16\u001b[0m\u001b[32m>>16 Elroy will walk 5 more miles because 16 - 11 = \u001b[0m       \u001b[2m                        \u001b[0m\n",
+       "\u001b[2;36m           \u001b[0m         \u001b[32m<<16-\u001b[0m\u001b[32m11\u001b[0m\u001b[32m=\u001b[0m\u001b[32m5\u001b[0m\u001b[32m>>5\"\u001b[0m\u001b[39m, \u001b[0m\u001b[32m'answer'\u001b[0m\u001b[39m: \u001b[0m\u001b[32m'5'\u001b[0m\u001b[1;39m}\u001b[0m\u001b[1;39m}\u001b[0m\u001b[39m with <function wv_gsm8k_metric at \u001b[0m      \u001b[2m                        \u001b[0m\n",
+       "\u001b[2;36m           \u001b[0m         \u001b[1;36m0x171bf72e0\u001b[0m\u001b[1m>\u001b[0m due to object bool can't be used in \u001b[32m'await'\u001b[0m expression.   \u001b[2m                        \u001b[0m\n"
+      ]
+     },
+     "metadata": {},
+     "output_type": "display_data"
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 15%|█▌        | 3/20 [00:01<00:10,  1.62it/s]"
+     ]
+    },
+    {
+     "data": {
+      "text/html": [
+       "<pre style=\"white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\"><span style=\"color: #7fbfbf; text-decoration-color: #7fbfbf\">[15:23:39] </span><span style=\"color: #800000; text-decoration-color: #800000; font-weight: bold\">ERROR   </span> Failed to run or to evaluate example <span style=\"font-weight: bold\">{</span><span style=\"color: #008000; text-decoration-color: #008000\">'inputs'</span>: <span style=\"font-weight: bold\">{</span><span style=\"color: #008000; text-decoration-color: #008000\">'question'</span>: <span style=\"color: #008000; text-decoration-color: #008000\">'Mindy </span>   <a href=\"file:///Users/aschung/dev/devan/peter/optimizer/bootstrap_fewshot.py\" target=\"_blank\"><span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">bootstrap_fewshot.py</span></a><span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">:</span><a href=\"file:///Users/aschung/dev/devan/peter/optimizer/bootstrap_fewshot.py#172\" target=\"_blank\"><span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">172</span></a>\n",
+       "<span style=\"color: #7fbfbf; text-decoration-color: #7fbfbf\">           </span>         <span style=\"color: #008000; text-decoration-color: #008000\">has 7 less than 9 times as many emails waiting for her as phone </span>       <span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">                        </span>\n",
+       "<span style=\"color: #7fbfbf; text-decoration-color: #7fbfbf\">           </span>         <span style=\"color: #008000; text-decoration-color: #008000\">messages. If she has a total of 93 emails and phone messages combined,</span> <span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">                        </span>\n",
+       "<span style=\"color: #7fbfbf; text-decoration-color: #7fbfbf\">           </span>         <span style=\"color: #008000; text-decoration-color: #008000\">how many emails does she have?'</span><span style=\"font-weight: bold\">}</span>, <span style=\"color: #008000; text-decoration-color: #008000\">'outputs'</span>: <span style=\"font-weight: bold\">{</span><span style=\"color: #008000; text-decoration-color: #008000\">'gold_reasoning'</span>: <span style=\"color: #008000; text-decoration-color: #008000\">'Let e</span> <span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">                        </span>\n",
+       "<span style=\"color: #7fbfbf; text-decoration-color: #7fbfbf\">           </span>         <span style=\"color: #008000; text-decoration-color: #008000\">be the number of emails Mindy has and m be the number of phone </span>        <span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">                        </span>\n",
+       "<span style=\"color: #7fbfbf; text-decoration-color: #7fbfbf\">           </span>         <span style=\"color: #008000; text-decoration-color: #008000\">messages? We know that e + m = 93 and e = 9m - 7. Substituting the </span>    <span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">                        </span>\n",
+       "<span style=\"color: #7fbfbf; text-decoration-color: #7fbfbf\">           </span>         <span style=\"color: #008000; text-decoration-color: #008000\">second equation into the first equation, we get 9m - 7 + m = 93 </span>       <span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">                        </span>\n",
+       "<span style=\"color: #7fbfbf; text-decoration-color: #7fbfbf\">           </span>         <span style=\"color: #008000; text-decoration-color: #008000\">Combining like terms, we get 10m - 7 = 93 Adding 7 to both sides of </span>   <span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">                        </span>\n",
+       "<span style=\"color: #7fbfbf; text-decoration-color: #7fbfbf\">           </span>         <span style=\"color: #008000; text-decoration-color: #008000\">the equation, we get 10m = 100 Dividing both sides by 10, we get m = </span>  <span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">                        </span>\n",
+       "<span style=\"color: #7fbfbf; text-decoration-color: #7fbfbf\">           </span>         <span style=\"color: #008000; text-decoration-color: #008000\">&lt;&lt;10=10&gt;&gt;10 Substituting this value back into the equation e = 9m - 7,</span> <span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">                        </span>\n",
+       "<span style=\"color: #7fbfbf; text-decoration-color: #7fbfbf\">           </span>         <span style=\"color: #008000; text-decoration-color: #008000\">we get e = 9 * 10 - 7 = 90 - 7 = 83'</span><span style=\"color: #000000; text-decoration-color: #000000\">, </span><span style=\"color: #008000; text-decoration-color: #008000\">'answer'</span><span style=\"color: #000000; text-decoration-color: #000000\">: </span><span style=\"color: #008000; text-decoration-color: #008000\">'83'</span><span style=\"color: #000000; text-decoration-color: #000000; font-weight: bold\">}}</span><span style=\"color: #000000; text-decoration-color: #000000\"> with &lt;function </span> <span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">                        </span>\n",
+       "<span style=\"color: #7fbfbf; text-decoration-color: #7fbfbf\">           </span>         <span style=\"color: #000000; text-decoration-color: #000000\">wv_gsm8k_metric at </span><span style=\"color: #008080; text-decoration-color: #008080; font-weight: bold\">0x171bf72e0</span><span style=\"font-weight: bold\">&gt;</span> due to object bool can't be used in    <span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">                        </span>\n",
+       "<span style=\"color: #7fbfbf; text-decoration-color: #7fbfbf\">           </span>         <span style=\"color: #008000; text-decoration-color: #008000\">'await'</span> expression.                                                    <span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">                        </span>\n",
+       "</pre>\n"
+      ],
+      "text/plain": [
+       "\u001b[2;36m[15:23:39]\u001b[0m\u001b[2;36m \u001b[0m\u001b[1;31mERROR   \u001b[0m Failed to run or to evaluate example \u001b[1m{\u001b[0m\u001b[32m'inputs'\u001b[0m: \u001b[1m{\u001b[0m\u001b[32m'question'\u001b[0m: \u001b[32m'Mindy \u001b[0m   \u001b]8;id=737652;file:///Users/aschung/dev/devan/peter/optimizer/bootstrap_fewshot.py\u001b\\\u001b[2mbootstrap_fewshot.py\u001b[0m\u001b]8;;\u001b\\\u001b[2m:\u001b[0m\u001b]8;id=992178;file:///Users/aschung/dev/devan/peter/optimizer/bootstrap_fewshot.py#172\u001b\\\u001b[2m172\u001b[0m\u001b]8;;\u001b\\\n",
+       "\u001b[2;36m           \u001b[0m         \u001b[32mhas 7 less than 9 times as many emails waiting for her as phone \u001b[0m       \u001b[2m                        \u001b[0m\n",
+       "\u001b[2;36m           \u001b[0m         \u001b[32mmessages. If she has a total of 93 emails and phone messages combined,\u001b[0m \u001b[2m                        \u001b[0m\n",
+       "\u001b[2;36m           \u001b[0m         \u001b[32mhow many emails does she have?'\u001b[0m\u001b[1m}\u001b[0m, \u001b[32m'outputs'\u001b[0m: \u001b[1m{\u001b[0m\u001b[32m'gold_reasoning'\u001b[0m: \u001b[32m'Let e\u001b[0m \u001b[2m                        \u001b[0m\n",
+       "\u001b[2;36m           \u001b[0m         \u001b[32mbe the number of emails Mindy has and m be the number of phone \u001b[0m        \u001b[2m                        \u001b[0m\n",
+       "\u001b[2;36m           \u001b[0m         \u001b[32mmessages? We know that e + m = 93 and e = 9m - 7. Substituting the \u001b[0m    \u001b[2m                        \u001b[0m\n",
+       "\u001b[2;36m           \u001b[0m         \u001b[32msecond equation into the first equation, we get 9m - 7 + m = 93 \u001b[0m       \u001b[2m                        \u001b[0m\n",
+       "\u001b[2;36m           \u001b[0m         \u001b[32mCombining like terms, we get 10m - 7 = 93 Adding 7 to both sides of \u001b[0m   \u001b[2m                        \u001b[0m\n",
+       "\u001b[2;36m           \u001b[0m         \u001b[32mthe equation, we get 10m = 100 Dividing both sides by 10, we get m = \u001b[0m  \u001b[2m                        \u001b[0m\n",
+       "\u001b[2;36m           \u001b[0m         \u001b[32m<\u001b[0m\u001b[32m<\u001b[0m\u001b[32m10\u001b[0m\u001b[32m=\u001b[0m\u001b[32m10\u001b[0m\u001b[32m>>10 Substituting this value back into the equation e = 9m - 7,\u001b[0m \u001b[2m                        \u001b[0m\n",
+       "\u001b[2;36m           \u001b[0m         \u001b[32mwe get e = 9 * 10 - 7 = 90 - 7 = 83'\u001b[0m\u001b[39m, \u001b[0m\u001b[32m'answer'\u001b[0m\u001b[39m: \u001b[0m\u001b[32m'83'\u001b[0m\u001b[1;39m}\u001b[0m\u001b[1;39m}\u001b[0m\u001b[39m with <function \u001b[0m \u001b[2m                        \u001b[0m\n",
+       "\u001b[2;36m           \u001b[0m         \u001b[39mwv_gsm8k_metric at \u001b[0m\u001b[1;36m0x171bf72e0\u001b[0m\u001b[1m>\u001b[0m due to object bool can't be used in    \u001b[2m                        \u001b[0m\n",
+       "\u001b[2;36m           \u001b[0m         \u001b[32m'await'\u001b[0m expression.                                                    \u001b[2m                        \u001b[0m\n"
+      ]
+     },
+     "metadata": {},
+     "output_type": "display_data"
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 20%|██        | 4/20 [00:03<00:12,  1.32it/s]\n"
+     ]
+    },
+    {
+     "data": {
+      "text/html": [
+       "<pre style=\"white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\"><span style=\"color: #800000; text-decoration-color: #800000\">Error generating fewshot examples: object bool can't be used in </span><span style=\"color: #800000; text-decoration-color: #800000\">'await'</span><span style=\"color: #800000; text-decoration-color: #800000\"> expression</span>\n",
+       "</pre>\n"
+      ],
+      "text/plain": [
+       "\u001b[31mError generating fewshot examples: object bool can't be used in \u001b[0m\u001b[31m'await'\u001b[0m\u001b[31m expression\u001b[0m\n"
+      ]
+     },
+     "metadata": {},
+     "output_type": "display_data"
+    },
+    {
+     "data": {
+      "text/html": [
+       "<pre style=\"white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\">Running without fewshot examples.\n",
+       "</pre>\n"
+      ],
+      "text/plain": [
+       "Running without fewshot examples.\n"
+      ]
+     },
+     "metadata": {},
+     "output_type": "display_data"
+    },
+    {
+     "ename": "CancelledError",
+     "evalue": "",
+     "output_type": "error",
+     "traceback": [
+      "\u001b[0;31m---------------------------------------------------------------------------\u001b[0m",
+      "\u001b[0;31mCancelledError\u001b[0m                            Traceback (most recent call last)",
+      "Cell \u001b[0;32mIn[12], line 3\u001b[0m\n\u001b[1;32m      1\u001b[0m \u001b[38;5;28;01mfrom\u001b[39;00m \u001b[38;5;21;01mpeter\u001b[39;00m\u001b[38;5;21;01m.\u001b[39;00m\u001b[38;5;21;01mprompt\u001b[39;00m\u001b[38;5;21;01m.\u001b[39;00m\u001b[38;5;21;01mprompt_base\u001b[39;00m \u001b[38;5;28;01mimport\u001b[39;00m Prompt\n\u001b[0;32m----> 3\u001b[0m optimized_prompt \u001b[38;5;241m=\u001b[39m \u001b[38;5;28;01mawait\u001b[39;00m mipro\u001b[38;5;241m.\u001b[39moptimize(\n\u001b[1;32m      4\u001b[0m     student\u001b[38;5;241m=\u001b[39mPrompt\u001b[38;5;241m.\u001b[39mload_file(\u001b[38;5;124m\"\u001b[39m\u001b[38;5;124m./.test_prompts/gsm8k-test.prompt\u001b[39m\u001b[38;5;124m\"\u001b[39m),\n\u001b[1;32m      5\u001b[0m     trainset\u001b[38;5;241m=\u001b[39mwv_trainset[:\u001b[38;5;241m20\u001b[39m],\n\u001b[1;32m      6\u001b[0m     valset\u001b[38;5;241m=\u001b[39mwv_devset[:\u001b[38;5;241m50\u001b[39m],\n\u001b[1;32m      7\u001b[0m     log_dir\u001b[38;5;241m=\u001b[39m\u001b[38;5;124m\"\u001b[39m\u001b[38;5;124m./.mipro_logs\u001b[39m\u001b[38;5;124m\"\u001b[39m,\n\u001b[1;32m      8\u001b[0m     eval_kwargs\u001b[38;5;241m=\u001b[39m{\n\u001b[1;32m      9\u001b[0m         \u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mmax_errors\u001b[39m\u001b[38;5;124m\"\u001b[39m: \u001b[38;5;241m50\u001b[39m,\n\u001b[1;32m     10\u001b[0m     },\n\u001b[1;32m     11\u001b[0m     max_bootstrapped_demos\u001b[38;5;241m=\u001b[39m\u001b[38;5;241m5\u001b[39m,\n\u001b[1;32m     12\u001b[0m     max_labeled_demos\u001b[38;5;241m=\u001b[39m\u001b[38;5;241m8\u001b[39m,\n\u001b[1;32m     13\u001b[0m )\n",
+      "File \u001b[0;32m~/dev/devan/peter/optimizer/mipro.py:243\u001b[0m, in \u001b[0;36mMIPRO.optimize\u001b[0;34m(self, student, trainset, valset, num_batches, max_bootstrapped_demos, max_labeled_demos, eval_kwargs, seed, minibatch, prompt_aware_proposer, requires_permission_to_run, log_dir)\u001b[0m\n\u001b[1;32m    241\u001b[0m proposer\u001b[38;5;241m.\u001b[39muse_instruct_history \u001b[38;5;241m=\u001b[39m \u001b[38;5;28;01mFalse\u001b[39;00m\n\u001b[1;32m    242\u001b[0m proposer\u001b[38;5;241m.\u001b[39mset_history_randomly \u001b[38;5;241m=\u001b[39m \u001b[38;5;28;01mFalse\u001b[39;00m\n\u001b[0;32m--> 243\u001b[0m prompt_candidates \u001b[38;5;241m=\u001b[39m \u001b[38;5;28;01mawait\u001b[39;00m proposer\u001b[38;5;241m.\u001b[39mpropose_prompts(\n\u001b[1;32m    244\u001b[0m     prompt\u001b[38;5;241m=\u001b[39mprompt,\n\u001b[1;32m    245\u001b[0m     fewshot_candidates\u001b[38;5;241m=\u001b[39mfewshot_candidates,\n\u001b[1;32m    246\u001b[0m     N\u001b[38;5;241m=\u001b[39m\u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39mn,\n\u001b[1;32m    247\u001b[0m     T\u001b[38;5;241m=\u001b[39m\u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39minit_temperature,\n\u001b[1;32m    248\u001b[0m     trial_logs\u001b[38;5;241m=\u001b[39m{},\n\u001b[1;32m    249\u001b[0m )\n\u001b[1;32m    250\u001b[0m prompt_candidates[\u001b[38;5;241m0\u001b[39m]\u001b[38;5;241m.\u001b[39mmessages \u001b[38;5;241m=\u001b[39m prompt\u001b[38;5;241m.\u001b[39mmessages\n\u001b[1;32m    252\u001b[0m \u001b[38;5;66;03m# instruction_candidates[1][0] = \"Given the question, and context, respond with the number of the document that is most relevant to answering the question in the field 'Answer' (ex. Answer: '3').\"\u001b[39;00m\n\u001b[1;32m    253\u001b[0m \n\u001b[1;32m    254\u001b[0m \u001b[38;5;66;03m# Save the candidate instructions generated\u001b[39;00m\n",
+      "File \u001b[0;32m~/dev/devan/peter/proposer/grounded_proposer.py:84\u001b[0m, in \u001b[0;36mGroundedProposer.propose_prompts\u001b[0;34m(self, prompt, fewshot_candidates, trial_logs, N, T, tip)\u001b[0m\n\u001b[1;32m     81\u001b[0m \u001b[38;5;250m\u001b[39m\u001b[38;5;124;03m\"\"\"This method is responsible for returning the full set of new instructions for our task, given the specified criteria.\"\"\"\u001b[39;00m\n\u001b[1;32m     83\u001b[0m \u001b[38;5;28;01mif\u001b[39;00m \u001b[38;5;129;01mnot\u001b[39;00m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39mdata_summary:\n\u001b[0;32m---> 84\u001b[0m     \u001b[38;5;28;01mawait\u001b[39;00m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39mprepare_dataset_summary()\n\u001b[1;32m     86\u001b[0m proposed_instructions \u001b[38;5;241m=\u001b[39m []\n\u001b[1;32m     88\u001b[0m \u001b[38;5;28;01mif\u001b[39;00m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39mset_tip_randomly:\n",
+      "File \u001b[0;32m~/dev/devan/peter/proposer/grounded_proposer.py:65\u001b[0m, in \u001b[0;36mGroundedProposer.prepare_dataset_summary\u001b[0;34m(self, view_data_batch_size)\u001b[0m\n\u001b[1;32m     60\u001b[0m \u001b[38;5;28;01masync\u001b[39;00m \u001b[38;5;28;01mdef\u001b[39;00m \u001b[38;5;21mprepare_dataset_summary\u001b[39m(\n\u001b[1;32m     61\u001b[0m     \u001b[38;5;28mself\u001b[39m,\n\u001b[1;32m     62\u001b[0m     view_data_batch_size\u001b[38;5;241m=\u001b[39m\u001b[38;5;241m10\u001b[39m,\n\u001b[1;32m     63\u001b[0m ):\n\u001b[1;32m     64\u001b[0m     \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39mview_data_batch_size \u001b[38;5;241m=\u001b[39m view_data_batch_size\n\u001b[0;32m---> 65\u001b[0m     \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39mdata_summary \u001b[38;5;241m=\u001b[39m \u001b[38;5;28;01mawait\u001b[39;00m create_dataset_summary(\n\u001b[1;32m     66\u001b[0m         trainset\u001b[38;5;241m=\u001b[39m\u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39mtrainset,\n\u001b[1;32m     67\u001b[0m         view_data_batch_size\u001b[38;5;241m=\u001b[39m\u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39mview_data_batch_size,\n\u001b[1;32m     68\u001b[0m         prompt_model\u001b[38;5;241m=\u001b[39m\u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39mprompt_model,\n\u001b[1;32m     69\u001b[0m     )\n\u001b[1;32m     70\u001b[0m     logging\u001b[38;5;241m.\u001b[39mdebug(\u001b[38;5;124mf\u001b[39m\u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mDATA SUMMARY: \u001b[39m\u001b[38;5;132;01m{\u001b[39;00m\u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39mdata_summary\u001b[38;5;132;01m}\u001b[39;00m\u001b[38;5;124m\"\u001b[39m)\n",
+      "File \u001b[0;32m~/dev/devan/peter/proposer/dataset_summary_generator.py:37\u001b[0m, in \u001b[0;36mcreate_dataset_summary\u001b[0;34m(trainset, view_data_batch_size, prompt_model, log_file)\u001b[0m\n\u001b[1;32m     34\u001b[0m descriptor \u001b[38;5;241m=\u001b[39m Prompt\u001b[38;5;241m.\u001b[39mfrom_filename(\u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mdataset-descriptor\u001b[39m\u001b[38;5;124m\"\u001b[39m)\n\u001b[1;32m     36\u001b[0m \u001b[38;5;66;03m# Initial batch processing\u001b[39;00m\n\u001b[0;32m---> 37\u001b[0m observations \u001b[38;5;241m=\u001b[39m \u001b[38;5;28;01mawait\u001b[39;00m process_batch(trainset, \u001b[38;5;241m0\u001b[39m, upper_lim, descriptor, prompt_model)\n\u001b[1;32m     39\u001b[0m \u001b[38;5;28;01mif\u001b[39;00m log_file:\n\u001b[1;32m     40\u001b[0m     log_file\u001b[38;5;241m.\u001b[39mwrite(\u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mPRODUCING DATASET SUMMARY\u001b[39m\u001b[38;5;130;01m\\n\u001b[39;00m\u001b[38;5;124m\"\u001b[39m)\n",
+      "File \u001b[0;32m~/dev/devan/peter/proposer/dataset_summary_generator.py:18\u001b[0m, in \u001b[0;36mprocess_batch\u001b[0;34m(trainset, batch_start, batch_end, descriptor, prompt_model)\u001b[0m\n\u001b[1;32m     10\u001b[0m \u001b[38;5;28;01masync\u001b[39;00m \u001b[38;5;28;01mdef\u001b[39;00m \u001b[38;5;21mprocess_batch\u001b[39m(\n\u001b[1;32m     11\u001b[0m     trainset: List[Dict[\u001b[38;5;28mstr\u001b[39m, Any]],\n\u001b[1;32m     12\u001b[0m     batch_start: \u001b[38;5;28mint\u001b[39m,\n\u001b[0;32m   (...)\u001b[0m\n\u001b[1;32m     15\u001b[0m     prompt_model: \u001b[38;5;28mstr\u001b[39m,\n\u001b[1;32m     16\u001b[0m ) \u001b[38;5;241m-\u001b[39m\u001b[38;5;241m>\u001b[39m \u001b[38;5;28mstr\u001b[39m:\n\u001b[1;32m     17\u001b[0m     descriptor\u001b[38;5;241m.\u001b[39mmodel \u001b[38;5;241m=\u001b[39m prompt_model\n\u001b[0;32m---> 18\u001b[0m     output \u001b[38;5;241m=\u001b[39m \u001b[38;5;28;01mawait\u001b[39;00m descriptor(\n\u001b[1;32m     19\u001b[0m         lm_config\u001b[38;5;241m=\u001b[39m\u001b[38;5;28mdict\u001b[39m(temperature\u001b[38;5;241m=\u001b[39m\u001b[38;5;241m1.0\u001b[39m),\n\u001b[1;32m     20\u001b[0m         examples\u001b[38;5;241m=\u001b[39m\u001b[38;5;124m\"\u001b[39m\u001b[38;5;124m, \u001b[39m\u001b[38;5;124m\"\u001b[39m\u001b[38;5;241m.\u001b[39mjoin(\n\u001b[1;32m     21\u001b[0m             [\u001b[38;5;28msorted\u001b[39m(item\u001b[38;5;241m.\u001b[39mkeys())\u001b[38;5;241m.\u001b[39m\u001b[38;5;21m__repr__\u001b[39m() \u001b[38;5;28;01mfor\u001b[39;00m item \u001b[38;5;129;01min\u001b[39;00m trainset[batch_start:batch_end]]\n\u001b[1;32m     22\u001b[0m         ),\n\u001b[1;32m     23\u001b[0m     )\n\u001b[1;32m     24\u001b[0m     \u001b[38;5;28;01mreturn\u001b[39;00m output[\u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mobservations\u001b[39m\u001b[38;5;124m\"\u001b[39m]\n",
+      "File \u001b[0;32m~/dev/devan/peter/prompt/prompt_base.py:74\u001b[0m, in \u001b[0;36mPrompt.__call__\u001b[0;34m(self, lm_config, **kwargs)\u001b[0m\n\u001b[1;32m     70\u001b[0m         \u001b[38;5;28;01mreturn\u001b[39;00m \u001b[38;5;28;01mNone\u001b[39;00m\n\u001b[1;32m     72\u001b[0m messages \u001b[38;5;241m=\u001b[39m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39mformat(\u001b[38;5;241m*\u001b[39m\u001b[38;5;241m*\u001b[39mkwargs)\u001b[38;5;241m.\u001b[39mmessages\n\u001b[0;32m---> 74\u001b[0m res \u001b[38;5;241m=\u001b[39m \u001b[38;5;28;01mawait\u001b[39;00m acompletion(\n\u001b[1;32m     75\u001b[0m     model\u001b[38;5;241m=\u001b[39m\u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39mmodel,\n\u001b[1;32m     76\u001b[0m     messages\u001b[38;5;241m=\u001b[39mmessages,\n\u001b[1;32m     77\u001b[0m     \u001b[38;5;241m*\u001b[39m\u001b[38;5;241m*\u001b[39mlm_config,\n\u001b[1;32m     78\u001b[0m )\n\u001b[1;32m     80\u001b[0m res_text \u001b[38;5;241m=\u001b[39m res\u001b[38;5;241m.\u001b[39mchoices[\u001b[38;5;241m0\u001b[39m]\u001b[38;5;241m.\u001b[39mmessage\u001b[38;5;241m.\u001b[39mcontent\n\u001b[1;32m     81\u001b[0m \u001b[38;5;28;01mif\u001b[39;00m \u001b[38;5;129;01mnot\u001b[39;00m res_text:\n",
+      "File \u001b[0;32m~/dev/devan/.venv/lib/python3.12/site-packages/litellm/utils.py:1342\u001b[0m, in \u001b[0;36mclient.<locals>.wrapper_async\u001b[0;34m(*args, **kwargs)\u001b[0m\n\u001b[1;32m   1340\u001b[0m                 \u001b[38;5;28;01mreturn\u001b[39;00m final_embedding_cached_response\n\u001b[1;32m   1341\u001b[0m \u001b[38;5;66;03m# MODEL CALL\u001b[39;00m\n\u001b[0;32m-> 1342\u001b[0m result \u001b[38;5;241m=\u001b[39m \u001b[38;5;28;01mawait\u001b[39;00m original_function(\u001b[38;5;241m*\u001b[39margs, \u001b[38;5;241m*\u001b[39m\u001b[38;5;241m*\u001b[39mkwargs)\n\u001b[1;32m   1343\u001b[0m end_time \u001b[38;5;241m=\u001b[39m datetime\u001b[38;5;241m.\u001b[39mdatetime\u001b[38;5;241m.\u001b[39mnow()\n\u001b[1;32m   1344\u001b[0m \u001b[38;5;28;01mif\u001b[39;00m \u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mstream\u001b[39m\u001b[38;5;124m\"\u001b[39m \u001b[38;5;129;01min\u001b[39;00m kwargs \u001b[38;5;129;01mand\u001b[39;00m kwargs[\u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mstream\u001b[39m\u001b[38;5;124m\"\u001b[39m] \u001b[38;5;241m==\u001b[39m \u001b[38;5;28;01mTrue\u001b[39;00m:\n",
+      "File \u001b[0;32m~/dev/devan/.venv/lib/python3.12/site-packages/litellm/main.py:395\u001b[0m, in \u001b[0;36macompletion\u001b[0;34m(model, messages, functions, function_call, timeout, temperature, top_p, n, stream, stream_options, stop, max_tokens, presence_penalty, frequency_penalty, logit_bias, user, response_format, seed, tools, tool_choice, parallel_tool_calls, logprobs, top_logprobs, deployment_id, base_url, api_version, api_key, model_list, extra_headers, **kwargs)\u001b[0m\n\u001b[1;32m    393\u001b[0m     response \u001b[38;5;241m=\u001b[39m init_response\n\u001b[1;32m    394\u001b[0m \u001b[38;5;28;01melif\u001b[39;00m asyncio\u001b[38;5;241m.\u001b[39miscoroutine(init_response):\n\u001b[0;32m--> 395\u001b[0m     response \u001b[38;5;241m=\u001b[39m \u001b[38;5;28;01mawait\u001b[39;00m init_response\n\u001b[1;32m    396\u001b[0m \u001b[38;5;28;01melse\u001b[39;00m:\n\u001b[1;32m    397\u001b[0m     response \u001b[38;5;241m=\u001b[39m init_response  \u001b[38;5;66;03m# type: ignore\u001b[39;00m\n",
+      "File \u001b[0;32m~/dev/devan/.venv/lib/python3.12/site-packages/litellm/llms/openai.py:1079\u001b[0m, in \u001b[0;36mOpenAIChatCompletion.acompletion\u001b[0;34m(self, data, model_response, logging_obj, timeout, api_key, api_base, organization, client, max_retries, headers, drop_params)\u001b[0m\n\u001b[1;32m   1065\u001b[0m \u001b[38;5;66;03m## LOGGING\u001b[39;00m\n\u001b[1;32m   1066\u001b[0m logging_obj\u001b[38;5;241m.\u001b[39mpre_call(\n\u001b[1;32m   1067\u001b[0m     \u001b[38;5;28minput\u001b[39m\u001b[38;5;241m=\u001b[39mdata[\u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mmessages\u001b[39m\u001b[38;5;124m\"\u001b[39m],\n\u001b[1;32m   1068\u001b[0m     api_key\u001b[38;5;241m=\u001b[39mopenai_aclient\u001b[38;5;241m.\u001b[39mapi_key,\n\u001b[0;32m   (...)\u001b[0m\n\u001b[1;32m   1076\u001b[0m     },\n\u001b[1;32m   1077\u001b[0m )\n\u001b[0;32m-> 1079\u001b[0m headers, response \u001b[38;5;241m=\u001b[39m \u001b[38;5;28;01mawait\u001b[39;00m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39mmake_openai_chat_completion_request(\n\u001b[1;32m   1080\u001b[0m     openai_aclient\u001b[38;5;241m=\u001b[39mopenai_aclient, data\u001b[38;5;241m=\u001b[39mdata, timeout\u001b[38;5;241m=\u001b[39mtimeout\n\u001b[1;32m   1081\u001b[0m )\n\u001b[1;32m   1082\u001b[0m stringified_response \u001b[38;5;241m=\u001b[39m response\u001b[38;5;241m.\u001b[39mmodel_dump()\n\u001b[1;32m   1083\u001b[0m logging_obj\u001b[38;5;241m.\u001b[39mpost_call(\n\u001b[1;32m   1084\u001b[0m     \u001b[38;5;28minput\u001b[39m\u001b[38;5;241m=\u001b[39mdata[\u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mmessages\u001b[39m\u001b[38;5;124m\"\u001b[39m],\n\u001b[1;32m   1085\u001b[0m     api_key\u001b[38;5;241m=\u001b[39mapi_key,\n\u001b[1;32m   1086\u001b[0m     original_response\u001b[38;5;241m=\u001b[39mstringified_response,\n\u001b[1;32m   1087\u001b[0m     additional_args\u001b[38;5;241m=\u001b[39m{\u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mcomplete_input_dict\u001b[39m\u001b[38;5;124m\"\u001b[39m: data},\n\u001b[1;32m   1088\u001b[0m )\n",
+      "File \u001b[0;32m~/dev/devan/.venv/lib/python3.12/site-packages/litellm/llms/openai.py:772\u001b[0m, in \u001b[0;36mOpenAIChatCompletion.make_openai_chat_completion_request\u001b[0;34m(self, openai_aclient, data, timeout)\u001b[0m\n\u001b[1;32m    765\u001b[0m \u001b[38;5;250m\u001b[39m\u001b[38;5;124;03m\"\"\"\u001b[39;00m\n\u001b[1;32m    766\u001b[0m \u001b[38;5;124;03mHelper to:\u001b[39;00m\n\u001b[1;32m    767\u001b[0m \u001b[38;5;124;03m- call chat.completions.create.with_raw_response when litellm.return_response_headers is True\u001b[39;00m\n\u001b[1;32m    768\u001b[0m \u001b[38;5;124;03m- call chat.completions.create by default\u001b[39;00m\n\u001b[1;32m    769\u001b[0m \u001b[38;5;124;03m\"\"\"\u001b[39;00m\n\u001b[1;32m    770\u001b[0m \u001b[38;5;28;01mtry\u001b[39;00m:\n\u001b[1;32m    771\u001b[0m     raw_response \u001b[38;5;241m=\u001b[39m (\n\u001b[0;32m--> 772\u001b[0m         \u001b[38;5;28;01mawait\u001b[39;00m openai_aclient\u001b[38;5;241m.\u001b[39mchat\u001b[38;5;241m.\u001b[39mcompletions\u001b[38;5;241m.\u001b[39mwith_raw_response\u001b[38;5;241m.\u001b[39mcreate(\n\u001b[1;32m    773\u001b[0m             \u001b[38;5;241m*\u001b[39m\u001b[38;5;241m*\u001b[39mdata, timeout\u001b[38;5;241m=\u001b[39mtimeout\n\u001b[1;32m    774\u001b[0m         )\n\u001b[1;32m    775\u001b[0m     )\n\u001b[1;32m    777\u001b[0m     headers \u001b[38;5;241m=\u001b[39m \u001b[38;5;28mdict\u001b[39m(raw_response\u001b[38;5;241m.\u001b[39mheaders)\n\u001b[1;32m    778\u001b[0m     response \u001b[38;5;241m=\u001b[39m raw_response\u001b[38;5;241m.\u001b[39mparse()\n",
+      "File \u001b[0;32m~/dev/devan/.venv/lib/python3.12/site-packages/openai/_legacy_response.py:353\u001b[0m, in \u001b[0;36masync_to_raw_response_wrapper.<locals>.wrapped\u001b[0;34m(*args, **kwargs)\u001b[0m\n\u001b[1;32m    349\u001b[0m extra_headers[RAW_RESPONSE_HEADER] \u001b[38;5;241m=\u001b[39m \u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mtrue\u001b[39m\u001b[38;5;124m\"\u001b[39m\n\u001b[1;32m    351\u001b[0m kwargs[\u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mextra_headers\u001b[39m\u001b[38;5;124m\"\u001b[39m] \u001b[38;5;241m=\u001b[39m extra_headers\n\u001b[0;32m--> 353\u001b[0m \u001b[38;5;28;01mreturn\u001b[39;00m cast(LegacyAPIResponse[R], \u001b[38;5;28;01mawait\u001b[39;00m func(\u001b[38;5;241m*\u001b[39margs, \u001b[38;5;241m*\u001b[39m\u001b[38;5;241m*\u001b[39mkwargs))\n",
+      "File \u001b[0;32m~/dev/devan/.venv/lib/python3.12/site-packages/openai/resources/chat/completions.py:1295\u001b[0m, in \u001b[0;36mAsyncCompletions.create\u001b[0;34m(self, messages, model, frequency_penalty, function_call, functions, logit_bias, logprobs, max_tokens, n, parallel_tool_calls, presence_penalty, response_format, seed, service_tier, stop, stream, stream_options, temperature, tool_choice, tools, top_logprobs, top_p, user, extra_headers, extra_query, extra_body, timeout)\u001b[0m\n\u001b[1;32m   1261\u001b[0m \u001b[38;5;129m@required_args\u001b[39m([\u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mmessages\u001b[39m\u001b[38;5;124m\"\u001b[39m, \u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mmodel\u001b[39m\u001b[38;5;124m\"\u001b[39m], [\u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mmessages\u001b[39m\u001b[38;5;124m\"\u001b[39m, \u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mmodel\u001b[39m\u001b[38;5;124m\"\u001b[39m, \u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mstream\u001b[39m\u001b[38;5;124m\"\u001b[39m])\n\u001b[1;32m   1262\u001b[0m \u001b[38;5;28;01masync\u001b[39;00m \u001b[38;5;28;01mdef\u001b[39;00m \u001b[38;5;21mcreate\u001b[39m(\n\u001b[1;32m   1263\u001b[0m     \u001b[38;5;28mself\u001b[39m,\n\u001b[0;32m   (...)\u001b[0m\n\u001b[1;32m   1293\u001b[0m     timeout: \u001b[38;5;28mfloat\u001b[39m \u001b[38;5;241m|\u001b[39m httpx\u001b[38;5;241m.\u001b[39mTimeout \u001b[38;5;241m|\u001b[39m \u001b[38;5;28;01mNone\u001b[39;00m \u001b[38;5;241m|\u001b[39m NotGiven \u001b[38;5;241m=\u001b[39m NOT_GIVEN,\n\u001b[1;32m   1294\u001b[0m ) \u001b[38;5;241m-\u001b[39m\u001b[38;5;241m>\u001b[39m ChatCompletion \u001b[38;5;241m|\u001b[39m AsyncStream[ChatCompletionChunk]:\n\u001b[0;32m-> 1295\u001b[0m     \u001b[38;5;28;01mreturn\u001b[39;00m \u001b[38;5;28;01mawait\u001b[39;00m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39m_post(\n\u001b[1;32m   1296\u001b[0m         \u001b[38;5;124m\"\u001b[39m\u001b[38;5;124m/chat/completions\u001b[39m\u001b[38;5;124m\"\u001b[39m,\n\u001b[1;32m   1297\u001b[0m         body\u001b[38;5;241m=\u001b[39m\u001b[38;5;28;01mawait\u001b[39;00m async_maybe_transform(\n\u001b[1;32m   1298\u001b[0m             {\n\u001b[1;32m   1299\u001b[0m                 \u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mmessages\u001b[39m\u001b[38;5;124m\"\u001b[39m: messages,\n\u001b[1;32m   1300\u001b[0m                 \u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mmodel\u001b[39m\u001b[38;5;124m\"\u001b[39m: model,\n\u001b[1;32m   1301\u001b[0m                 \u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mfrequency_penalty\u001b[39m\u001b[38;5;124m\"\u001b[39m: frequency_penalty,\n\u001b[1;32m   1302\u001b[0m                 \u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mfunction_call\u001b[39m\u001b[38;5;124m\"\u001b[39m: function_call,\n\u001b[1;32m   1303\u001b[0m                 \u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mfunctions\u001b[39m\u001b[38;5;124m\"\u001b[39m: functions,\n\u001b[1;32m   1304\u001b[0m                 \u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mlogit_bias\u001b[39m\u001b[38;5;124m\"\u001b[39m: logit_bias,\n\u001b[1;32m   1305\u001b[0m                 \u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mlogprobs\u001b[39m\u001b[38;5;124m\"\u001b[39m: logprobs,\n\u001b[1;32m   1306\u001b[0m                 \u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mmax_tokens\u001b[39m\u001b[38;5;124m\"\u001b[39m: max_tokens,\n\u001b[1;32m   1307\u001b[0m                 \u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mn\u001b[39m\u001b[38;5;124m\"\u001b[39m: n,\n\u001b[1;32m   1308\u001b[0m                 \u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mparallel_tool_calls\u001b[39m\u001b[38;5;124m\"\u001b[39m: parallel_tool_calls,\n\u001b[1;32m   1309\u001b[0m                 \u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mpresence_penalty\u001b[39m\u001b[38;5;124m\"\u001b[39m: presence_penalty,\n\u001b[1;32m   1310\u001b[0m                 \u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mresponse_format\u001b[39m\u001b[38;5;124m\"\u001b[39m: response_format,\n\u001b[1;32m   1311\u001b[0m                 \u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mseed\u001b[39m\u001b[38;5;124m\"\u001b[39m: seed,\n\u001b[1;32m   1312\u001b[0m                 \u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mservice_tier\u001b[39m\u001b[38;5;124m\"\u001b[39m: service_tier,\n\u001b[1;32m   1313\u001b[0m                 \u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mstop\u001b[39m\u001b[38;5;124m\"\u001b[39m: stop,\n\u001b[1;32m   1314\u001b[0m                 \u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mstream\u001b[39m\u001b[38;5;124m\"\u001b[39m: stream,\n\u001b[1;32m   1315\u001b[0m                 \u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mstream_options\u001b[39m\u001b[38;5;124m\"\u001b[39m: stream_options,\n\u001b[1;32m   1316\u001b[0m                 \u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mtemperature\u001b[39m\u001b[38;5;124m\"\u001b[39m: temperature,\n\u001b[1;32m   1317\u001b[0m                 \u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mtool_choice\u001b[39m\u001b[38;5;124m\"\u001b[39m: tool_choice,\n\u001b[1;32m   1318\u001b[0m                 \u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mtools\u001b[39m\u001b[38;5;124m\"\u001b[39m: tools,\n\u001b[1;32m   1319\u001b[0m                 \u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mtop_logprobs\u001b[39m\u001b[38;5;124m\"\u001b[39m: top_logprobs,\n\u001b[1;32m   1320\u001b[0m                 \u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mtop_p\u001b[39m\u001b[38;5;124m\"\u001b[39m: top_p,\n\u001b[1;32m   1321\u001b[0m                 \u001b[38;5;124m\"\u001b[39m\u001b[38;5;124muser\u001b[39m\u001b[38;5;124m\"\u001b[39m: user,\n\u001b[1;32m   1322\u001b[0m             },\n\u001b[1;32m   1323\u001b[0m             completion_create_params\u001b[38;5;241m.\u001b[39mCompletionCreateParams,\n\u001b[1;32m   1324\u001b[0m         ),\n\u001b[1;32m   1325\u001b[0m         options\u001b[38;5;241m=\u001b[39mmake_request_options(\n\u001b[1;32m   1326\u001b[0m             extra_headers\u001b[38;5;241m=\u001b[39mextra_headers, extra_query\u001b[38;5;241m=\u001b[39mextra_query, extra_body\u001b[38;5;241m=\u001b[39mextra_body, timeout\u001b[38;5;241m=\u001b[39mtimeout\n\u001b[1;32m   1327\u001b[0m         ),\n\u001b[1;32m   1328\u001b[0m         cast_to\u001b[38;5;241m=\u001b[39mChatCompletion,\n\u001b[1;32m   1329\u001b[0m         stream\u001b[38;5;241m=\u001b[39mstream \u001b[38;5;129;01mor\u001b[39;00m \u001b[38;5;28;01mFalse\u001b[39;00m,\n\u001b[1;32m   1330\u001b[0m         stream_cls\u001b[38;5;241m=\u001b[39mAsyncStream[ChatCompletionChunk],\n\u001b[1;32m   1331\u001b[0m     )\n",
+      "File \u001b[0;32m~/dev/devan/.venv/lib/python3.12/site-packages/openai/_base_client.py:1826\u001b[0m, in \u001b[0;36mAsyncAPIClient.post\u001b[0;34m(self, path, cast_to, body, files, options, stream, stream_cls)\u001b[0m\n\u001b[1;32m   1812\u001b[0m \u001b[38;5;28;01masync\u001b[39;00m \u001b[38;5;28;01mdef\u001b[39;00m \u001b[38;5;21mpost\u001b[39m(\n\u001b[1;32m   1813\u001b[0m     \u001b[38;5;28mself\u001b[39m,\n\u001b[1;32m   1814\u001b[0m     path: \u001b[38;5;28mstr\u001b[39m,\n\u001b[0;32m   (...)\u001b[0m\n\u001b[1;32m   1821\u001b[0m     stream_cls: \u001b[38;5;28mtype\u001b[39m[_AsyncStreamT] \u001b[38;5;241m|\u001b[39m \u001b[38;5;28;01mNone\u001b[39;00m \u001b[38;5;241m=\u001b[39m \u001b[38;5;28;01mNone\u001b[39;00m,\n\u001b[1;32m   1822\u001b[0m ) \u001b[38;5;241m-\u001b[39m\u001b[38;5;241m>\u001b[39m ResponseT \u001b[38;5;241m|\u001b[39m _AsyncStreamT:\n\u001b[1;32m   1823\u001b[0m     opts \u001b[38;5;241m=\u001b[39m FinalRequestOptions\u001b[38;5;241m.\u001b[39mconstruct(\n\u001b[1;32m   1824\u001b[0m         method\u001b[38;5;241m=\u001b[39m\u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mpost\u001b[39m\u001b[38;5;124m\"\u001b[39m, url\u001b[38;5;241m=\u001b[39mpath, json_data\u001b[38;5;241m=\u001b[39mbody, files\u001b[38;5;241m=\u001b[39m\u001b[38;5;28;01mawait\u001b[39;00m async_to_httpx_files(files), \u001b[38;5;241m*\u001b[39m\u001b[38;5;241m*\u001b[39moptions\n\u001b[1;32m   1825\u001b[0m     )\n\u001b[0;32m-> 1826\u001b[0m     \u001b[38;5;28;01mreturn\u001b[39;00m \u001b[38;5;28;01mawait\u001b[39;00m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39mrequest(cast_to, opts, stream\u001b[38;5;241m=\u001b[39mstream, stream_cls\u001b[38;5;241m=\u001b[39mstream_cls)\n",
+      "File \u001b[0;32m~/dev/devan/.venv/lib/python3.12/site-packages/openai/_base_client.py:1519\u001b[0m, in \u001b[0;36mAsyncAPIClient.request\u001b[0;34m(self, cast_to, options, stream, stream_cls, remaining_retries)\u001b[0m\n\u001b[1;32m   1510\u001b[0m \u001b[38;5;28;01masync\u001b[39;00m \u001b[38;5;28;01mdef\u001b[39;00m \u001b[38;5;21mrequest\u001b[39m(\n\u001b[1;32m   1511\u001b[0m     \u001b[38;5;28mself\u001b[39m,\n\u001b[1;32m   1512\u001b[0m     cast_to: Type[ResponseT],\n\u001b[0;32m   (...)\u001b[0m\n\u001b[1;32m   1517\u001b[0m     remaining_retries: Optional[\u001b[38;5;28mint\u001b[39m] \u001b[38;5;241m=\u001b[39m \u001b[38;5;28;01mNone\u001b[39;00m,\n\u001b[1;32m   1518\u001b[0m ) \u001b[38;5;241m-\u001b[39m\u001b[38;5;241m>\u001b[39m ResponseT \u001b[38;5;241m|\u001b[39m _AsyncStreamT:\n\u001b[0;32m-> 1519\u001b[0m     \u001b[38;5;28;01mreturn\u001b[39;00m \u001b[38;5;28;01mawait\u001b[39;00m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39m_request(\n\u001b[1;32m   1520\u001b[0m         cast_to\u001b[38;5;241m=\u001b[39mcast_to,\n\u001b[1;32m   1521\u001b[0m         options\u001b[38;5;241m=\u001b[39moptions,\n\u001b[1;32m   1522\u001b[0m         stream\u001b[38;5;241m=\u001b[39mstream,\n\u001b[1;32m   1523\u001b[0m         stream_cls\u001b[38;5;241m=\u001b[39mstream_cls,\n\u001b[1;32m   1524\u001b[0m         remaining_retries\u001b[38;5;241m=\u001b[39mremaining_retries,\n\u001b[1;32m   1525\u001b[0m     )\n",
+      "File \u001b[0;32m~/dev/devan/.venv/lib/python3.12/site-packages/openai/_base_client.py:1558\u001b[0m, in \u001b[0;36mAsyncAPIClient._request\u001b[0;34m(self, cast_to, options, stream, stream_cls, remaining_retries)\u001b[0m\n\u001b[1;32m   1555\u001b[0m     kwargs[\u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mauth\u001b[39m\u001b[38;5;124m\"\u001b[39m] \u001b[38;5;241m=\u001b[39m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39mcustom_auth\n\u001b[1;32m   1557\u001b[0m \u001b[38;5;28;01mtry\u001b[39;00m:\n\u001b[0;32m-> 1558\u001b[0m     response \u001b[38;5;241m=\u001b[39m \u001b[38;5;28;01mawait\u001b[39;00m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39m_client\u001b[38;5;241m.\u001b[39msend(\n\u001b[1;32m   1559\u001b[0m         request,\n\u001b[1;32m   1560\u001b[0m         stream\u001b[38;5;241m=\u001b[39mstream \u001b[38;5;129;01mor\u001b[39;00m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39m_should_stream_response_body(request\u001b[38;5;241m=\u001b[39mrequest),\n\u001b[1;32m   1561\u001b[0m         \u001b[38;5;241m*\u001b[39m\u001b[38;5;241m*\u001b[39mkwargs,\n\u001b[1;32m   1562\u001b[0m     )\n\u001b[1;32m   1563\u001b[0m \u001b[38;5;28;01mexcept\u001b[39;00m httpx\u001b[38;5;241m.\u001b[39mTimeoutException \u001b[38;5;28;01mas\u001b[39;00m err:\n\u001b[1;32m   1564\u001b[0m     log\u001b[38;5;241m.\u001b[39mdebug(\u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mEncountered httpx.TimeoutException\u001b[39m\u001b[38;5;124m\"\u001b[39m, exc_info\u001b[38;5;241m=\u001b[39m\u001b[38;5;28;01mTrue\u001b[39;00m)\n",
+      "File \u001b[0;32m~/dev/devan/.venv/lib/python3.12/site-packages/httpx/_client.py:1661\u001b[0m, in \u001b[0;36mAsyncClient.send\u001b[0;34m(self, request, stream, auth, follow_redirects)\u001b[0m\n\u001b[1;32m   1653\u001b[0m follow_redirects \u001b[38;5;241m=\u001b[39m (\n\u001b[1;32m   1654\u001b[0m     \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39mfollow_redirects\n\u001b[1;32m   1655\u001b[0m     \u001b[38;5;28;01mif\u001b[39;00m \u001b[38;5;28misinstance\u001b[39m(follow_redirects, UseClientDefault)\n\u001b[1;32m   1656\u001b[0m     \u001b[38;5;28;01melse\u001b[39;00m follow_redirects\n\u001b[1;32m   1657\u001b[0m )\n\u001b[1;32m   1659\u001b[0m auth \u001b[38;5;241m=\u001b[39m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39m_build_request_auth(request, auth)\n\u001b[0;32m-> 1661\u001b[0m response \u001b[38;5;241m=\u001b[39m \u001b[38;5;28;01mawait\u001b[39;00m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39m_send_handling_auth(\n\u001b[1;32m   1662\u001b[0m     request,\n\u001b[1;32m   1663\u001b[0m     auth\u001b[38;5;241m=\u001b[39mauth,\n\u001b[1;32m   1664\u001b[0m     follow_redirects\u001b[38;5;241m=\u001b[39mfollow_redirects,\n\u001b[1;32m   1665\u001b[0m     history\u001b[38;5;241m=\u001b[39m[],\n\u001b[1;32m   1666\u001b[0m )\n\u001b[1;32m   1667\u001b[0m \u001b[38;5;28;01mtry\u001b[39;00m:\n\u001b[1;32m   1668\u001b[0m     \u001b[38;5;28;01mif\u001b[39;00m \u001b[38;5;129;01mnot\u001b[39;00m stream:\n",
+      "File \u001b[0;32m~/dev/devan/.venv/lib/python3.12/site-packages/httpx/_client.py:1689\u001b[0m, in \u001b[0;36mAsyncClient._send_handling_auth\u001b[0;34m(self, request, auth, follow_redirects, history)\u001b[0m\n\u001b[1;32m   1686\u001b[0m request \u001b[38;5;241m=\u001b[39m \u001b[38;5;28;01mawait\u001b[39;00m auth_flow\u001b[38;5;241m.\u001b[39m\u001b[38;5;21m__anext__\u001b[39m()\n\u001b[1;32m   1688\u001b[0m \u001b[38;5;28;01mwhile\u001b[39;00m \u001b[38;5;28;01mTrue\u001b[39;00m:\n\u001b[0;32m-> 1689\u001b[0m     response \u001b[38;5;241m=\u001b[39m \u001b[38;5;28;01mawait\u001b[39;00m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39m_send_handling_redirects(\n\u001b[1;32m   1690\u001b[0m         request,\n\u001b[1;32m   1691\u001b[0m         follow_redirects\u001b[38;5;241m=\u001b[39mfollow_redirects,\n\u001b[1;32m   1692\u001b[0m         history\u001b[38;5;241m=\u001b[39mhistory,\n\u001b[1;32m   1693\u001b[0m     )\n\u001b[1;32m   1694\u001b[0m     \u001b[38;5;28;01mtry\u001b[39;00m:\n\u001b[1;32m   1695\u001b[0m         \u001b[38;5;28;01mtry\u001b[39;00m:\n",
+      "File \u001b[0;32m~/dev/devan/.venv/lib/python3.12/site-packages/httpx/_client.py:1726\u001b[0m, in \u001b[0;36mAsyncClient._send_handling_redirects\u001b[0;34m(self, request, follow_redirects, history)\u001b[0m\n\u001b[1;32m   1723\u001b[0m \u001b[38;5;28;01mfor\u001b[39;00m hook \u001b[38;5;129;01min\u001b[39;00m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39m_event_hooks[\u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mrequest\u001b[39m\u001b[38;5;124m\"\u001b[39m]:\n\u001b[1;32m   1724\u001b[0m     \u001b[38;5;28;01mawait\u001b[39;00m hook(request)\n\u001b[0;32m-> 1726\u001b[0m response \u001b[38;5;241m=\u001b[39m \u001b[38;5;28;01mawait\u001b[39;00m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39m_send_single_request(request)\n\u001b[1;32m   1727\u001b[0m \u001b[38;5;28;01mtry\u001b[39;00m:\n\u001b[1;32m   1728\u001b[0m     \u001b[38;5;28;01mfor\u001b[39;00m hook \u001b[38;5;129;01min\u001b[39;00m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39m_event_hooks[\u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mresponse\u001b[39m\u001b[38;5;124m\"\u001b[39m]:\n",
+      "File \u001b[0;32m~/dev/devan/.venv/lib/python3.12/site-packages/httpx/_client.py:1763\u001b[0m, in \u001b[0;36mAsyncClient._send_single_request\u001b[0;34m(self, request)\u001b[0m\n\u001b[1;32m   1758\u001b[0m     \u001b[38;5;28;01mraise\u001b[39;00m \u001b[38;5;167;01mRuntimeError\u001b[39;00m(\n\u001b[1;32m   1759\u001b[0m         \u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mAttempted to send an sync request with an AsyncClient instance.\u001b[39m\u001b[38;5;124m\"\u001b[39m\n\u001b[1;32m   1760\u001b[0m     )\n\u001b[1;32m   1762\u001b[0m \u001b[38;5;28;01mwith\u001b[39;00m request_context(request\u001b[38;5;241m=\u001b[39mrequest):\n\u001b[0;32m-> 1763\u001b[0m     response \u001b[38;5;241m=\u001b[39m \u001b[38;5;28;01mawait\u001b[39;00m transport\u001b[38;5;241m.\u001b[39mhandle_async_request(request)\n\u001b[1;32m   1765\u001b[0m \u001b[38;5;28;01massert\u001b[39;00m \u001b[38;5;28misinstance\u001b[39m(response\u001b[38;5;241m.\u001b[39mstream, AsyncByteStream)\n\u001b[1;32m   1766\u001b[0m response\u001b[38;5;241m.\u001b[39mrequest \u001b[38;5;241m=\u001b[39m request\n",
+      "File \u001b[0;32m~/dev/devan/.venv/lib/python3.12/site-packages/httpx/_transports/default.py:373\u001b[0m, in \u001b[0;36mAsyncHTTPTransport.handle_async_request\u001b[0;34m(self, request)\u001b[0m\n\u001b[1;32m    360\u001b[0m req \u001b[38;5;241m=\u001b[39m httpcore\u001b[38;5;241m.\u001b[39mRequest(\n\u001b[1;32m    361\u001b[0m     method\u001b[38;5;241m=\u001b[39mrequest\u001b[38;5;241m.\u001b[39mmethod,\n\u001b[1;32m    362\u001b[0m     url\u001b[38;5;241m=\u001b[39mhttpcore\u001b[38;5;241m.\u001b[39mURL(\n\u001b[0;32m   (...)\u001b[0m\n\u001b[1;32m    370\u001b[0m     extensions\u001b[38;5;241m=\u001b[39mrequest\u001b[38;5;241m.\u001b[39mextensions,\n\u001b[1;32m    371\u001b[0m )\n\u001b[1;32m    372\u001b[0m \u001b[38;5;28;01mwith\u001b[39;00m map_httpcore_exceptions():\n\u001b[0;32m--> 373\u001b[0m     resp \u001b[38;5;241m=\u001b[39m \u001b[38;5;28;01mawait\u001b[39;00m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39m_pool\u001b[38;5;241m.\u001b[39mhandle_async_request(req)\n\u001b[1;32m    375\u001b[0m \u001b[38;5;28;01massert\u001b[39;00m \u001b[38;5;28misinstance\u001b[39m(resp\u001b[38;5;241m.\u001b[39mstream, typing\u001b[38;5;241m.\u001b[39mAsyncIterable)\n\u001b[1;32m    377\u001b[0m \u001b[38;5;28;01mreturn\u001b[39;00m Response(\n\u001b[1;32m    378\u001b[0m     status_code\u001b[38;5;241m=\u001b[39mresp\u001b[38;5;241m.\u001b[39mstatus,\n\u001b[1;32m    379\u001b[0m     headers\u001b[38;5;241m=\u001b[39mresp\u001b[38;5;241m.\u001b[39mheaders,\n\u001b[1;32m    380\u001b[0m     stream\u001b[38;5;241m=\u001b[39mAsyncResponseStream(resp\u001b[38;5;241m.\u001b[39mstream),\n\u001b[1;32m    381\u001b[0m     extensions\u001b[38;5;241m=\u001b[39mresp\u001b[38;5;241m.\u001b[39mextensions,\n\u001b[1;32m    382\u001b[0m )\n",
+      "File \u001b[0;32m~/dev/devan/.venv/lib/python3.12/site-packages/httpcore/_async/connection_pool.py:216\u001b[0m, in \u001b[0;36mAsyncConnectionPool.handle_async_request\u001b[0;34m(self, request)\u001b[0m\n\u001b[1;32m    213\u001b[0m         closing \u001b[38;5;241m=\u001b[39m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39m_assign_requests_to_connections()\n\u001b[1;32m    215\u001b[0m     \u001b[38;5;28;01mawait\u001b[39;00m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39m_close_connections(closing)\n\u001b[0;32m--> 216\u001b[0m     \u001b[38;5;28;01mraise\u001b[39;00m exc \u001b[38;5;28;01mfrom\u001b[39;00m \u001b[38;5;28;01mNone\u001b[39;00m\n\u001b[1;32m    218\u001b[0m \u001b[38;5;66;03m# Return the response. Note that in this case we still have to manage\u001b[39;00m\n\u001b[1;32m    219\u001b[0m \u001b[38;5;66;03m# the point at which the response is closed.\u001b[39;00m\n\u001b[1;32m    220\u001b[0m \u001b[38;5;28;01massert\u001b[39;00m \u001b[38;5;28misinstance\u001b[39m(response\u001b[38;5;241m.\u001b[39mstream, AsyncIterable)\n",
+      "File \u001b[0;32m~/dev/devan/.venv/lib/python3.12/site-packages/httpcore/_async/connection_pool.py:196\u001b[0m, in \u001b[0;36mAsyncConnectionPool.handle_async_request\u001b[0;34m(self, request)\u001b[0m\n\u001b[1;32m    192\u001b[0m connection \u001b[38;5;241m=\u001b[39m \u001b[38;5;28;01mawait\u001b[39;00m pool_request\u001b[38;5;241m.\u001b[39mwait_for_connection(timeout\u001b[38;5;241m=\u001b[39mtimeout)\n\u001b[1;32m    194\u001b[0m \u001b[38;5;28;01mtry\u001b[39;00m:\n\u001b[1;32m    195\u001b[0m     \u001b[38;5;66;03m# Send the request on the assigned connection.\u001b[39;00m\n\u001b[0;32m--> 196\u001b[0m     response \u001b[38;5;241m=\u001b[39m \u001b[38;5;28;01mawait\u001b[39;00m connection\u001b[38;5;241m.\u001b[39mhandle_async_request(\n\u001b[1;32m    197\u001b[0m         pool_request\u001b[38;5;241m.\u001b[39mrequest\n\u001b[1;32m    198\u001b[0m     )\n\u001b[1;32m    199\u001b[0m \u001b[38;5;28;01mexcept\u001b[39;00m ConnectionNotAvailable:\n\u001b[1;32m    200\u001b[0m     \u001b[38;5;66;03m# In some cases a connection may initially be available to\u001b[39;00m\n\u001b[1;32m    201\u001b[0m     \u001b[38;5;66;03m# handle a request, but then become unavailable.\u001b[39;00m\n\u001b[1;32m    202\u001b[0m     \u001b[38;5;66;03m#\u001b[39;00m\n\u001b[1;32m    203\u001b[0m     \u001b[38;5;66;03m# In this case we clear the connection and try again.\u001b[39;00m\n\u001b[1;32m    204\u001b[0m     pool_request\u001b[38;5;241m.\u001b[39mclear_connection()\n",
+      "File \u001b[0;32m~/dev/devan/.venv/lib/python3.12/site-packages/httpcore/_async/connection.py:101\u001b[0m, in \u001b[0;36mAsyncHTTPConnection.handle_async_request\u001b[0;34m(self, request)\u001b[0m\n\u001b[1;32m     98\u001b[0m     \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39m_connect_failed \u001b[38;5;241m=\u001b[39m \u001b[38;5;28;01mTrue\u001b[39;00m\n\u001b[1;32m     99\u001b[0m     \u001b[38;5;28;01mraise\u001b[39;00m exc\n\u001b[0;32m--> 101\u001b[0m \u001b[38;5;28;01mreturn\u001b[39;00m \u001b[38;5;28;01mawait\u001b[39;00m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39m_connection\u001b[38;5;241m.\u001b[39mhandle_async_request(request)\n",
+      "File \u001b[0;32m~/dev/devan/.venv/lib/python3.12/site-packages/httpcore/_async/http11.py:143\u001b[0m, in \u001b[0;36mAsyncHTTP11Connection.handle_async_request\u001b[0;34m(self, request)\u001b[0m\n\u001b[1;32m    141\u001b[0m     \u001b[38;5;28;01masync\u001b[39;00m \u001b[38;5;28;01mwith\u001b[39;00m Trace(\u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mresponse_closed\u001b[39m\u001b[38;5;124m\"\u001b[39m, logger, request) \u001b[38;5;28;01mas\u001b[39;00m trace:\n\u001b[1;32m    142\u001b[0m         \u001b[38;5;28;01mawait\u001b[39;00m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39m_response_closed()\n\u001b[0;32m--> 143\u001b[0m \u001b[38;5;28;01mraise\u001b[39;00m exc\n",
+      "File \u001b[0;32m~/dev/devan/.venv/lib/python3.12/site-packages/httpcore/_async/http11.py:113\u001b[0m, in \u001b[0;36mAsyncHTTP11Connection.handle_async_request\u001b[0;34m(self, request)\u001b[0m\n\u001b[1;32m    102\u001b[0m     \u001b[38;5;28;01mpass\u001b[39;00m\n\u001b[1;32m    104\u001b[0m \u001b[38;5;28;01masync\u001b[39;00m \u001b[38;5;28;01mwith\u001b[39;00m Trace(\n\u001b[1;32m    105\u001b[0m     \u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mreceive_response_headers\u001b[39m\u001b[38;5;124m\"\u001b[39m, logger, request, kwargs\n\u001b[1;32m    106\u001b[0m ) \u001b[38;5;28;01mas\u001b[39;00m trace:\n\u001b[1;32m    107\u001b[0m     (\n\u001b[1;32m    108\u001b[0m         http_version,\n\u001b[1;32m    109\u001b[0m         status,\n\u001b[1;32m    110\u001b[0m         reason_phrase,\n\u001b[1;32m    111\u001b[0m         headers,\n\u001b[1;32m    112\u001b[0m         trailing_data,\n\u001b[0;32m--> 113\u001b[0m     ) \u001b[38;5;241m=\u001b[39m \u001b[38;5;28;01mawait\u001b[39;00m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39m_receive_response_headers(\u001b[38;5;241m*\u001b[39m\u001b[38;5;241m*\u001b[39mkwargs)\n\u001b[1;32m    114\u001b[0m     trace\u001b[38;5;241m.\u001b[39mreturn_value \u001b[38;5;241m=\u001b[39m (\n\u001b[1;32m    115\u001b[0m         http_version,\n\u001b[1;32m    116\u001b[0m         status,\n\u001b[1;32m    117\u001b[0m         reason_phrase,\n\u001b[1;32m    118\u001b[0m         headers,\n\u001b[1;32m    119\u001b[0m     )\n\u001b[1;32m    121\u001b[0m network_stream \u001b[38;5;241m=\u001b[39m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39m_network_stream\n",
+      "File \u001b[0;32m~/dev/devan/.venv/lib/python3.12/site-packages/httpcore/_async/http11.py:186\u001b[0m, in \u001b[0;36mAsyncHTTP11Connection._receive_response_headers\u001b[0;34m(self, request)\u001b[0m\n\u001b[1;32m    183\u001b[0m timeout \u001b[38;5;241m=\u001b[39m timeouts\u001b[38;5;241m.\u001b[39mget(\u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mread\u001b[39m\u001b[38;5;124m\"\u001b[39m, \u001b[38;5;28;01mNone\u001b[39;00m)\n\u001b[1;32m    185\u001b[0m \u001b[38;5;28;01mwhile\u001b[39;00m \u001b[38;5;28;01mTrue\u001b[39;00m:\n\u001b[0;32m--> 186\u001b[0m     event \u001b[38;5;241m=\u001b[39m \u001b[38;5;28;01mawait\u001b[39;00m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39m_receive_event(timeout\u001b[38;5;241m=\u001b[39mtimeout)\n\u001b[1;32m    187\u001b[0m     \u001b[38;5;28;01mif\u001b[39;00m \u001b[38;5;28misinstance\u001b[39m(event, h11\u001b[38;5;241m.\u001b[39mResponse):\n\u001b[1;32m    188\u001b[0m         \u001b[38;5;28;01mbreak\u001b[39;00m\n",
+      "File \u001b[0;32m~/dev/devan/.venv/lib/python3.12/site-packages/httpcore/_async/http11.py:224\u001b[0m, in \u001b[0;36mAsyncHTTP11Connection._receive_event\u001b[0;34m(self, timeout)\u001b[0m\n\u001b[1;32m    221\u001b[0m     event \u001b[38;5;241m=\u001b[39m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39m_h11_state\u001b[38;5;241m.\u001b[39mnext_event()\n\u001b[1;32m    223\u001b[0m \u001b[38;5;28;01mif\u001b[39;00m event \u001b[38;5;129;01mis\u001b[39;00m h11\u001b[38;5;241m.\u001b[39mNEED_DATA:\n\u001b[0;32m--> 224\u001b[0m     data \u001b[38;5;241m=\u001b[39m \u001b[38;5;28;01mawait\u001b[39;00m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39m_network_stream\u001b[38;5;241m.\u001b[39mread(\n\u001b[1;32m    225\u001b[0m         \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39mREAD_NUM_BYTES, timeout\u001b[38;5;241m=\u001b[39mtimeout\n\u001b[1;32m    226\u001b[0m     )\n\u001b[1;32m    228\u001b[0m     \u001b[38;5;66;03m# If we feed this case through h11 we'll raise an exception like:\u001b[39;00m\n\u001b[1;32m    229\u001b[0m     \u001b[38;5;66;03m#\u001b[39;00m\n\u001b[1;32m    230\u001b[0m     \u001b[38;5;66;03m#     httpcore.RemoteProtocolError: can't handle event type\u001b[39;00m\n\u001b[0;32m   (...)\u001b[0m\n\u001b[1;32m    234\u001b[0m     \u001b[38;5;66;03m# perspective. Instead we handle this case distinctly and treat\u001b[39;00m\n\u001b[1;32m    235\u001b[0m     \u001b[38;5;66;03m# it as a ConnectError.\u001b[39;00m\n\u001b[1;32m    236\u001b[0m     \u001b[38;5;28;01mif\u001b[39;00m data \u001b[38;5;241m==\u001b[39m \u001b[38;5;124mb\u001b[39m\u001b[38;5;124m\"\u001b[39m\u001b[38;5;124m\"\u001b[39m \u001b[38;5;129;01mand\u001b[39;00m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39m_h11_state\u001b[38;5;241m.\u001b[39mtheir_state \u001b[38;5;241m==\u001b[39m h11\u001b[38;5;241m.\u001b[39mSEND_RESPONSE:\n",
+      "File \u001b[0;32m~/dev/devan/.venv/lib/python3.12/site-packages/httpcore/_backends/anyio.py:35\u001b[0m, in \u001b[0;36mAnyIOStream.read\u001b[0;34m(self, max_bytes, timeout)\u001b[0m\n\u001b[1;32m     33\u001b[0m \u001b[38;5;28;01mwith\u001b[39;00m anyio\u001b[38;5;241m.\u001b[39mfail_after(timeout):\n\u001b[1;32m     34\u001b[0m     \u001b[38;5;28;01mtry\u001b[39;00m:\n\u001b[0;32m---> 35\u001b[0m         \u001b[38;5;28;01mreturn\u001b[39;00m \u001b[38;5;28;01mawait\u001b[39;00m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39m_stream\u001b[38;5;241m.\u001b[39mreceive(max_bytes\u001b[38;5;241m=\u001b[39mmax_bytes)\n\u001b[1;32m     36\u001b[0m     \u001b[38;5;28;01mexcept\u001b[39;00m anyio\u001b[38;5;241m.\u001b[39mEndOfStream:  \u001b[38;5;66;03m# pragma: nocover\u001b[39;00m\n\u001b[1;32m     37\u001b[0m         \u001b[38;5;28;01mreturn\u001b[39;00m \u001b[38;5;124mb\u001b[39m\u001b[38;5;124m\"\u001b[39m\u001b[38;5;124m\"\u001b[39m\n",
+      "File \u001b[0;32m~/dev/devan/.venv/lib/python3.12/site-packages/anyio/streams/tls.py:205\u001b[0m, in \u001b[0;36mTLSStream.receive\u001b[0;34m(self, max_bytes)\u001b[0m\n\u001b[1;32m    204\u001b[0m \u001b[38;5;28;01masync\u001b[39;00m \u001b[38;5;28;01mdef\u001b[39;00m \u001b[38;5;21mreceive\u001b[39m(\u001b[38;5;28mself\u001b[39m, max_bytes: \u001b[38;5;28mint\u001b[39m \u001b[38;5;241m=\u001b[39m \u001b[38;5;241m65536\u001b[39m) \u001b[38;5;241m-\u001b[39m\u001b[38;5;241m>\u001b[39m \u001b[38;5;28mbytes\u001b[39m:\n\u001b[0;32m--> 205\u001b[0m     data \u001b[38;5;241m=\u001b[39m \u001b[38;5;28;01mawait\u001b[39;00m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39m_call_sslobject_method(\u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39m_ssl_object\u001b[38;5;241m.\u001b[39mread, max_bytes)\n\u001b[1;32m    206\u001b[0m     \u001b[38;5;28;01mif\u001b[39;00m \u001b[38;5;129;01mnot\u001b[39;00m data:\n\u001b[1;32m    207\u001b[0m         \u001b[38;5;28;01mraise\u001b[39;00m EndOfStream\n",
+      "File \u001b[0;32m~/dev/devan/.venv/lib/python3.12/site-packages/anyio/streams/tls.py:147\u001b[0m, in \u001b[0;36mTLSStream._call_sslobject_method\u001b[0;34m(self, func, *args)\u001b[0m\n\u001b[1;32m    144\u001b[0m     \u001b[38;5;28;01mif\u001b[39;00m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39m_write_bio\u001b[38;5;241m.\u001b[39mpending:\n\u001b[1;32m    145\u001b[0m         \u001b[38;5;28;01mawait\u001b[39;00m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39mtransport_stream\u001b[38;5;241m.\u001b[39msend(\u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39m_write_bio\u001b[38;5;241m.\u001b[39mread())\n\u001b[0;32m--> 147\u001b[0m     data \u001b[38;5;241m=\u001b[39m \u001b[38;5;28;01mawait\u001b[39;00m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39mtransport_stream\u001b[38;5;241m.\u001b[39mreceive()\n\u001b[1;32m    148\u001b[0m \u001b[38;5;28;01mexcept\u001b[39;00m EndOfStream:\n\u001b[1;32m    149\u001b[0m     \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39m_read_bio\u001b[38;5;241m.\u001b[39mwrite_eof()\n",
+      "File \u001b[0;32m~/dev/devan/.venv/lib/python3.12/site-packages/anyio/_backends/_asyncio.py:1142\u001b[0m, in \u001b[0;36mSocketStream.receive\u001b[0;34m(self, max_bytes)\u001b[0m\n\u001b[1;32m   1136\u001b[0m \u001b[38;5;28;01mif\u001b[39;00m (\n\u001b[1;32m   1137\u001b[0m     \u001b[38;5;129;01mnot\u001b[39;00m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39m_protocol\u001b[38;5;241m.\u001b[39mread_event\u001b[38;5;241m.\u001b[39mis_set()\n\u001b[1;32m   1138\u001b[0m     \u001b[38;5;129;01mand\u001b[39;00m \u001b[38;5;129;01mnot\u001b[39;00m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39m_transport\u001b[38;5;241m.\u001b[39mis_closing()\n\u001b[1;32m   1139\u001b[0m     \u001b[38;5;129;01mand\u001b[39;00m \u001b[38;5;129;01mnot\u001b[39;00m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39m_protocol\u001b[38;5;241m.\u001b[39mis_at_eof\n\u001b[1;32m   1140\u001b[0m ):\n\u001b[1;32m   1141\u001b[0m     \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39m_transport\u001b[38;5;241m.\u001b[39mresume_reading()\n\u001b[0;32m-> 1142\u001b[0m     \u001b[38;5;28;01mawait\u001b[39;00m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39m_protocol\u001b[38;5;241m.\u001b[39mread_event\u001b[38;5;241m.\u001b[39mwait()\n\u001b[1;32m   1143\u001b[0m     \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39m_transport\u001b[38;5;241m.\u001b[39mpause_reading()\n\u001b[1;32m   1144\u001b[0m \u001b[38;5;28;01melse\u001b[39;00m:\n",
+      "File \u001b[0;32m/opt/homebrew/Cellar/python@3.12/3.12.4/Frameworks/Python.framework/Versions/3.12/lib/python3.12/asyncio/locks.py:212\u001b[0m, in \u001b[0;36mEvent.wait\u001b[0;34m(self)\u001b[0m\n\u001b[1;32m    210\u001b[0m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39m_waiters\u001b[38;5;241m.\u001b[39mappend(fut)\n\u001b[1;32m    211\u001b[0m \u001b[38;5;28;01mtry\u001b[39;00m:\n\u001b[0;32m--> 212\u001b[0m     \u001b[38;5;28;01mawait\u001b[39;00m fut\n\u001b[1;32m    213\u001b[0m     \u001b[38;5;28;01mreturn\u001b[39;00m \u001b[38;5;28;01mTrue\u001b[39;00m\n\u001b[1;32m    214\u001b[0m \u001b[38;5;28;01mfinally\u001b[39;00m:\n",
+      "\u001b[0;31mCancelledError\u001b[0m: "
+     ]
+    }
+   ],
+   "source": [
+    "from peter.prompt.prompt_base import Prompt\n",
+    "\n",
+    "optimized_prompt = await mipro.optimize(\n",
+    "    student=Prompt.load_file(\"./test_prompts/gsm8k-test.prompt\"),\n",
+    "    trainset=wv_trainset[:20],\n",
+    "    valset=wv_devset[:50],\n",
+    "    log_dir=\"./.mipro_logs\",\n",
+    "    eval_kwargs={\n",
+    "        \"max_errors\": 50,\n",
+    "    },\n",
+    "    max_bootstrapped_demos=5,\n",
+    "    max_labeled_demos=8,\n",
+    ")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "from peter.evaluate.evaluate import Evaluate as WvEvaluate\n",
+    "\n",
+    "evaluate = WvEvaluate(devset=wv_devset, metric=wv_gsm8k_metric, num_threads=NUM_THREADS, display_progress=True, display_table=False)\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# optimized_prompt = Prompt.load_file(\"./.mipro_logs/best_prompt.prompt\")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "[]"
+      ]
+     },
+     "execution_count": 15,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "optimized_prompt.fewshot"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "  0%|          | 0/100 [00:00<?, ?it/s]"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "Average Metric: 67.0 / 100  (67.0):  99%|█████████▉| 99/100 [00:04<00:00, 11.07it/s]"
+     ]
+    },
+    {
+     "data": {
+      "text/html": [
+       "<pre style=\"white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\"><span style=\"color: #7fbfbf; text-decoration-color: #7fbfbf\">[15:02:59] </span><span style=\"color: #800000; text-decoration-color: #800000; font-weight: bold\">ERROR   </span> Error parsing outputs: not well-formed <span style=\"font-weight: bold\">(</span>invalid token<span style=\"font-weight: bold\">)</span>: line <span style=\"color: #008080; text-decoration-color: #008080; font-weight: bold\">3</span>, column <span style=\"color: #008080; text-decoration-color: #008080; font-weight: bold\">45</span>     <a href=\"file:///Users/aschung/dev/devan/peter/prompt/prompt_base.py\" target=\"_blank\"><span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">prompt_base.py</span></a><span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">:</span><a href=\"file:///Users/aschung/dev/devan/peter/prompt/prompt_base.py#95\" target=\"_blank\"><span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">95</span></a>\n",
+       "</pre>\n"
+      ],
+      "text/plain": [
+       "\u001b[2;36m[15:02:59]\u001b[0m\u001b[2;36m \u001b[0m\u001b[1;31mERROR   \u001b[0m Error parsing outputs: not well-formed \u001b[1m(\u001b[0minvalid token\u001b[1m)\u001b[0m: line \u001b[1;36m3\u001b[0m, column \u001b[1;36m45\u001b[0m     \u001b]8;id=917342;file:///Users/aschung/dev/devan/peter/prompt/prompt_base.py\u001b\\\u001b[2mprompt_base.py\u001b[0m\u001b]8;;\u001b\\\u001b[2m:\u001b[0m\u001b]8;id=231421;file:///Users/aschung/dev/devan/peter/prompt/prompt_base.py#95\u001b\\\u001b[2m95\u001b[0m\u001b]8;;\u001b\\\n"
+      ]
+     },
+     "metadata": {},
+     "output_type": "display_data"
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "Error parsing outputs: not well-formed (invalid token): line 3, column 45        \n",
+      "Average Metric: 37 / 61  (60.7):  61%|██████    | 61/100 [00:01<00:00, 46.09it/s]"
+     ]
+    },
+    {
+     "data": {
+      "text/html": [
+       "<pre style=\"white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\"><span style=\"color: #7fbfbf; text-decoration-color: #7fbfbf\">           </span><span style=\"color: #800000; text-decoration-color: #800000; font-weight: bold\">ERROR   </span> \u001b<span style=\"font-weight: bold\">[</span>2m2024-<span style=\"color: #008080; text-decoration-color: #008080; font-weight: bold\">08</span>-05T<span style=\"color: #00ff00; text-decoration-color: #00ff00; font-weight: bold\">22:02:59</span>.606159Z\u001b<span style=\"font-weight: bold\">[</span>0m <span style=\"font-weight: bold\">[</span>\u001b<span style=\"font-weight: bold\">[</span>31m\u001b<span style=\"font-weight: bold\">[</span>1merror    \u001b<span style=\"font-weight: bold\">[</span>0m<span style=\"font-weight: bold\">]</span> \u001b<span style=\"font-weight: bold\">[</span>1mError for example in <a href=\"file:///Users/aschung/dev/devan/peter/evaluate/evaluate.py\" target=\"_blank\"><span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">evaluate.py</span></a><span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">:</span><a href=\"file:///Users/aschung/dev/devan/peter/evaluate/evaluate.py#252\" target=\"_blank\"><span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">252</span></a>\n",
+       "<span style=\"color: #7fbfbf; text-decoration-color: #7fbfbf\">           </span>         dev set:                 string indices must be integers, not <span style=\"color: #008000; text-decoration-color: #008000\">'str'</span>\u001b<span style=\"font-weight: bold\">[</span>0m          <span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">               </span>\n",
+       "<span style=\"color: #7fbfbf; text-decoration-color: #7fbfbf\">           </span>         <span style=\"font-weight: bold\">[</span>\u001b<span style=\"font-weight: bold\">[</span>0m\u001b<span style=\"font-weight: bold\">[</span>1m\u001b<span style=\"font-weight: bold\">[</span>34mpeter.evaluate.evaluate\u001b<span style=\"font-weight: bold\">[</span>0m<span style=\"font-weight: bold\">]</span>\u001b<span style=\"font-weight: bold\">[</span>0m \u001b<span style=\"font-weight: bold\">[</span>36mfilename\u001b<span style=\"font-weight: bold\">[</span><span style=\"color: #808000; text-decoration-color: #808000\">0m</span>=\u001b<span style=\"font-weight: bold\">[</span>35mevaluate.py\u001b<span style=\"font-weight: bold\">[</span>0m    <span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">               </span>\n",
+       "<span style=\"color: #7fbfbf; text-decoration-color: #7fbfbf\">           </span>         \u001b<span style=\"font-weight: bold\">[</span>36mlineno\u001b<span style=\"font-weight: bold\">[</span><span style=\"color: #808000; text-decoration-color: #808000\">0m</span>=\u001b<span style=\"font-weight: bold\">[</span>35m252\u001b<span style=\"font-weight: bold\">[</span>0m                                                        <span style=\"color: #7f7f7f; text-decoration-color: #7f7f7f\">               </span>\n",
+       "</pre>\n"
+      ],
+      "text/plain": [
+       "\u001b[2;36m          \u001b[0m\u001b[2;36m \u001b[0m\u001b[1;31mERROR   \u001b[0m \u001b\u001b[1m[\u001b[0m2m2024-\u001b[1;36m08\u001b[0m-05T\u001b[1;92m22:02:59\u001b[0m.606159Z\u001b\u001b[1m[\u001b[0m0m \u001b[1m[\u001b[0m\u001b\u001b[1m[\u001b[0m31m\u001b\u001b[1m[\u001b[0m1merror    \u001b\u001b[1m[\u001b[0m0m\u001b[1m]\u001b[0m \u001b\u001b[1m[\u001b[0m1mError for example in \u001b]8;id=138653;file:///Users/aschung/dev/devan/peter/evaluate/evaluate.py\u001b\\\u001b[2mevaluate.py\u001b[0m\u001b]8;;\u001b\\\u001b[2m:\u001b[0m\u001b]8;id=314728;file:///Users/aschung/dev/devan/peter/evaluate/evaluate.py#252\u001b\\\u001b[2m252\u001b[0m\u001b]8;;\u001b\\\n",
+       "\u001b[2;36m           \u001b[0m         dev set:                 string indices must be integers, not \u001b[32m'str'\u001b[0m\u001b\u001b[1m[\u001b[0m0m          \u001b[2m               \u001b[0m\n",
+       "\u001b[2;36m           \u001b[0m         \u001b[1m[\u001b[0m\u001b\u001b[1m[\u001b[0m0m\u001b\u001b[1m[\u001b[0m1m\u001b\u001b[1m[\u001b[0m34mpeter.evaluate.evaluate\u001b\u001b[1m[\u001b[0m0m\u001b[1m]\u001b[0m\u001b\u001b[1m[\u001b[0m0m \u001b\u001b[1m[\u001b[0m36mfilename\u001b\u001b[1m[\u001b[0m\u001b[33m0m\u001b[0m=\u001b\u001b[1m[\u001b[0m35mevaluate.py\u001b\u001b[1m[\u001b[0m0m    \u001b[2m               \u001b[0m\n",
+       "\u001b[2;36m           \u001b[0m         \u001b\u001b[1m[\u001b[0m36mlineno\u001b\u001b[1m[\u001b[0m\u001b[33m0m\u001b[0m=\u001b\u001b[1m[\u001b[0m35m252\u001b\u001b[1m[\u001b[0m0m                                                        \u001b[2m               \u001b[0m\n"
+      ]
+     },
+     "metadata": {},
+     "output_type": "display_data"
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "\u001b[2m2024-08-05T22:02:59.606159Z\u001b[0m [\u001b[31m\u001b[1merror    \u001b[0m] \u001b[1mError for example in dev set: \t\t string indices must be integers, not 'str'\u001b[0m [\u001b[0m\u001b[1m\u001b[34mpeter.evaluate.evaluate\u001b[0m]\u001b[0m \u001b[36mfilename\u001b[0m=\u001b[35mevaluate.py\u001b[0m \u001b[36mlineno\u001b[0m=\u001b[35m252\u001b[0m\n",
+      "Average Metric: 67.0 / 100  (67.0): 100%|██████████| 100/100 [00:04<00:00, 22.87it/s]\n"
+     ]
+    },
+    {
+     "data": {
+      "text/plain": [
+       "67.0"
+      ]
+     },
+     "execution_count": 16,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "await evaluate(optimized_prompt)"
+   ]
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "venv",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.12.4"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 2
+}
