@@ -26,4 +26,6 @@ outputs:
 
     Examples:
     {examples}
+
+    Now generate the observations in xml format.
 </user>

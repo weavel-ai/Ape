@@ -1,3 +1,4 @@
+import logging
 import re
 import asyncio
 from typing import Dict
@@ -6,23 +7,39 @@ import xml.dom.minidom as minidom
 
 
 def parse_xml_outputs(text: str) -> Dict[str, str]:
-    match = re.search(r"<outputs>.*?</outputs>", text, re.DOTALL)
-    if match:
-        xml_string = match.group(0)
-    else:
-        raise ValueError("No valid outputs found.")
-    # Parse the XML string
-    root = ET.fromstring(xml_string)
+    # Find the outermost <outputs> tag pair
+    match = re.search(r"\s*<outputs>(.*?)</outputs>\s*", text, re.DOTALL)
+    if not match:
+        logging.warning(
+            "No <outputs> tags found, attempting to parse <output> tags directly"
+        )
+        output_pattern = r'<output\s+name="([^"]+)">(.*?)</output>'
+        outputs = dict(re.findall(output_pattern, text, re.DOTALL))
+        if not outputs:
+            logging.error(f"No valid <output> tags found either. {repr(text)}")
+            raise ValueError("No valid <output> tags found either.")
+        return {k: v.strip() for k, v in outputs.items()}
 
-    # Initialize a dictionary to hold the outputs
-    outputs = {}
+    content = match.group(1)
 
-    # Iterate over each output element in the XML
-    for out in root.findall("output"):
-        name = out.get("name")  # Get the output name attribute
-        value = out.text  # Get the output value
-        if name:
-            outputs[name] = value
+    # Function to replace nested <outputs> tags with escaped versions
+    def escape_nested_outputs(match):
+        return match.group(0).replace("<", "&lt;").replace(">", "&gt;")
+
+    # Escape any nested <outputs> tags
+    content = re.sub(
+        r"<outputs>.*?</outputs>", escape_nested_outputs, content, flags=re.DOTALL
+    )
+
+    # Find all <output> tags within the <outputs> tag
+    output_pattern = r'<output\s+name="([^"]+)">(.*?)</output>'
+    outputs = dict(re.findall(output_pattern, content, re.DOTALL))
+
+    # Unescape the content and strip whitespace
+    outputs = {
+        k: v.replace("&lt;", "<").replace("&gt;", ">").strip()
+        for k, v in outputs.items()
+    }
 
     return outputs
 

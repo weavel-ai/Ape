@@ -1,7 +1,7 @@
 from weavel.types import DatasetItem
 
-from peter.types import Dataset
-from peter.utils import dict_to_xml
+from ape.types import Dataset
+from ape.utils import dict_to_xml
 
 
 def format_fewshot_xml(fewshot: Dataset) -> str:
@@ -12,8 +12,8 @@ def format_fewshot_xml(fewshot: Dataset) -> str:
             inputs, outputs = data.inputs, data.outputs
         else:
             inputs, outputs = data["inputs"], data.get("outputs", {})
-        inputs_xml = dict_to_xml(inputs, "inputs")
-        outputs_xml = dict_to_xml(outputs, "outputs")
+        inputs_xml = dict_to_xml(inputs, "input")
+        outputs_xml = dict_to_xml(outputs, "output")
         xml += f"<example>\n{inputs_xml}\n{outputs_xml}\n</example>"
 
     return xml

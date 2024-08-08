@@ -4,12 +4,12 @@ import logging
 import random
 from typing import Any, Dict, List, Union
 
-from peter.prompt.prompt_base import Prompt
-from peter.prompt.utils import format_fewshot_xml
-from peter.proposer.dataset_summary_generator import create_dataset_summary
-from peter.proposer.utils import create_history_string, extract_prompt
-from peter.types import Dataset
-from peter.proposer.propose_base import Proposer
+from ape.prompt.prompt_base import Prompt
+from ape.prompt.utils import format_fewshot_xml
+from ape.proposer.dataset_summary_generator import create_dataset_summary
+from ape.proposer.utils import create_history_string, extract_prompt
+from ape.types import Dataset
+from ape.proposer.propose_base import Proposer
 
 # Hardcoded variables
 MAX_INSTRUCT_IN_HISTORY = 5  # 10
@@ -29,9 +29,7 @@ class GroundedProposer(Proposer):
         self,
         prompt_model: str,
         trainset: Dataset,
-        prompt_string=None,
         use_dataset_summary=True,
-        prompt_aware=True,
         use_task_demos=True,
         use_instruct_history=True,
         use_tip=True,
@@ -39,7 +37,6 @@ class GroundedProposer(Proposer):
         set_history_randomly=True,
         view_data_batch_size=10,
     ):
-        self.prompt_aware = prompt_aware
         self.use_dataset_summary = use_dataset_summary
         self.use_task_demos = use_task_demos
         self.use_instruct_history = use_instruct_history
@@ -49,7 +46,6 @@ class GroundedProposer(Proposer):
 
         self.trainset = trainset
         self.prompt_model = prompt_model
-        self.prompt_string = prompt_string
         self.view_data_batch_size = view_data_batch_size
         self.describe_prompt = Prompt.from_filename("describe-prompt")
         self.generate_instructions = Prompt.from_filename("gen-instructions")
@@ -71,6 +67,7 @@ class GroundedProposer(Proposer):
 
     async def propose_prompts(
         self,
+        task_description: str,
         prompt: Prompt,
         fewshot_candidates: List[Dataset],
         trial_logs: Dict[str, Any],
@@ -105,6 +102,7 @@ class GroundedProposer(Proposer):
 
         _tasks = [
             self.propose_one(
+                task_description=task_description,
                 prompt=prompt,
                 fewshot=fewshot_candidates[i],
                 trial_logs=trial_logs,
@@ -120,6 +118,7 @@ class GroundedProposer(Proposer):
 
     async def propose_one(
         self,
+        task_description: str,
         prompt: Prompt,
         fewshot: Dataset,
         trial_logs: Dict[str, Any],
@@ -151,19 +150,18 @@ class GroundedProposer(Proposer):
         else:
             task_fewshot = "-"
 
-        prompt_description = ""
-        if self.prompt_aware:
-            output = await self.describe_prompt(prompt=prompt.dump())
+        # if self.prompt_aware:
+        #     output = await self.describe_prompt(prompt=prompt.dump())
 
-            prompt_description = (
-                output if isinstance(output, str) else output.get("description", "-")
-            )
-            logging.info(f"Prompt description: {prompt_description}")
+        #     prompt_description = (
+        #         output if isinstance(output, str) else output.get("description", "-")
+        #     )
+        #     logging.info(f"Prompt description: {prompt_description}")
 
-        logging.critical("Formatted prompt for generation")
-        logging.critical(
+        logging.debug("Formatted prompt for generation")
+        logging.debug(
             self.generate_instructions.format(
-                task_description=prompt_description if self.prompt_aware else "-",
+                task_description=task_description,
                 dataset_desc=self.data_summary if self.use_dataset_summary else "-",
                 task_fewshot=task_fewshot,
                 previous_prompts=(
@@ -176,7 +174,7 @@ class GroundedProposer(Proposer):
 
         output = await self.generate_instructions(
             lm_config=dict(temperature=T),
-            task_description=prompt_description if self.prompt_aware else "-",
+            task_description=task_description,
             dataset_desc=self.data_summary if self.use_dataset_summary else "-",
             task_fewshot=task_fewshot,
             previous_prompts=instruction_history if self.use_instruct_history else "-",

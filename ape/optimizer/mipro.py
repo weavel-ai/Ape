@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 import os
 import sys
 import textwrap
@@ -8,28 +9,28 @@ from collections import defaultdict
 import logging
 import pickle
 import random
-from typing import Any, Awaitable, Callable, Dict, Literal, Optional, Sequence
+from typing import Any, Awaitable, Callable, Dict, List, Literal, Optional, Sequence
 import numpy as np
 from pydantic import BaseModel
 from rich.logging import RichHandler
 import tqdm
-from peter.evaluate.evaluate import Evaluate
-from peter.optimizer.utils import (
+from ape.evaluate.evaluate import Evaluate
+from ape.optimizer.utils import (
     create_n_fewshot_demo_sets,
     eval_candidate_prompt,
     get_prompt_with_highest_avg_score,
     reformat_prompt_xml_style,
     save_candidate_prompt,
 )
-from peter.proposer.grounded_proposer import GroundedProposer
-from peter.utils import run_async
+from ape.proposer.grounded_proposer import GroundedProposer
+from ape.utils import run_async
 import weavel.types
 from rich import print
 import logging
 
-from peter.optimizer.optimizer_base import Optimizer
-from peter.prompt.prompt_base import Prompt
-from peter.types import Dataset
+from ape.optimizer.optimizer_base import Optimizer
+from ape.prompt.prompt_base import Prompt
+from ape.types import Dataset
 
 
 BOOTSTRAPPED_FEWSHOT_EXAMPLES_IN_CONTEXT = 3
@@ -90,17 +91,19 @@ class MIPRO(Optimizer):
         self,
         student: Prompt,
         *,
+        task_description: str = "",
         trainset: Dataset,
         valset=None,
-        num_batches=30,
+        max_steps=30,
         max_bootstrapped_demos=5,
         max_labeled_demos=2,
+        goal_score=96,
         eval_kwargs={},
         seed=9,
         minibatch=True,
         prompt_aware_proposer=True,
         requires_permission_to_run=True,
-        log_dir,
+        log_dir: str,
     ):
         # Define ANSI escape codes for colors
         YELLOW = "\033[93m"
@@ -118,15 +121,15 @@ class MIPRO(Optimizer):
         task_model_line = ""
         if not minibatch:
             estimated_task_model_calls_wo_module_calls = (
-                len(trainset) * num_batches
+                len(trainset) * max_steps
             )  # M * T * P
-            task_model_line = f"""{YELLOW}- Task Model: {BLUE}{BOLD}{len(trainset)}{ENDC}{YELLOW} examples in train set * {BLUE}{BOLD}{num_batches}{ENDC}{YELLOW} batches * {BLUE}{BOLD}# of LM calls in your program{ENDC}{YELLOW} = ({BLUE}{BOLD}{estimated_task_model_calls_wo_module_calls} * # of LM calls in your program{ENDC}{YELLOW}) task model calls{ENDC}"""
+            task_model_line = f"""{YELLOW}- Task Model: {BLUE}{BOLD}{len(trainset)}{ENDC}{YELLOW} examples in train set * {BLUE}{BOLD}{max_steps}{ENDC}{YELLOW} batches * {BLUE}{BOLD}# of LM calls in your program{ENDC}{YELLOW} = ({BLUE}{BOLD}{estimated_task_model_calls_wo_module_calls} * # of LM calls in your program{ENDC}{YELLOW}) task model calls{ENDC}"""
         else:
             estimated_task_model_calls_wo_module_calls = (
-                self.minibatch_size * num_batches
-                + (len(trainset) * (num_batches // self.minibatch_full_eval_steps))
+                self.minibatch_size * max_steps
+                + (len(trainset) * (max_steps // self.minibatch_full_eval_steps))
             )  # B * T * P
-            task_model_line = f"""{YELLOW}- Task Model: {BLUE}{BOLD}{self.minibatch_size}{ENDC}{YELLOW} examples in minibatch * {BLUE}{BOLD}{num_batches}{ENDC}{YELLOW} batches + {BLUE}{BOLD}{len(trainset)}{ENDC}{YELLOW} examples in train set * {BLUE}{BOLD}{num_batches // self.minibatch_full_eval_steps}{ENDC}{YELLOW} full evals = {BLUE}{BOLD}{estimated_task_model_calls_wo_module_calls}{ENDC}{YELLOW} task model calls{ENDC}"""
+            task_model_line = f"""{YELLOW}- Task Model: {BLUE}{BOLD}{self.minibatch_size}{ENDC}{YELLOW} examples in minibatch * {BLUE}{BOLD}{max_steps}{ENDC}{YELLOW} batches + {BLUE}{BOLD}{len(trainset)}{ENDC}{YELLOW} examples in train set * {BLUE}{BOLD}{max_steps // self.minibatch_full_eval_steps}{ENDC}{YELLOW} full evals = {BLUE}{BOLD}{estimated_task_model_calls_wo_module_calls}{ENDC}{YELLOW} task model calls{ENDC}"""
 
         user_message = textwrap.dedent(
             f"""\
@@ -173,18 +176,14 @@ class MIPRO(Optimizer):
         if run:
             # Reformat the prompt to use xml format.
             student = await reformat_prompt_xml_style(student)
-            prompt_string = student.dump() if prompt_aware_proposer else None
 
             logging.debug("Reformatted student prompt")
-            logging.debug(prompt_string)
 
             # Setup our proposer
             proposer = GroundedProposer(
                 trainset=trainset,
                 prompt_model=self.prompt_model,
-                prompt_string=prompt_string,
                 view_data_batch_size=self.view_data_batch_size,
-                prompt_aware=prompt_aware_proposer,
                 set_history_randomly=True,
                 set_tip_randomly=True,
             )
@@ -215,6 +214,8 @@ class MIPRO(Optimizer):
 
             # Generate N few shot example sets
             try:
+                # log time
+                logging.info("Started generating fewshot examples")
                 fewshot_candidates = await create_n_fewshot_demo_sets(
                     student=prompt,
                     num_candidate_sets=self.n,
@@ -226,13 +227,14 @@ class MIPRO(Optimizer):
                     seed=seed,
                 )
                 # Save the candidate fewshots generated
-                if self.log_dir:
-                    fp = os.path.join(self.log_dir, "fewshot_examples_to_save.pickle")
+                if log_dir:
+                    fp = os.path.join(log_dir, "fewshot_examples_to_save.pkl")
                     with open(fp, "wb") as file:
                         pickle.dump(fewshot_candidates, file)
+                logging.debug(fewshot_candidates)
             except Exception as e:
-                print(f"[red]Error generating fewshot examples: {e}[/red]")
-                print("Running without fewshot examples.")
+                logging.error(f"Error generating fewshot examples: {e}")
+                logging.error("Running without fewshot examples.")
                 fewshot_candidates = None
 
             # Generate N candidate prompts
@@ -240,7 +242,9 @@ class MIPRO(Optimizer):
             proposer.use_tip = True
             proposer.use_instruct_history = False
             proposer.set_history_randomly = False
+            logging.info("Started generating instructions")
             prompt_candidates = await proposer.propose_prompts(
+                task_description=task_description,
                 prompt=prompt,
                 fewshot_candidates=fewshot_candidates,
                 N=self.n,
@@ -253,7 +257,7 @@ class MIPRO(Optimizer):
 
             # Save the candidate instructions generated
             if log_dir:
-                fp = os.path.join(log_dir, "instructions_to_save.pickle")
+                fp = os.path.join(log_dir, "instructions_to_save.pkl")
                 with open(fp, "wb") as file:
                     pickle.dump(prompt_candidates, file)
 
@@ -279,9 +283,7 @@ class MIPRO(Optimizer):
             def create_objective(
                 baseline_prompt: Prompt,
                 instruction_candidates: list[dict[Literal["role", "content"], str]],
-                fewshot_candidates: (
-                    list[dict[str, any]] | list[weavel.types.DatasetItem]
-                ),
+                fewshot_candidates: List[Dataset],
                 evaluate: Callable[..., Awaitable[Any]],
                 trainset: list[dict[str, any]] | list[weavel.types.DatasetItem],
             ):
@@ -332,8 +334,8 @@ class MIPRO(Optimizer):
 
                     # Set the fewshot
                     if fewshot_candidates:
-                        logging.critical("Fewshot candidates")
-                        logging.critical(fewshot_candidates)
+                        logging.debug("Fewshot candidates")
+                        logging.debug(fewshot_candidates)
                         candidate_prompt.fewshot = fewshot_candidates[fewshot_idx]
 
                     # Log assembled program
@@ -354,6 +356,7 @@ class MIPRO(Optimizer):
                     batch_size = self._get_batch_size(minibatch, trainset)
                     logging.debug("Candidate prompt")
                     logging.debug(candidate_prompt.dump())
+                    logging.info(f"Started evals for trial {trial.number}")
                     score = run_async(
                         eval_candidate_prompt(
                             batch_size,
@@ -457,6 +460,9 @@ class MIPRO(Optimizer):
                             )
                         )
 
+                    if score >= goal_score:
+                        trial.study.stop()
+
                     return score
 
                 return objective
@@ -470,9 +476,10 @@ class MIPRO(Optimizer):
                 trainset,
             )
 
+            logging.info("Started optimization")
             sampler = optuna.samplers.TPESampler(seed=seed, multivariate=True)
             study = optuna.create_study(direction="maximize", sampler=sampler)
-            score = study.optimize(objective_function, n_trials=num_batches)
+            score = study.optimize(objective_function, n_trials=max_steps)
 
             if best_prompt is not None and self.track_stats:
                 best_prompt.trial_logs = trial_logs
@@ -480,13 +487,13 @@ class MIPRO(Optimizer):
                 best_prompt.prompt_model_total_calls = self.prompt_model_total_calls
                 best_prompt.total_calls = self.total_calls
 
-            # program_file_path = os.path.join(self.log_dir, 'best_program.pickle')
+            # program_file_path = os.path.join(self.log_dir, 'best_program.pkl')
             if log_dir:
                 prompt_file_path = os.path.join(log_dir, "best_prompt.prompt")
                 with open(prompt_file_path, "w") as f:
                     f.write(best_prompt.dump())
 
-                optuna_study_file_path = os.path.join(log_dir, "optuna_study.pickle")
+                optuna_study_file_path = os.path.join(log_dir, "optuna_study.pkl")
                 with open(optuna_study_file_path, "wb") as file:
                     pickle.dump(study, file)
 

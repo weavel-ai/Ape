@@ -1,5 +1,5 @@
-from peter.prompt.prompt_base import Prompt
-from peter.types import Dataset
+from ape.prompt.prompt_base import Prompt
+from ape.types import Dataset
 
 
 class Optimizer:

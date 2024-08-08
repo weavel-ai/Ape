@@ -1,14 +1,15 @@
+import asyncio
 import logging
 import os
 import random
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 import numpy as np
-from peter.optimizer.bootstrap_fewshot import BootstrapFewShot
-from peter.optimizer.fewshot_optimizer import FewShotOptimizer
-from peter.prompt.prompt_base import Prompt
-from peter.proposer.utils import extract_prompt
-from peter.types import Dataset
+from ape.optimizer.bootstrap_fewshot import BootstrapFewShot
+from ape.optimizer.fewshot_optimizer import FewShotOptimizer
+from ape.prompt.prompt_base import Prompt
+from ape.proposer.utils import extract_prompt
+from ape.types import Dataset
 
 
 async def reformat_prompt_xml_style(prompt: Prompt) -> Prompt:
@@ -32,6 +33,59 @@ async def reformat_prompt_xml_style(prompt: Prompt) -> Prompt:
     return new_prompt
 
 
+async def create_single_fewshot_demo_set(
+    student: Prompt,
+    trainset: Dataset,
+    seed: int,
+    max_labeled_demos: int,
+    max_bootstrapped_demos: int,
+    metric: Callable[..., Awaitable[Any]],
+    teacher_settings: dict,
+    max_rounds: int,
+    labeled_sample: bool,
+    min_num_samples: int,
+    metric_threshold: Any,
+    teacher: Any,
+    include_non_bootstrapped: bool,
+) -> Prompt:
+    trainset2 = list(trainset)
+
+    if seed == -3 and include_non_bootstrapped:
+        # zero-shot
+        prompt2 = student.reset_copy()
+    elif seed == -2 and max_labeled_demos > 0 and include_non_bootstrapped:
+        # labels only
+        optimizer = FewShotOptimizer(k=max_labeled_demos)
+        prompt2 = await optimizer.optimize(
+            student, trainset=trainset2, sample=labeled_sample
+        )
+    elif seed == -1:
+        # unshuffled few-shot
+        prompt = BootstrapFewShot(
+            metric=metric,
+            max_bootstrapped_demos=max_bootstrapped_demos,
+            max_labeled_demos=max_labeled_demos,
+            teacher_settings=teacher_settings,
+            max_rounds=max_rounds,
+        )
+        prompt2 = await prompt.optimize(student, teacher=teacher, trainset=trainset2)
+    else:
+        # shuffled few-shot
+        random.Random(seed).shuffle(trainset2)
+        size = random.Random(seed).randint(min_num_samples, max_bootstrapped_demos)
+        optimizer = BootstrapFewShot(
+            metric=metric,
+            metric_threshold=metric_threshold,
+            max_bootstrapped_demos=size,
+            max_labeled_demos=max_labeled_demos,
+            teacher_settings=teacher_settings,
+            max_rounds=max_rounds,
+        )
+        prompt2 = await optimizer.optimize(student, teacher=teacher, trainset=trainset2)
+
+    return prompt2
+
+
 async def create_n_fewshot_demo_sets(
     student: Prompt,
     num_candidate_sets: int,
@@ -48,73 +102,30 @@ async def create_n_fewshot_demo_sets(
     include_non_bootstrapped=True,
     seed=0,
 ) -> List[Dataset]:
-    """
-    This function is copied from random_search.py, and creates fewshot examples in the same way that random search does.
-    This allows us to take advantage of using the same fewshot examples when we use the same random seed in our optimizers.
-    """
-    # demo_candidates = {}
-    fewshot_candidates = []
-    # Account for confusing way this is set up, where we add in 3 more candidate sets to the N specified
     num_candidate_sets -= 3
+    random.Random(seed).shuffle(trainset)
 
-    starter_seed = seed
-    # Shuffle the trainset with the starter seed
-    random.Random(starter_seed).shuffle(trainset)
-
-    # Go through and create each candidate set
+    tasks = []
     for seed in range(-3, num_candidate_sets):
+        task = create_single_fewshot_demo_set(
+            student=student,
+            trainset=trainset,
+            seed=seed,
+            max_labeled_demos=max_labeled_demos,
+            max_bootstrapped_demos=max_bootstrapped_demos,
+            metric=metric,
+            teacher_settings=teacher_settings,
+            max_rounds=max_rounds,
+            labeled_sample=labeled_sample,
+            min_num_samples=min_num_samples,
+            metric_threshold=metric_threshold,
+            teacher=teacher,
+            include_non_bootstrapped=include_non_bootstrapped,
+        )
+        tasks.append(task)
 
-        trainset2 = list(trainset)
-
-        if seed == -3 and include_non_bootstrapped:
-            # zero-shot
-            prompt2 = student.reset_copy()
-
-        elif seed == -2 and max_labeled_demos > 0 and include_non_bootstrapped:
-            # labels only
-            optimizer = FewShotOptimizer(k=max_labeled_demos)
-            prompt2 = await optimizer.optimize(
-                student,
-                trainset=trainset2,
-                sample=labeled_sample,
-            )
-
-        elif seed == -1:
-            # unshuffled few-shot
-            prompt = BootstrapFewShot(
-                metric=metric,
-                max_bootstrapped_demos=max_bootstrapped_demos,
-                max_labeled_demos=max_labeled_demos,
-                teacher_settings=teacher_settings,
-                max_rounds=max_rounds,
-            )
-            prompt2 = await prompt.optimize(
-                student, teacher=teacher, trainset=trainset2
-            )
-
-        else:
-            # shuffled few-shot
-            random.Random(seed).shuffle(trainset2)
-            size = random.Random(seed).randint(min_num_samples, max_bootstrapped_demos)
-
-            optimizer = BootstrapFewShot(
-                metric=metric,
-                metric_threshold=metric_threshold,
-                max_bootstrapped_demos=size,
-                max_labeled_demos=max_labeled_demos,
-                teacher_settings=teacher_settings,
-                max_rounds=max_rounds,
-            )
-
-            prompt2 = await optimizer.optimize(
-                student,
-                teacher=teacher,
-                trainset=trainset2,
-            )
-
-        fewshot_candidates.append(prompt2.fewshot)
-
-    return fewshot_candidates
+    fewshot_candidates = await asyncio.gather(*tasks)
+    return [prompt.fewshot for prompt in fewshot_candidates]
 
 
 def create_minibatch(trainset, batch_size=50):

@@ -10,10 +10,10 @@ import pandas as pd
 import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
 
-from peter.types import DataItem, Dataset, Evaluator
+from ape.types import DataItem, Dataset, Evaluator
 import dspy
 
-from peter.prompt.prompt_base import Prompt
+from ape.prompt.prompt_base import Prompt
 
 try:
     from IPython.display import HTML
@@ -48,16 +48,14 @@ class Evaluate:
         *,
         devset: Dataset,
         metric: Callable[..., Union[Any, Awaitable[Any]]] = None,
-        num_threads=1,
         display_progress=False,
         display_table=False,
-        max_errors=15,
+        max_errors=3,
         return_outputs=False,
         **_kwargs,
     ):
         self.devset = devset
         self.metric: Callable[..., Union[Any, Awaitable[Any]]] = metric
-        self.num_threads = num_threads
         self.display_progress = display_progress
         self.display_table = display_table
         self.max_errors = max_errors
@@ -73,7 +71,11 @@ class Evaluate:
             )
 
     async def _execute_single_thread_async(
-        self, wrapped_program: Evaluator, devset: Dataset, display_progress: bool
+        self,
+        wrapped_program: Evaluator,
+        devset: Dataset,
+        display_progress: bool,
+        batch_size=50,
     ):
         ncorrect = 0
         ntotal = 0
@@ -91,7 +93,7 @@ class Evaluate:
                 return await wrapped_program(idx, arg)
 
         # Use a semaphore to limit concurrency
-        sem = asyncio.Semaphore(20)
+        sem = asyncio.Semaphore(batch_size)
 
         async def bounded_process_item(idx, arg):
             async with sem:
@@ -111,78 +113,6 @@ class Evaluate:
 
         return reordered_devset, ncorrect, ntotal
 
-    async def _execute_multi_thread_async(
-        self,
-        wrapped_program: Evaluator,
-        devset: Dataset,
-        num_threads: int,
-        display_progress: bool,
-    ):
-        ncorrect = 0
-        ntotal = 0
-        reordered_devset = []
-        job_cancelled = "cancelled"
-        self.cancel_jobs = asyncio.Event()
-
-        @contextlib.contextmanager
-        def interrupt_handler_manager():
-            default_handler = signal.getsignal(signal.SIGINT)
-
-            def interrupt_handler(sig, frame):
-                self.cancel_jobs.set()
-                dspy.logger.warning("Received SIGINT. Cancelling evaluation.")
-                default_handler(sig, frame)
-
-            signal.signal(signal.SIGINT, interrupt_handler)
-            yield
-            signal.signal(signal.SIGINT, default_handler)
-
-        async def cancellable_wrapped_prompt(
-            idx: int, arg, executor: AsyncExecutor
-        ) -> Tuple[int, DataItem, Union[str, Dict[str, Any], float], float]:
-            if self.cancel_jobs.is_set():
-                return None, None, job_cancelled, None
-            return await executor.run_in_executor(wrapped_program, idx, arg)
-
-        async def process_devset():
-            nonlocal ncorrect, ntotal
-            executor = AsyncExecutor(num_threads)
-            pbar = tqdm.tqdm(
-                total=len(devset), dynamic_ncols=True, disable=not display_progress
-            )
-
-            tasks = [
-                cancellable_wrapped_prompt(idx, arg, executor) for idx, arg in devset
-            ]
-
-            for completed_task in asyncio.as_completed(tasks):
-                res = await completed_task
-                example_idx, example, prediction, score = res
-
-                if prediction is job_cancelled:
-                    continue
-
-                reordered_devset.append((example_idx, example, prediction, score))
-                ncorrect += score
-                ntotal += 1
-                await executor.loop.run_in_executor(
-                    None, self._update_progress, pbar, ncorrect, ntotal
-                )
-
-            pbar.close()
-            executor.shutdown()
-
-        with interrupt_handler_manager():
-            await process_devset()
-
-        if self.cancel_jobs.is_set():
-            dspy.logger.warning(
-                "Evaluation was cancelled. The results may be incomplete."
-            )
-            raise KeyboardInterrupt
-
-        return reordered_devset, ncorrect, ntotal
-
     def _update_progress(self, pbar, ncorrect, ntotal):
         pbar.set_description(
             f"Average Metric: {ncorrect} / {ntotal}  ({round(100 * ncorrect / ntotal, 1)})"
@@ -194,7 +124,7 @@ class Evaluate:
         prompt: Prompt,
         metric: Callable[..., Union[Any, Awaitable[Any]]] = None,
         devset=None,
-        num_threads=None,
+        batch_size=50,
         display_progress=None,
         display_table=None,
         return_all_scores=False,
@@ -202,7 +132,6 @@ class Evaluate:
     ):
         metric = metric if metric is not None else self.metric
         devset = devset if devset is not None else self.devset
-        num_threads = num_threads if num_threads is not None else self.num_threads
         display_progress = (
             display_progress if display_progress is not None else self.display_progress
         )
@@ -259,19 +188,9 @@ class Evaluate:
         devset = list(enumerate(devset))
         tqdm.tqdm._instances.clear()
 
-        if num_threads == 1:
-            reordered_devset, ncorrect, ntotal = (
-                await self._execute_single_thread_async(
-                    wrapped_program, devset, display_progress
-                )
-            )
-        else:
-            reordered_devset, ncorrect, ntotal = await self._execute_multi_thread_async(
-                wrapped_program,
-                devset,
-                num_threads,
-                display_progress,
-            )
+        reordered_devset, ncorrect, ntotal = await self._execute_single_thread_async(
+            wrapped_program, devset, display_progress, batch_size
+        )
 
         dspy.logger.info(
             f"Average Metric: {ncorrect} / {ntotal} ({round(100 * ncorrect / ntotal, 1)}%)"

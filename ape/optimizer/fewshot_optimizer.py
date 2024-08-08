@@ -1,7 +1,7 @@
 import random
-from peter.optimizer.optimizer_base import Optimizer
-from peter.prompt.prompt_base import Prompt
-from peter.types import Dataset
+from ape.optimizer.optimizer_base import Optimizer
+from ape.prompt.prompt_base import Prompt
+from ape.types import Dataset
 
 
 class FewShotOptimizer(Optimizer):

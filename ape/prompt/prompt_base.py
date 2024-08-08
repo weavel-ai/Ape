@@ -1,8 +1,8 @@
 import logging
 from typing import Any, Dict, List, Literal, Optional, Self, Union
 from litellm import acompletion
-from peter.prompt.utils import format_fewshot_xml
-from peter.utils import parse_xml_outputs
+from ape.prompt.utils import format_fewshot_xml
+from ape.utils import parse_xml_outputs
 import promptfile as pf
 
 
@@ -93,6 +93,7 @@ class Prompt(pf.PromptConfig):
             return parsed_outputs
         except Exception as e:
             logging.error(f"Error parsing outputs: {e}")
+            logging.error(res_text)
             return res_text
 
     @classmethod

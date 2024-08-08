@@ -3,8 +3,8 @@ import json
 import re
 from typing import Any, Dict, List
 
-from peter.prompt.prompt_base import Prompt
-from peter.types import DataItem
+from ape.prompt.prompt_base import Prompt
+from ape.types import DataItem
 
 
 def extract_prompt(text: str):

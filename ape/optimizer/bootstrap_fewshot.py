@@ -5,11 +5,11 @@ import threading
 from typing import Any, Awaitable, Callable, Dict, Optional, Union
 
 import tqdm
-from peter.base import lm as base_lm
-from peter.optimizer.fewshot_optimizer import FewShotOptimizer
-from peter.optimizer.optimizer_base import Optimizer
-from peter.prompt.prompt_base import Prompt
-from peter.types import DataItem, Dataset
+from ape.base import lm as base_lm
+from ape.optimizer.fewshot_optimizer import FewShotOptimizer
+from ape.optimizer.optimizer_base import Optimizer
+from ape.prompt.prompt_base import Prompt
+from ape.types import DataItem, Dataset
 
 
 class BootstrapFewShot(Optimizer):
@@ -19,7 +19,7 @@ class BootstrapFewShot(Optimizer):
         metric_threshold=None,
         teacher_settings: Optional[Dict] = None,
         max_bootstrapped_demos=4,
-        max_labeled_demos=16,
+        max_labeled_demos=3,
         max_rounds=1,
         max_errors=5,
     ):
@@ -38,7 +38,7 @@ class BootstrapFewShot(Optimizer):
             Settings for the `teacher` model.
         max_bootstrapped_demos: int, default 4
             Maximum number of bootstrapped demonstrations to include
-        max_labeled_demos: int, default 16
+        max_labeled_demos: int, default 3
             Maximum number of labeled demonstrations to include.
         max_rounds: int, default 1
             Number of iterations to attempt generating the required bootstrap examples. If unsuccessful after `max_rounds`, the program ends.
@@ -104,28 +104,31 @@ class BootstrapFewShot(Optimizer):
         self.bootstrapped_fewshot = []
 
         for round_idx in range(self.max_rounds):
-            for example_idx, example in enumerate(tqdm.tqdm(self.trainset)):
+            tasks = []
+            for example_idx, example in enumerate(self.trainset):
                 if len(bootstrapped) >= max_bootstraps:
                     break
 
                 if example_idx not in bootstrapped:
-                    success = await self._bootstrap_one_example(example, round_idx)
+                    tasks.append(self._bootstrap_one_example(example, round_idx))
 
-                    if success:
-                        bootstrapped[example_idx] = True
+            results = await asyncio.gather(*tasks)
+
+            for example_idx, success in enumerate(results):
+                if success:
+                    bootstrapped[example_idx] = True
+
+            if len(bootstrapped) >= max_bootstraps:
+                break
 
         logging.debug(
-            f"Bootstrapped {len(bootstrapped)} full traces after {example_idx + 1} examples in round {round_idx}.",
+            f"Bootstrapped {len(bootstrapped)} full traces after {len(self.trainset)} examples in round {round_idx}.",
         )
-
-        # Unbootstrapped training examples
 
         self.validation = [
             x for idx, x in enumerate(self.trainset) if idx not in bootstrapped
         ]
         random.Random(0).shuffle(self.validation)
-
-        self.validation = self.validation
 
         # NOTE: Can't yet use evaluate because we need to trace *per example*
         # evaluate = Evaluate(program=self.teacher, metric=self.metric, num_threads=12)
@@ -176,13 +179,26 @@ class BootstrapFewShot(Optimizer):
             if current_error_count >= self.max_errors:
                 raise e
             logging.error(
-                f"Failed to run or to evaluate example {example} with {self.metric} due to {e}."
+                f"Failed to run or to evaluate example {example} with {self.metric}.\n Error: {e}."
             )
+
+        if success:
+            self.bootstrapped_fewshot.append(example)
 
         return success
 
     def _train(self):
+        rng = random.Random(0)
         raw_fewshot = self.validation
-        self.student.fewshot = raw_fewshot
+        augmented_fewshot = self.bootstrapped_fewshot[: self.max_bootstrapped_demos]
+
+        sample_size = min(
+            self.max_labeled_demos - len(augmented_fewshot), len(raw_fewshot)
+        )
+        sample_size = max(sample_size, 0)
+
+        raw_fewshot = rng.sample(raw_fewshot, sample_size)
+
+        self.student.fewshot = raw_fewshot + augmented_fewshot
 
         return self.student
