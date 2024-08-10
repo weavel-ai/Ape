@@ -1,6 +1,4 @@
 import asyncio
-import contextlib
-import signal
 import sys
 import threading
 import types
@@ -11,8 +9,7 @@ import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
 
 from ape.types import DataItem, Dataset, Evaluator
-import dspy
-
+from ape.utils import logger
 from ape.prompt.prompt_base import Prompt
 
 try:
@@ -63,12 +60,6 @@ class Evaluate:
         self.error_lock = threading.Lock()
         self.cancel_jobs = threading.Event()
         self.return_outputs = return_outputs
-
-        if "display" in _kwargs:
-            dspy.logger.warning(
-                "DeprecationWarning: 'display' has been deprecated. To see all information for debugging,"
-                " use 'dspy.set_log_level('debug')'. In the future this will raise an error.",
-            )
 
     async def _execute_single_thread_async(
         self,
@@ -146,12 +137,6 @@ class Evaluate:
         async def wrapped_program(
             example_idx: int, example: DataItem
         ) -> Awaitable[Tuple[int, DataItem, Union[str, Dict[str, Any]], float]]:
-            # NOTE: TODO: Won't work if threads create threads!
-            thread_stacks = dspy.settings.stack_by_thread
-            creating_new_thread = threading.get_ident() not in thread_stacks
-            if creating_new_thread:
-                thread_stacks[threading.get_ident()] = list(dspy.settings.main_stack)
-
             try:
                 inputs = (
                     example.inputs
@@ -164,12 +149,6 @@ class Evaluate:
                     prediction,
                 )  # FIXME: TODO: What's the right order? Maybe force name-based kwargs!
 
-                # increment assert and suggest failures to program's attributes
-                if hasattr(prompt, "_assert_failures"):
-                    prompt._assert_failures += dspy.settings.get("assert_failures")
-                if hasattr(prompt, "_suggest_failures"):
-                    prompt._suggest_failures += dspy.settings.get("suggest_failures")
-
                 return example_idx, example, prediction, score
             except Exception as e:
                 with self.error_lock:
@@ -178,12 +157,9 @@ class Evaluate:
                 if current_error_count >= self.max_errors:
                     raise e
 
-                dspy.logger.error(f"Error for example in dev set: \t\t {e}")
+                logger.error(f"Error for example in dev set: \t\t {e}")
 
                 return example_idx, example, {}, 0.0
-            finally:
-                if creating_new_thread:
-                    del thread_stacks[threading.get_ident()]
 
         devset = list(enumerate(devset))
         tqdm.tqdm._instances.clear()
@@ -192,7 +168,7 @@ class Evaluate:
             wrapped_program, devset, display_progress, batch_size
         )
 
-        dspy.logger.info(
+        logger.info(
             f"Average Metric: {ncorrect} / {ntotal} ({round(100 * ncorrect / ntotal, 1)}%)"
         )
 

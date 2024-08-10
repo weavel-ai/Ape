@@ -1,23 +1,22 @@
-import logging
 import re
 import asyncio
 from typing import Dict
 import xml.etree.ElementTree as ET
 import xml.dom.minidom as minidom
+from .logging import logger
 
 
 def parse_xml_outputs(text: str) -> Dict[str, str]:
     # Find the outermost <outputs> tag pair
     match = re.search(r"\s*<outputs>(.*?)</outputs>\s*", text, re.DOTALL)
     if not match:
-        logging.warning(
+        logger.warning(
             "No <outputs> tags found, attempting to parse <output> tags directly"
         )
         output_pattern = r'<output\s+name="([^"]+)">(.*?)</output>'
         outputs = dict(re.findall(output_pattern, text, re.DOTALL))
         if not outputs:
-            logging.error(f"No valid <output> tags found either. {repr(text)}")
-            raise ValueError("No valid <output> tags found either.")
+            raise ValueError(f"No valid <output> tags found either. {repr(text)}")
         return {k: v.strip() for k, v in outputs.items()}
 
     content = match.group(1)

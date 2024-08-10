@@ -1,6 +1,4 @@
-from weavel.types import DatasetItem
-
-from ape.types import Dataset
+from ape.types import Dataset, DatasetItem
 from ape.utils import dict_to_xml
 
 

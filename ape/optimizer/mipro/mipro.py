@@ -1,20 +1,15 @@
-import asyncio
-import datetime
 import os
 import sys
 import textwrap
-import threading
 import optuna
 from collections import defaultdict
-import logging
 import pickle
 import random
-from typing import Any, Awaitable, Callable, Dict, List, Literal, Optional, Sequence
+from typing import Any, Awaitable, Callable, List, Literal, Sequence
 import numpy as np
-from pydantic import BaseModel
-from rich.logging import RichHandler
-import tqdm
 from ape.evaluate.evaluate import Evaluate
+from ape.optimizer.mipro.mipro_base import MIPROBase
+from ape.optimizer.mipro.mipro_proposer import MIPROProposer
 from ape.optimizer.utils import (
     create_n_fewshot_demo_sets,
     eval_candidate_prompt,
@@ -23,12 +18,7 @@ from ape.optimizer.utils import (
     save_candidate_prompt,
 )
 from ape.proposer.grounded_proposer import GroundedProposer
-from ape.utils import run_async
-import weavel.types
-from rich import print
-import logging
-
-from ape.optimizer.optimizer_base import Optimizer
+from ape.utils import run_async, logger
 from ape.prompt.prompt_base import Prompt
 from ape.types import Dataset
 
@@ -36,46 +26,13 @@ from ape.types import Dataset
 BOOTSTRAPPED_FEWSHOT_EXAMPLES_IN_CONTEXT = 3
 LABELED_FEWSHOT_EXAMPLES_IN_CONTEXT = 0
 
-MB_FULL_EVAL_STEPS = 10
-MINIBATCH_SIZE = 25  # 50
 
-
-class MIPRO(Optimizer):
+class MIPRO(MIPROBase):
     """MIPRO: Multi-prompt Instruction PRoposal Optimizer
 
     Args:
         Optimizer (_type_): _description_
     """
-
-    def __init__(
-        self,
-        prompt_model: Optional[str] = None,
-        task_model: Optional[str] = None,
-        teacher_settings={},
-        num_candidates=10,
-        metric: Callable[..., Awaitable[Any]] = None,
-        init_temperature=1.0,
-        verbose=False,
-        track_stats=True,
-        log_dir=None,
-        view_data_batch_size=10,
-        minibatch_size=MINIBATCH_SIZE,
-        minibatch_full_eval_steps=MB_FULL_EVAL_STEPS,
-    ):
-        self.n = num_candidates
-        self.metric = metric
-        self.init_temperature = init_temperature
-        self.prompt_model = prompt_model
-        self.task_model = task_model
-        self.verbose = verbose
-        self.track_stats = track_stats
-        self.log_dir = log_dir
-        self.view_data_batch_size = view_data_batch_size
-        self.teacher_settings = teacher_settings
-        self.prompt_model_total_calls = 0
-        self.total_calls = 0
-        self.minibatch_size = minibatch_size
-        self.minibatch_full_eval_steps = minibatch_full_eval_steps
 
     def _get_batch_size(
         self,
@@ -113,9 +70,11 @@ class MIPRO(Optimizer):
 
         random.seed(seed)
         valset = valset or trainset
-        estimated_prompt_model_calls = 10 + self.n + 1  # num data summary calls + N + 1
+        estimated_prompt_model_calls = (
+            10 + self.num_candidates + 1
+        )  # num data summary calls + N + 1
 
-        prompt_model_line = f"""[yellow]- Prompt Model: [blue][bold]10[/bold][/blue] data summarizer calls + [blue][bold]{self.n}[/bold][/blue] lm calls in program = [blue][bold]{estimated_prompt_model_calls}[/bold][/blue] prompt model calls[/yellow]"""
+        prompt_model_line = f"""[yellow]- Prompt Model: [blue][bold]10[/bold][/blue] data summarizer calls + [blue][bold]{self.num_candidates}[/bold][/blue] lm calls in program = [blue][bold]{estimated_prompt_model_calls}[/bold][/blue] prompt model calls[/yellow]"""
 
         estimated_task_model_calls_wo_module_calls = 0
         task_model_line = ""
@@ -177,7 +136,7 @@ class MIPRO(Optimizer):
             # Reformat the prompt to use xml format.
             student = await reformat_prompt_xml_style(student)
 
-            logging.debug("Reformatted student prompt")
+            logger.debug("Reformatted student prompt")
 
             # Setup our proposer
             proposer = GroundedProposer(
@@ -215,10 +174,10 @@ class MIPRO(Optimizer):
             # Generate N few shot example sets
             try:
                 # log time
-                logging.info("Started generating fewshot examples")
+                logger.info("Started generating fewshot examples")
                 fewshot_candidates = await create_n_fewshot_demo_sets(
                     student=prompt,
-                    num_candidate_sets=self.n,
+                    num_candidate_sets=self.num_candidates,
                     trainset=trainset,
                     max_labeled_demos=max_labeled_demos_for_candidate_gen,
                     max_bootstrapped_demos=max_bootstrapped_demos_for_candidate_gen,
@@ -231,26 +190,33 @@ class MIPRO(Optimizer):
                     fp = os.path.join(log_dir, "fewshot_examples_to_save.pkl")
                     with open(fp, "wb") as file:
                         pickle.dump(fewshot_candidates, file)
-                logging.debug(fewshot_candidates)
+                logger.debug(fewshot_candidates)
             except Exception as e:
-                logging.error(f"Error generating fewshot examples: {e}")
-                logging.error("Running without fewshot examples.")
+                logger.error(f"Error generating fewshot examples: {e}")
+                logger.error("Running without fewshot examples.")
                 fewshot_candidates = None
 
             # Generate N candidate prompts
-            proposer.program_aware = prompt_aware_proposer
-            proposer.use_tip = True
-            proposer.use_instruct_history = False
-            proposer.set_history_randomly = False
-            logging.info("Started generating instructions")
-            prompt_candidates = await proposer.propose_prompts(
-                task_description=task_description,
+            proposer = MIPROProposer(**self.model_dump())
+            prompt_candidates = await proposer.generate_candidates(
                 prompt=prompt,
+                trainset=trainset,
+                task_description=task_description,
                 fewshot_candidates=fewshot_candidates,
-                N=self.n,
-                T=self.init_temperature,
-                trial_logs={},
             )
+            # proposer.program_aware = prompt_aware_proposer
+            # proposer.use_tip = True
+            # proposer.use_instruct_history = False
+            # proposer.set_history_randomly = False
+            # logger.info("Started generating instructions")
+            # prompt_candidates = await proposer.propose_prompts(
+            #     task_description=task_description,
+            #     prompt=prompt,
+            #     fewshot_candidates=fewshot_candidates,
+            #     N=self.num_candidates,
+            #     T=self.init_temperature,
+            #     trial_logs={},
+            # )
             prompt_candidates[0].messages = prompt.messages
 
             # instruction_candidates[1][0] = "Given the question, and context, respond with the number of the document that is most relevant to answering the question in the field 'Answer' (ex. Answer: '3')."
@@ -285,7 +251,7 @@ class MIPRO(Optimizer):
                 instruction_candidates: list[dict[Literal["role", "content"], str]],
                 fewshot_candidates: List[Dataset],
                 evaluate: Callable[..., Awaitable[Any]],
-                trainset: list[dict[str, any]] | list[weavel.types.DatasetItem],
+                trainset: Dataset,
             ):
                 def objective(
                     trial: optuna.Trial,
@@ -293,15 +259,15 @@ class MIPRO(Optimizer):
                     nonlocal best_prompt, best_score, trial_logs, total_eval_calls  # Allow access to the outer variables
 
                     # Kick off trial
-                    logging.info(f"Starting trial num: {trial.number}")
+                    logger.info(f"Starting trial num: {trial.number}")
                     trial_logs[trial.number] = {}
 
-                    logging.debug("Baseline prompt")
-                    logging.debug(baseline_prompt.dump())
+                    logger.debug("Baseline prompt")
+                    logger.debug(baseline_prompt.dump())
                     # Create a new candidate prompt
                     candidate_prompt = baseline_prompt.deepcopy()
-                    logging.debug("Initial candidate prompt")
-                    logging.debug(candidate_prompt.dump())
+                    logger.debug("Initial candidate prompt")
+                    logger.debug(candidate_prompt.dump())
 
                     # Choose set of instructions & demos to use for each predictor
                     chosen_params = []
@@ -324,9 +290,9 @@ class MIPRO(Optimizer):
                     if fewshot_candidates:
                         trial_logs[trial.number]["fewshot"] = fewshot_idx
 
-                    logging.info(f"instruction_idx {instruction_idx}")
+                    logger.info(f"instruction_idx {instruction_idx}")
                     if fewshot_candidates:
-                        logging.info(f"fewshot_idx {fewshot_idx}")
+                        logger.info(f"fewshot_idx {fewshot_idx}")
 
                     # Set the instruction
                     selected_instruction = instruction_candidates[instruction_idx]
@@ -334,8 +300,8 @@ class MIPRO(Optimizer):
 
                     # Set the fewshot
                     if fewshot_candidates:
-                        logging.debug("Fewshot candidates")
-                        logging.debug(fewshot_candidates)
+                        logger.debug("Fewshot candidates")
+                        logger.debug(fewshot_candidates)
                         candidate_prompt.fewshot = fewshot_candidates[fewshot_idx]
 
                     # Log assembled program
@@ -354,9 +320,9 @@ class MIPRO(Optimizer):
 
                     # Evaluate the candidate program with relevant batch size
                     batch_size = self._get_batch_size(minibatch, trainset)
-                    logging.debug("Candidate prompt")
-                    logging.debug(candidate_prompt.dump())
-                    logging.info(f"Started evals for trial {trial.number}")
+                    logger.debug("Candidate prompt")
+                    logger.debug(candidate_prompt.dump())
+                    logger.info(f"Started evals for trial {trial.number}")
                     score = run_async(
                         eval_candidate_prompt(
                             batch_size,
@@ -476,7 +442,7 @@ class MIPRO(Optimizer):
                 trainset,
             )
 
-            logging.info("Started optimization")
+            logger.info("Started optimization")
             sampler = optuna.samplers.TPESampler(seed=seed, multivariate=True)
             study = optuna.create_study(direction="maximize", sampler=sampler)
             score = study.optimize(objective_function, n_trials=max_steps)
@@ -484,8 +450,6 @@ class MIPRO(Optimizer):
             if best_prompt is not None and self.track_stats:
                 best_prompt.trial_logs = trial_logs
                 best_prompt.score = best_score
-                best_prompt.prompt_model_total_calls = self.prompt_model_total_calls
-                best_prompt.total_calls = self.total_calls
 
             # program_file_path = os.path.join(self.log_dir, 'best_program.pkl')
             if log_dir:

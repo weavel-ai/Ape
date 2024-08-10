@@ -44,7 +44,13 @@ If you would like to use few shot examples, use the reserved variable {{_FEWSHOT
 Use the information below to learn about a task that we are trying to solve using calls to an LM, then write a new prompt that will be used to prompt a Language Model to better solve the task.
 
 Task for LLM:
-{task_description}
+{prompt_desc}
+
+Expected input variables (xml format):
+{inputs_desc}
+
+Expected output variables (xml format):
+{outputs_desc}
 
 Dataset summary (description of the dataset we are using):
 {dataset_desc}
@@ -60,6 +66,9 @@ Basic prompt:
 
 Tip (a suggestion for how to go with writing the new prompt):
 {tip}
+--
+Assigned task (this is what you are asked to do):
+{task_description}
 
 Think step by step. Wrap the prompt section in ```prompt
 ``` tags. You should NEVER include bracket variables other than the input variables for the task.

@@ -5,8 +5,7 @@ from ape.types import Dataset
 
 
 class FewShotOptimizer(Optimizer):
-    def __init__(self, k=16):
-        self.k: int = k
+    k: int = 16
 
     async def optimize(self, student: Prompt, trainset: Dataset, sample: bool = True):
         self.student = student.reset_copy()

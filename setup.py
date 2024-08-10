@@ -18,7 +18,14 @@ setup(
     long_description_content_type="text/markdown",
     author="weavel",
     url="https://github.com/weavel-ai/ape",
-    install_requires=["pydantic", "pyyaml"],
+    install_requires=[
+        "pydantic",
+        "pyyaml",
+        "optuna",
+        "psycopg2-binary",
+        "numpy",
+        "promptfile",
+    ],
     python_requires=">=3.8.10",
     keywords=[
         "prompt",

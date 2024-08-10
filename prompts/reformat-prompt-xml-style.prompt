@@ -18,7 +18,6 @@ Below is an example.
 ```prompt
 ---
 model: gpt-4o
-use_fewshot: false
 ---
 <system>
 Answer questions with short factoid answers.
@@ -41,7 +40,6 @@ Question:
 ```prompt
 ---
 model: gpt-4o
-use_fewshot: true
 inputs:
     question: The question to be answered.
 outputs:

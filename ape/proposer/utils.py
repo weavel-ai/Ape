@@ -1,8 +1,8 @@
-from dataclasses import dataclass, asdict
 import json
 import re
 from typing import Any, Dict, List
 
+from pydantic import BaseModel
 from ape.prompt.prompt_base import Prompt
 from ape.types import DataItem
 
@@ -15,20 +15,18 @@ def extract_prompt(text: str):
         raise ValueError("No prompt found")
 
 
-# NOTE: Use dataclass instead of pydantic BaseModel because `Prompt` isn't a pydanitc model
-@dataclass
-class HistoryItem:
+class HistoryItem(BaseModel):
     prompt: Prompt
     score: float
 
 
-@dataclass
-class AggregatedHistoryItem:
+class AggregatedHistoryItem(BaseModel):
     total_score: float
     count: int
 
 
-def create_history_string(prompt: Prompt, trial_logs, top_n: int):
+def create_history_string(prompt: Prompt, trial_logs: Dict[str, Any], top_n: int):
+    # TODO: NOT: Fix
     instruction_aggregate: Dict[str, AggregatedHistoryItem] = {}
     instruction_history: List[HistoryItem] = []
 

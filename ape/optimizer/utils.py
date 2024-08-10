@@ -1,5 +1,4 @@
 import asyncio
-import logging
 import os
 import random
 from typing import Any, Awaitable, Callable, Dict, List, Optional
@@ -10,6 +9,7 @@ from ape.optimizer.fewshot_optimizer import FewShotOptimizer
 from ape.prompt.prompt_base import Prompt
 from ape.proposer.utils import extract_prompt
 from ape.types import Dataset
+from ape.utils import logger
 
 
 async def reformat_prompt_xml_style(prompt: Prompt) -> Prompt:
@@ -21,14 +21,14 @@ async def reformat_prompt_xml_style(prompt: Prompt) -> Prompt:
         try:
             res = await formatter(prompt=prompt.dump())
             extracted = extract_prompt(res)
-            logging.info(f"Reformatted prompt: {extracted}")
+            logger.info(f"Reformatted prompt: {extracted}")
             new_prompt = Prompt.load(extracted)
             break
         except Exception as e:
-            logging.error(f"Error reformatting prompt: {e}. Retrying...")
+            logger.error(f"Error reformatting prompt: {e}. Retrying...")
             retry_count += 1
             if retry_count > 3:
-                logging.error("Failed to reformat prompt after 3 retries")
+                logger.error("Failed to reformat prompt after 3 retries")
                 raise e
     return new_prompt
 

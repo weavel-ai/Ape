@@ -1,61 +1,52 @@
 import asyncio
-import logging
 import random
 import threading
 from typing import Any, Awaitable, Callable, Dict, Optional, Union
+from pydantic import Field
 
-import tqdm
 from ape.base import lm as base_lm
 from ape.optimizer.fewshot_optimizer import FewShotOptimizer
 from ape.optimizer.optimizer_base import Optimizer
 from ape.prompt.prompt_base import Prompt
-from ape.types import DataItem, Dataset
+from ape.utils import logger
+from ape.types import DataItem, Dataset, DatasetItem
 
 
 class BootstrapFewShot(Optimizer):
-    def __init__(
-        self,
-        metric: Callable[..., Union[Any, Awaitable[Any]]] = None,
-        metric_threshold=None,
-        teacher_settings: Optional[Dict] = None,
-        max_bootstrapped_demos=4,
-        max_labeled_demos=3,
-        max_rounds=1,
-        max_errors=5,
-    ):
-        """
-        A Teleprompter class that composes a set of demos/examples to go into a predictor's prompt.
-        These demos come from a combination of labeled examples in the training set, and bootstrapped demos.
+    """
+    An Optimizer class that composes a set of demos/examples to go into a predictor's prompt.
+    These demos come from a combination of labeled examples in the training set, and bootstrapped demos.
 
-        Parameters
-        ----------
-        metric: Callable
-            A function that compares an expected value and predicted value, outputting the result of that comparison.
-        metric_threshold: optional float, default `None`
-            If the metric yields a numerical value, then check it against this threshold when
-            deciding whether or not to accept a bootstrap example.
-        teacher_settings: dict, optional
-            Settings for the `teacher` model.
-        max_bootstrapped_demos: int, default 4
-            Maximum number of bootstrapped demonstrations to include
-        max_labeled_demos: int, default 3
-            Maximum number of labeled demonstrations to include.
-        max_rounds: int, default 1
-            Number of iterations to attempt generating the required bootstrap examples. If unsuccessful after `max_rounds`, the program ends.
-        max_errors: int, default 5
-            Maximum number of errors until program ends.
-        """
-        self.metric = metric
-        self.metric_threshold = metric_threshold
-        self.teacher_settings = {} if teacher_settings is None else teacher_settings
-        self.validation = []
+    Parameters
+    ----------
+    metric: Callable
+        A function that compares an expected value and predicted value, outputting the result of that comparison.
+    metric_threshold: optional float, default `None`
+        If the metric yields a numerical value, then check it against this threshold when
+        deciding whether or not to accept a bootstrap example.
+    teacher_settings: dict, optional
+        Settings for the `teacher` model.
+    max_bootstrapped_demos: int, default 4
+        Maximum number of bootstrapped demonstrations to include
+    max_labeled_demos: int, default 3
+        Maximum number of labeled demonstrations to include.
+    max_rounds: int, default 1
+        Number of iterations to attempt generating the required bootstrap examples. If unsuccessful after `max_rounds`, the program ends.
+    max_errors: int, default 5
+        Maximum number of errors until program ends.
+    """
 
-        self.max_bootstrapped_demos = max_bootstrapped_demos
-        self.max_labeled_demos = max_labeled_demos
-        self.max_rounds = max_rounds
-        self.max_errors = max_errors
-        self.error_count = 0
-        self.error_lock = threading.Lock()
+    metric: Callable[..., Union[Any, Awaitable[Any]]] = None
+    metric_threshold: Optional[float] = None
+    teacher_settings: Dict = {}
+    max_bootstrapped_demos: int = 4
+    max_labeled_demos: int = 3
+    max_rounds: int = 1
+    max_errors: int = 5
+    error_count: int = 0
+    error_lock: Any = Field(default_factory=threading.Lock, exclude=True)
+    bootstrapped_fewshot: Optional[Dataset] = None
+    validation: Optional[Dataset] = None
 
     async def optimize(
         self,
@@ -121,7 +112,7 @@ class BootstrapFewShot(Optimizer):
             if len(bootstrapped) >= max_bootstraps:
                 break
 
-        logging.debug(
+        logger.debug(
             f"Bootstrapped {len(bootstrapped)} full traces after {len(self.trainset)} examples in round {round_idx}.",
         )
 
@@ -178,7 +169,7 @@ class BootstrapFewShot(Optimizer):
                 current_error_count = self.error_count
             if current_error_count >= self.max_errors:
                 raise e
-            logging.error(
+            logger.error(
                 f"Failed to run or to evaluate example {example} with {self.metric}.\n Error: {e}."
             )
 

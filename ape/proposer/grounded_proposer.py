@@ -2,14 +2,15 @@ import asyncio
 import json
 import logging
 import random
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Optional, Union
 
 from ape.prompt.prompt_base import Prompt
 from ape.prompt.utils import format_fewshot_xml
 from ape.proposer.dataset_summary_generator import create_dataset_summary
 from ape.proposer.utils import create_history_string, extract_prompt
-from ape.types import Dataset
 from ape.proposer.propose_base import Proposer
+from ape.utils import logger
+from ape.types import Dataset
 
 # Hardcoded variables
 MAX_INSTRUCT_IN_HISTORY = 5  # 10
@@ -63,16 +64,19 @@ class GroundedProposer(Proposer):
             view_data_batch_size=self.view_data_batch_size,
             prompt_model=self.prompt_model,
         )
-        logging.debug(f"DATA SUMMARY: {self.data_summary}")
+        logger.debug(f"DATA SUMMARY: {self.data_summary}")
 
     async def propose_prompts(
         self,
         task_description: str,
-        prompt: Prompt,
-        fewshot_candidates: List[Dataset],
         trial_logs: Dict[str, Any],
         N: int,
         T: float,
+        prompt_desc: Optional[str] = None,
+        base_prompt: Optional[Prompt] = None,
+        fewshot_candidates: Optional[List[Dataset]] = None,
+        inputs_desc: Optional[Dict[str, str]] = None,
+        outputs_desc: Optional[Dict[str, str]] = None,
         tip=None,
     ) -> List[Prompt]:
         """This method is responsible for returning the full set of new instructions for our task, given the specified criteria."""
@@ -80,10 +84,17 @@ class GroundedProposer(Proposer):
         if not self.data_summary:
             await self.prepare_dataset_summary()
 
+        if not fewshot_candidates:
+            # random sample from trainset
+            fewshot_candidates = [
+                random.sample(self.trainset, min(len(self.trainset), 3))
+                for _ in range(N)
+            ]
+
         proposed_instructions = []
 
         if self.set_tip_randomly:
-            logging.debug(
+            logger.debug(
                 "Using a randomly generated configuration for our grounded proposer."
             )
             # Randomly select the tip
@@ -92,21 +103,24 @@ class GroundedProposer(Proposer):
             self.use_tip = bool(
                 selected_tip,
             )
-            logging.debug(f"Selected tip: {selected_tip_key}")
+            logger.debug(f"Selected tip: {selected_tip_key}")
 
         if self.set_history_randomly:
             # Randomly select whether or not we're using instruction history
             use_history = random.random() < 0.5
             self.use_instruct_history = use_history
-            logging.debug(f"Use history T/F: {self.use_instruct_history}")
+            logger.debug(f"Use history T/F: {self.use_instruct_history}")
 
         _tasks = [
             self.propose_one(
                 task_description=task_description,
-                prompt=prompt,
+                base_prompt=base_prompt,
                 fewshot=fewshot_candidates[i],
+                prompt_desc=prompt_desc,
                 trial_logs=trial_logs,
                 T=T,
+                inputs_desc=inputs_desc,
+                outputs_desc=outputs_desc,
                 tip=selected_tip,
             )
             for i in range(len(fewshot_candidates))
@@ -119,17 +133,20 @@ class GroundedProposer(Proposer):
     async def propose_one(
         self,
         task_description: str,
-        prompt: Prompt,
-        fewshot: Dataset,
         trial_logs: Dict[str, Any],
         T: float,
+        prompt_desc: Optional[str] = None,
+        base_prompt: Optional[Prompt] = None,
+        fewshot: Optional[Dataset] = None,
+        inputs_desc: Optional[Dict[str, str]] = None,
+        outputs_desc: Optional[Dict[str, str]] = None,
         tip=None,
     ) -> Prompt:
         """This method is responsible for returning a single instruction for a given predictor, using the specified criteria."""
 
         # Create an instruction history string for our predictor
         instruction_history = create_history_string(
-            prompt,
+            base_prompt,
             trial_logs,
             MAX_INSTRUCT_IN_HISTORY,
         )
@@ -156,10 +173,10 @@ class GroundedProposer(Proposer):
         #     prompt_description = (
         #         output if isinstance(output, str) else output.get("description", "-")
         #     )
-        #     logging.info(f"Prompt description: {prompt_description}")
+        #     logger.info(f"Prompt description: {prompt_description}")
 
-        logging.debug("Formatted prompt for generation")
-        logging.debug(
+        logger.debug("Formatted prompt for generation")
+        logger.debug(
             self.generate_instructions.format(
                 task_description=task_description,
                 dataset_desc=self.data_summary if self.use_dataset_summary else "-",
@@ -167,8 +184,11 @@ class GroundedProposer(Proposer):
                 previous_prompts=(
                     instruction_history if self.use_instruct_history else "-"
                 ),
-                basic_prompt=prompt.dump(),
+                prompt_desc=prompt_desc if prompt_desc else "-",
+                basic_prompt=base_prompt.dump(),
                 tip=tip if self.use_tip else "-",
+                inputs_desc=inputs_desc if inputs_desc else "-",
+                outputs_desc=outputs_desc if outputs_desc else "-",
             ).dump()
         )
 
@@ -178,17 +198,20 @@ class GroundedProposer(Proposer):
             dataset_desc=self.data_summary if self.use_dataset_summary else "-",
             task_fewshot=task_fewshot,
             previous_prompts=instruction_history if self.use_instruct_history else "-",
-            basic_prompt=prompt.dump(),
+            prompt_desc=prompt_desc if prompt_desc else "-",
+            basic_prompt=base_prompt.dump(),
             tip=tip if self.use_tip else "-",
+            inputs_desc=inputs_desc if inputs_desc else "-",
+            outputs_desc=outputs_desc if outputs_desc else "-",
         )
 
         try:
-            prompt = extract_prompt(output)
-            logging.debug("Extracted prompt")
-            logging.debug(prompt)
+            base_prompt = extract_prompt(output)
+            logger.debug("Extracted prompt")
+            logger.debug(base_prompt)
 
             return Prompt.load(output)
         except Exception as e:
-            logging.error(f"Error extracting prompt.\n{e}")
-            logging.error(output)
-            return prompt
+            logger.error(f"Error extracting prompt.\n{e}")
+            logger.error(output)
+            return base_prompt
