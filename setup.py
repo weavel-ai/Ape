@@ -1,5 +1,5 @@
 """
-devan: your AI prompt engineer
+Ape: your AI prompt engineer
 """
 
 from setuptools import setup, find_namespace_packages
@@ -10,14 +10,14 @@ with open("README.md", "r") as fh:
 
 setup(
     name="ape",
-    version="0.1.0",
+    version="0.2.0",
     packages=find_namespace_packages(),
     entry_points={},
     description="Ape: your AI prompt engineer",
     long_description=long_description,
     long_description_content_type="text/markdown",
     author="weavel",
-    url="https://github.com/weavel-ai/ape",
+    url="https://github.com/weavel-ai/Ape",
     install_requires=[
         "pydantic",
         "pyyaml",

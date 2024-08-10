@@ -16,3 +16,7 @@
 ```bash
 pip install git+https://github.com/weavel-ai/Ape.git
 ```
+
+### `.prompt` syntax hightlighting
+
+[Promptfile IntelliSense](https://marketplace.visualstudio.com/items?itemName=Weavel.promptfile-intellisense)
