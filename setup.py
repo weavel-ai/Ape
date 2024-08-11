@@ -25,6 +25,13 @@ setup(
         "psycopg2-binary",
         "numpy",
         "promptfile",
+        "structlog",
+        "pandas",
+        "numpy",
+        "sqlalchemy",
+        "litellm",
+        "nest_asyncio",
+        "rich",
     ],
     python_requires=">=3.8.10",
     keywords=[
