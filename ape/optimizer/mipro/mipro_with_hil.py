@@ -3,6 +3,9 @@ from typing import Dict, List, Optional, Tuple, Union
 
 import optuna
 import sqlalchemy
+import sqlalchemy.ext.asyncio as async_sqlalchemy
+from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy import text
 from pydantic import ConfigDict
 from ape.optimizer.mipro.mipro_base import MIPROBase
 from ape.optimizer.mipro.mipro_proposer import MIPROProposer
@@ -10,6 +13,7 @@ from ape.optimizer.utils import reformat_prompt_xml_style
 from ape.prompt.prompt_base import Prompt
 from ape.types import Dataset
 from ape.types.dataset_item import DatasetItem
+from ape.optimizer import OptunaSingletonStorage
 
 
 class MIPROWithHIL(MIPROBase):
@@ -21,30 +25,12 @@ class MIPROWithHIL(MIPROBase):
 
     def __init__(self, db_url: str, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.setup_storage(db_url)
-
-    def setup_storage(self, db_url: str):
-        engine = sqlalchemy.create_engine(db_url)
-
-        with engine.connect() as connection:
-            connection.execute(sqlalchemy.text("CREATE SCHEMA IF NOT EXISTS optuna;"))
-            connection.commit()
-
-        # Create Optuna RDB storage with schema specified
-        storage_url = f"{db_url}?options=-c%20search_path=optuna"
-        self.storage = optuna.storages.RDBStorage(
-            url=storage_url,
-            engine_kwargs={
-                "pool_size": 20,
-                "max_overflow": 0,
-                "connect_args": {"options": "-c search_path=optuna"},
-            },
-        )
+        self.storage = OptunaSingletonStorage.get_instance(db_url)
 
     async def create_or_load_study(
         self,
         study_name: str,
-        trainset: Optional[Dataset] = None,
+        trainset: Dataset = [],
         task_description: Optional[str] = None,
         prompt_desc: Optional[str] = None,
         inputs_desc: Optional[Dict[str, str]] = None,
@@ -65,8 +51,8 @@ class MIPROWithHIL(MIPROBase):
         is_new_study = len(study.trials) == 0
 
         if is_new_study:
-            if not trainset:
-                raise ValueError("Trainset is required for a new study.")
+            # if not trainset:
+            #     raise ValueError("Trainset is required for a new study.")
             if not task_description:
                 raise ValueError("Task description is required for a new study.")
             if base_prompt:

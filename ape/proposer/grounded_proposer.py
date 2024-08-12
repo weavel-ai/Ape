@@ -81,7 +81,7 @@ class GroundedProposer(Proposer):
     ) -> List[Prompt]:
         """This method is responsible for returning the full set of new instructions for our task, given the specified criteria."""
 
-        if not self.data_summary:
+        if not self.data_summary and self.trainset:
             await self.prepare_dataset_summary()
 
         if not fewshot_candidates:
