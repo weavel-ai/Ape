@@ -10,8 +10,9 @@ with open("README.md", "r") as fh:
 
 setup(
     name="ape",
-    version="0.3.1",
+    version="0.3.2",
     packages=find_namespace_packages(),
+    include_package_data=True,
     entry_points={},
     description="Ape: your AI prompt engineer",
     long_description=long_description,
