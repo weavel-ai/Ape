@@ -9,12 +9,15 @@ import promptfile as pf
 
 # Get the directory of the current file (prompt_base.py)
 current_dir = os.path.dirname(os.path.abspath(__file__))
+print("current_dir:", current_dir)
 
 # Go up one level to reach the root 'ape' directory
 ape_root = os.path.dirname(current_dir)
+print("ape_root:", ape_root)
 
 # Construct the path to the 'prompts' directory
 base_path = os.path.join(ape_root, "ape_prompts")
+print("base_path:", base_path)
 
 # Initialize promptfile with the constructed base_path
 if os.path.exists(base_path):
