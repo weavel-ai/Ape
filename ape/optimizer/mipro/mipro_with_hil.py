@@ -93,15 +93,18 @@ class MIPROWithHIL(MIPROBase):
 
     def suggest_next_prompt(self, study: optuna.Study) -> Tuple[optuna.Trial, Prompt]:
         trial = study.ask()
+        if len(self.instruction_candidates) == 0:
+            raise ValueError("No instruction candidates available.")
         instruction_idx = trial.suggest_categorical(
             "instruction",
             range(len(self.instruction_candidates)),
         )
         prompt = self.instruction_candidates[instruction_idx]
-        fewshot_idx = trial.suggest_categorical(
-            "fewshot", range(len(self.fewshot_candidates))
-        )
-        prompt.fewshot = self.fewshot_candidates[fewshot_idx]
+        if len(self.fewshot_candidates) > 0:
+            fewshot_idx = trial.suggest_categorical(
+                "fewshot", range(len(self.fewshot_candidates))
+            )
+            prompt.fewshot = self.fewshot_candidates[fewshot_idx]
 
         return trial, prompt
 
