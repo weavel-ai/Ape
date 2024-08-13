@@ -9,11 +9,12 @@ from sqlalchemy import text
 from pydantic import ConfigDict
 from ape.optimizer.mipro.mipro_base import MIPROBase
 from ape.optimizer.mipro.mipro_proposer import MIPROProposer
-from ape.optimizer.utils import reformat_prompt_xml_style
+from ape.optimizer.utils import reformat_prompt
 from ape.prompt.prompt_base import Prompt
 from ape.types import Dataset
 from ape.types.dataset_item import DatasetItem
 from ape.optimizer import OptunaSingletonStorage
+from ape.types.response_format import ResponseFormat, ResponseFormatType
 
 
 class MIPROWithHIL(MIPROBase):
@@ -35,6 +36,7 @@ class MIPROWithHIL(MIPROBase):
         prompt_desc: Optional[str] = None,
         inputs_desc: Optional[Dict[str, str]] = None,
         outputs_desc: Optional[Dict[str, str]] = None,
+        response_format: ResponseFormat = ResponseFormat(type=ResponseFormatType.XML),
         base_prompt: Optional[Prompt] = None,
     ) -> Tuple[optuna.Study, bool]:
         if self.storage is None:
@@ -56,7 +58,8 @@ class MIPROWithHIL(MIPROBase):
             if not task_description:
                 raise ValueError("Task description is required for a new study.")
             if base_prompt:
-                base_prompt = await reformat_prompt_xml_style(base_prompt)
+                base_prompt = await reformat_prompt(base_prompt, response_format)
+
             proposer = MIPROProposer(**self.model_dump())
             self.instruction_candidates = await proposer.generate_candidates(
                 prompt=base_prompt,

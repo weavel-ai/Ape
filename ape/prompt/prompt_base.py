@@ -1,7 +1,8 @@
 import os
 from typing import Any, Dict, List, Optional, Self, Union
 from litellm import acompletion
-from ape.prompt.utils import format_fewshot_xml
+from ape.prompt.utils import format_fewshot
+from ape.types.response_format import ResponseFormat, ResponseFormatType
 from ape.utils import parse_xml_outputs, logger
 from pydantic import ConfigDict
 import promptfile as pf
@@ -24,6 +25,8 @@ else:
 
 
 class Prompt(pf.PromptConfig):
+    response_format: Optional[ResponseFormat] = None
+    temperature: float = 0.0
     _optimized = False
 
     model_config = ConfigDict(extra="allow")
@@ -77,6 +80,12 @@ class Prompt(pf.PromptConfig):
         res = await acompletion(
             model=self.model,
             messages=messages,
+            response_format=(
+                self.response_format.model_dump()
+                if self.response_format
+                and self.response_format != ResponseFormatType.XML
+                else None
+            ),
             **lm_config,
         )
 
@@ -116,7 +125,9 @@ class Prompt(pf.PromptConfig):
 
     def format(self, **kwargs) -> Self:
         if self.fewshot:
-            kwargs["_FEWSHOT_"] = format_fewshot_xml(self.fewshot or [])
+            kwargs["_FEWSHOT_"] = format_fewshot(
+                fewshot=self.fewshot or [], response_format=self.response_format
+            )
         return super().format(**kwargs)
 
     def reset_copy(self):

@@ -30,7 +30,7 @@ user prompt here
 </user>
 ```
 ]]>
-`outputs` of the yaml header section of the prompt will define the names (key) and descriptions (value) of the output variables. This definition will be used to parse the xml formatted outputs.
+`outputs` of the yaml header section of the prompt will define the names (key) and descriptions (value) of the output variables. This definition will be used to parse the formatted outputs.
 
 Each message is wrapped in tags. Available tag names are system and user. There are no limits to the number of messages included in the prompt. As an expert prompt engineer, you might include few shot examples, chain of thought, etc. whichever way you like.
 
@@ -46,10 +46,10 @@ Use the information below to learn about a task that we are trying to solve usin
 Task for LLM:
 {prompt_desc}
 
-Expected input variables (xml format):
+Expected input variables:
 {inputs_desc}
 
-Expected output variables (xml format):
+Expected output variables:
 {outputs_desc}
 
 Dataset summary (description of the dataset we are using):

@@ -14,7 +14,7 @@ from ape.optimizer.utils import (
     create_n_fewshot_demo_sets,
     eval_candidate_prompt,
     get_prompt_with_highest_avg_score,
-    reformat_prompt_xml_style,
+    reformat_prompt,
     save_candidate_prompt,
 )
 from ape.proposer.grounded_proposer import GroundedProposer
@@ -134,7 +134,7 @@ class MIPRO(MIPROBase):
 
         if run:
             # Reformat the prompt to use xml format.
-            student = await reformat_prompt_xml_style(student)
+            student = await reformat_prompt(student)
 
             logger.debug("Reformatted student prompt")
 

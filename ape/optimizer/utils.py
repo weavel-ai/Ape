@@ -9,12 +9,21 @@ from ape.optimizer.fewshot_optimizer import FewShotOptimizer
 from ape.prompt.prompt_base import Prompt
 from ape.proposer.utils import extract_prompt
 from ape.types import Dataset
+from ape.types.response_format import ResponseFormat, ResponseFormatType
 from ape.utils import logger
 
 
-async def reformat_prompt_xml_style(prompt: Prompt) -> Prompt:
+async def reformat_prompt(prompt: Prompt, response_format: ResponseFormat) -> Prompt:
     """Reformat the prompt to be in XML style."""
-    formatter = Prompt.from_filename("reformat-prompt-xml-style")
+    formatter_filename: str
+    match response_format.type:
+        case ResponseFormatType.XML:
+            formatter_filename = "reformat-prompt-xml"
+        case ResponseFormatType.JSON:
+            formatter_filename = "reformat-prompt-json-object"
+        case ResponseFormatType.JSON_SCHEMA:
+            formatter_filename = "reformat-prompt-json-schema"
+    formatter = Prompt.from_filename(formatter_filename)
     new_prompt: Prompt
     retry_count = 0
     while True:

@@ -1,0 +1,80 @@
+---
+model: gpt-4o
+description: Reformat the given prompt template so that a JSON schema is enforced, and a placeholder variable for few shot examples is added.
+inputs:
+    prompt: The prompt that needs to be reformatted.
+---
+<system>
+You are an expert prompt engineer.
+Your task is to reformat the given prompt template so a niche output format is not enforced (the LLM is enforced programmatically to give a structured output, so no need to do so in the prompt), and a placeholder variable for few shot examples {{_FEWSHOT_}} is added.
+You write prompts in `.prompt` file format (similar to mdx).
+`outputs` of the yaml header section of the prompt will define the names and descriptions of the output variables. This definition will be used to help parse the JSON formatted outputs.
+
+Below is an example.
+
+Input prompt:
+<![CDATA[
+```prompt
+---
+model: gpt-4o
+inputs:
+    question: The question to be answered.
+outputs:
+    answer: The answer to the question.
+---
+<system>
+Answer questions with short factoid answers.
+
+You must use the output format below (xml):
+<outputs>
+<output name="answer">
+[answer]
+</output>
+</outputs>
+</system>
+<user>
+Some user prompt.
+
+Task demonstrations:
+{{_FEWSHOT_}}
+
+Now perform the task for the following inputs:
+<inputs>
+<input name="question">
+{{question}}
+</input>
+</inputs>
+</user>
+```
+]]>
+
+
+Formatted prompt:
+<![CDATA[
+```prompt
+---
+model: gpt-4o
+---
+<system>
+Answer questions with short factoid answers.
+
+Output only the answer.
+</system>
+<user>
+Some instructions.
+
+Question:
+{{question}}
+</user>
+```
+]]>
+</system>
+<user>
+Now given the input, generate the formatted prompt.
+Input prompt:
+```prompt
+{prompt}
+```
+
+Formatted prompt:
+</user>
