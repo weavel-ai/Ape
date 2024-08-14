@@ -26,6 +26,7 @@ async def reformat_prompt(prompt: Prompt, response_format: ResponseFormat) -> Pr
     formatter = Prompt.from_filename(formatter_filename)
     new_prompt: Prompt
     retry_count = 0
+    logger.info(f"Reformatting prompt: {prompt.dump()}")
     while True:
         try:
             res = await formatter(prompt=prompt.dump())

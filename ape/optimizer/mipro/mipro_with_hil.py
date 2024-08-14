@@ -58,7 +58,9 @@ class MIPROWithHIL(MIPROBase):
             if not task_description:
                 raise ValueError("Task description is required for a new study.")
             if base_prompt:
-                base_prompt = await reformat_prompt(base_prompt, response_format)
+                base_prompt = await reformat_prompt(
+                    prompt=base_prompt, response_format=response_format
+                )
 
             proposer = MIPROProposer(**self.model_dump())
             self.instruction_candidates = await proposer.generate_candidates(

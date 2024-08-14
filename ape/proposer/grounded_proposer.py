@@ -1,6 +1,4 @@
 import asyncio
-import json
-import logging
 import random
 from typing import Any, Dict, List, Optional, Union
 
@@ -46,7 +44,7 @@ class GroundedProposer(Proposer):
         self.set_tip_randomly = set_tip_randomly
         self.set_history_randomly = set_history_randomly
 
-        self.trainset = trainset
+        self.trainset: Dataset = trainset
         self.prompt_model = prompt_model
         self.view_data_batch_size = view_data_batch_size
         self.describe_prompt = Prompt.from_filename("describe-prompt")
@@ -60,12 +58,13 @@ class GroundedProposer(Proposer):
         view_data_batch_size=10,
     ):
         self.view_data_batch_size = view_data_batch_size
+        logger.info("Preparing dataset summary")
         self.data_summary = await create_dataset_summary(
             trainset=self.trainset,
             view_data_batch_size=self.view_data_batch_size,
             prompt_model=self.prompt_model,
         )
-        logger.debug(f"DATA SUMMARY: {self.data_summary}")
+        logger.info(f"DATA SUMMARY: {self.data_summary}")
 
     async def propose_prompts(
         self,
@@ -96,7 +95,7 @@ class GroundedProposer(Proposer):
         proposed_instructions = []
 
         if self.set_tip_randomly:
-            logger.debug(
+            logger.info(
                 "Using a randomly generated configuration for our grounded proposer."
             )
             # Randomly select the tip
@@ -105,13 +104,13 @@ class GroundedProposer(Proposer):
             self.use_tip = bool(
                 selected_tip,
             )
-            logger.debug(f"Selected tip: {selected_tip_key}")
+            logger.info(f"Selected tip: {selected_tip_key}")
 
         if self.set_history_randomly:
             # Randomly select whether or not we're using instruction history
             use_history = random.random() < 0.5
             self.use_instruct_history = use_history
-            logger.debug(f"Use history T/F: {self.use_instruct_history}")
+            logger.info(f"Use history T/F: {self.use_instruct_history}")
 
         _tasks = [
             self.propose_one(
@@ -154,6 +153,7 @@ class GroundedProposer(Proposer):
             trial_logs,
             MAX_INSTRUCT_IN_HISTORY,
         )
+        logger.info(f"Create instruction history: {instruction_history}")
 
         # task_fewshot = ""
         # curr_fewshots_num = 0
@@ -167,9 +167,11 @@ class GroundedProposer(Proposer):
         #         if curr_fewshots_num >= max_demos:
         #             break
         if self.use_task_demos and fewshot:
+            logger.info("Formatting fewshot for generation")
             task_fewshot = format_fewshot(
                 fewshot=fewshot, response_format=response_format
             )
+            logger.info(f"Formatted fewshot: {task_fewshot}")
         else:
             task_fewshot = "-"
 
@@ -181,8 +183,8 @@ class GroundedProposer(Proposer):
         #     )
         #     logger.info(f"Prompt description: {prompt_description}")
 
-        logger.debug("Formatted prompt for generation")
-        logger.debug(
+        logger.info("Formatted prompt for generation")
+        logger.info(
             self.generate_instructions.format(
                 task_description=task_description,
                 dataset_desc=self.data_summary if self.use_dataset_summary else "-",
@@ -213,8 +215,8 @@ class GroundedProposer(Proposer):
 
         try:
             base_prompt = extract_prompt(output)
-            logger.debug("Extracted prompt")
-            logger.debug(base_prompt)
+            logger.info("Extracted prompt")
+            logger.info(base_prompt)
 
             return Prompt.load(output)
         except Exception as e:

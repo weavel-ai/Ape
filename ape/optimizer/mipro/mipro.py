@@ -21,6 +21,7 @@ from ape.proposer.grounded_proposer import GroundedProposer
 from ape.utils import run_async, logger
 from ape.prompt.prompt_base import Prompt
 from ape.types import Dataset
+from ape.types.response_format import ResponseFormat, ResponseFormatType
 
 
 BOOTSTRAPPED_FEWSHOT_EXAMPLES_IN_CONTEXT = 3
@@ -60,6 +61,7 @@ class MIPRO(MIPROBase):
         minibatch=True,
         prompt_aware_proposer=True,
         requires_permission_to_run=True,
+        response_format: ResponseFormat = ResponseFormat(type=ResponseFormatType.XML),
         log_dir: str,
     ):
         # Define ANSI escape codes for colors
@@ -134,9 +136,11 @@ class MIPRO(MIPROBase):
 
         if run:
             # Reformat the prompt to use xml format.
-            student = await reformat_prompt(student)
+            student = await reformat_prompt(
+                prompt=student, response_format=self.response_format
+            )
 
-            logger.debug("Reformatted student prompt")
+            logger.info("Reformatted student prompt")
 
             # Setup our proposer
             proposer = GroundedProposer(
@@ -190,7 +194,7 @@ class MIPRO(MIPROBase):
                     fp = os.path.join(log_dir, "fewshot_examples_to_save.pkl")
                     with open(fp, "wb") as file:
                         pickle.dump(fewshot_candidates, file)
-                logger.debug(fewshot_candidates)
+                logger.info(fewshot_candidates)
             except Exception as e:
                 logger.error(f"Error generating fewshot examples: {e}")
                 logger.error("Running without fewshot examples.")
@@ -262,12 +266,12 @@ class MIPRO(MIPROBase):
                     logger.info(f"Starting trial num: {trial.number}")
                     trial_logs[trial.number] = {}
 
-                    logger.debug("Baseline prompt")
-                    logger.debug(baseline_prompt.dump())
+                    logger.info("Baseline prompt")
+                    logger.info(baseline_prompt.dump())
                     # Create a new candidate prompt
                     candidate_prompt = baseline_prompt.deepcopy()
-                    logger.debug("Initial candidate prompt")
-                    logger.debug(candidate_prompt.dump())
+                    logger.info("Initial candidate prompt")
+                    logger.info(candidate_prompt.dump())
 
                     # Choose set of instructions & demos to use for each predictor
                     chosen_params = []
@@ -300,8 +304,8 @@ class MIPRO(MIPROBase):
 
                     # Set the fewshot
                     if fewshot_candidates:
-                        logger.debug("Fewshot candidates")
-                        logger.debug(fewshot_candidates)
+                        logger.info("Fewshot candidates")
+                        logger.info(fewshot_candidates)
                         candidate_prompt.fewshot = fewshot_candidates[fewshot_idx]
 
                     # Log assembled program
@@ -320,8 +324,8 @@ class MIPRO(MIPROBase):
 
                     # Evaluate the candidate program with relevant batch size
                     batch_size = self._get_batch_size(minibatch, trainset)
-                    logger.debug("Candidate prompt")
-                    logger.debug(candidate_prompt.dump())
+                    logger.info("Candidate prompt")
+                    logger.info(candidate_prompt.dump())
                     logger.info(f"Started evals for trial {trial.number}")
                     score = run_async(
                         eval_candidate_prompt(

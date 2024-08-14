@@ -2,6 +2,7 @@ from ape.optimizer.mipro.mipro_base import MIPROBase
 from ape.proposer.grounded_proposer import GroundedProposer
 from ape.prompt.prompt_base import Prompt
 from ape.types import Dataset
+from ape.utils.logging import logger
 from typing import Dict, List, Optional
 
 
@@ -16,6 +17,7 @@ class MIPROProposer(MIPROBase):
         inputs_desc: Optional[Dict[str, str]] = None,
         outputs_desc: Optional[Dict[str, str]] = None,
     ) -> List[Prompt]:
+        logger.info("Initializing GroundedProposer")
         proposer = GroundedProposer(
             trainset=trainset,
             prompt_model=self.prompt_model,
@@ -29,6 +31,7 @@ class MIPROProposer(MIPROBase):
         proposer.use_instruct_history = False
         proposer.set_history_randomly = False
 
+        logger.info(f"Generating {self.num_candidates} instruction candidates")
         prompt_candidates = await proposer.propose_prompts(
             task_description=task_description,
             prompt_desc=prompt_desc,

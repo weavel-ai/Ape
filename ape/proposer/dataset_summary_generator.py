@@ -5,10 +5,11 @@ from functools import partial
 
 from ape.prompt.prompt_base import Prompt
 from ape.types import Dataset
+from ape.types.dataset_item import DatasetItem
 
 
 async def process_batch(
-    trainset: List[Dict[str, Any]],
+    trainset: List[List[Dict[str, Any]]],
     batch_start: int,
     batch_end: int,
     descriptor: Prompt,

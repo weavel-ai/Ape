@@ -112,7 +112,7 @@ class BootstrapFewShot(Optimizer):
             if len(bootstrapped) >= max_bootstraps:
                 break
 
-        logger.debug(
+        logger.info(
             f"Bootstrapped {len(bootstrapped)} full traces after {len(self.trainset)} examples in round {round_idx}.",
         )
 

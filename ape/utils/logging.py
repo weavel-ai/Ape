@@ -113,7 +113,7 @@ class LogSettings:
             log.addHandler(RichHandler(console=console, rich_tracebacks=True))
 
 
-level = os.environ.get("LOG_LEVEL", "info").upper()
+level = os.environ.get("APE_LOG_LEVEL", "info").upper()
 
 
 # Set Defaults

@@ -25,7 +25,9 @@ else:
 
 
 class Prompt(pf.PromptConfig):
-    response_format: Optional[ResponseFormat] = None
+    response_format: Optional[ResponseFormat] = ResponseFormat(
+        type=ResponseFormatType.XML
+    )
     temperature: float = 0.0
     _optimized = False
 
@@ -82,8 +84,10 @@ class Prompt(pf.PromptConfig):
             messages=messages,
             response_format=(
                 self.response_format.model_dump()
-                if self.response_format
-                and self.response_format != ResponseFormatType.XML
+                if (
+                    self.response_format
+                    and self.response_format.type != ResponseFormatType.XML
+                )
                 else None
             ),
             **lm_config,
@@ -98,10 +102,10 @@ class Prompt(pf.PromptConfig):
             return res_text
 
         try:
-            logger.debug(res_text)
+            logger.info(res_text)
             parsed_outputs = parse_xml_outputs(res_text)
-            logger.debug("Parsed outputs")
-            logger.debug(parsed_outputs)
+            logger.info("Parsed outputs")
+            logger.info(parsed_outputs)
             return parsed_outputs
         except Exception as e:
             logger.error(f"Error parsing outputs: {e}")

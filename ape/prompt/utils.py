@@ -7,17 +7,22 @@ from ape.utils import dict_to_xml
 def format_fewshot(fewshot: Dataset, response_format: ResponseFormat) -> str:
     """Format fewshot data into specific format."""
     formatted = ""
-    for data in fewshot:
-        if isinstance(data, DatasetItem):
-            inputs, outputs = data.inputs, data.outputs
-        else:
-            inputs, outputs = data["inputs"], data.get("outputs", {})
-        if response_format.type == ResponseFormatType.XML:
-            inputs_xml = dict_to_xml(inputs, "input")
-            outputs_xml = dict_to_xml(outputs, "output")
-            formatted += f"<example>\n{inputs_xml}\n{outputs_xml}\n</example>"
-        else:
-            formatted += f"Inputs:\n{json.dumps(inputs, indent=2)}"
-            formatted += f"Outputs:\n{json.dumps(outputs, indent=2)}"
+    try:
+        for data in fewshot:
+            if isinstance(data, DatasetItem):
+                inputs, outputs = data.inputs, data.outputs
+            else:
+                inputs, outputs = data["inputs"], data.get("outputs", {})
+            if response_format.type == ResponseFormatType.XML:
+                print(type(inputs), type(outputs))
+                inputs_xml = dict_to_xml(inputs, "input")
+                outputs_xml = dict_to_xml(outputs, "output")
+                print(type(inputs_xml), type(outputs_xml))
+                formatted += f"<example>\n{inputs_xml}\n{outputs_xml}\n</example>"
+            else:
+                formatted += f"Inputs:\n{json.dumps(inputs, indent=2)}"
+                formatted += f"Outputs:\n{json.dumps(outputs, indent=2)}"
+    except Exception as err:
+        print(err)
 
     return formatted

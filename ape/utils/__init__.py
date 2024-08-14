@@ -1,6 +1,6 @@
 import re
 import asyncio
-from typing import Dict
+from typing import Any, Dict, Union
 import xml.etree.ElementTree as ET
 import xml.dom.minidom as minidom
 from .logging import logger
@@ -43,7 +43,7 @@ def parse_xml_outputs(text: str) -> Dict[str, str]:
     return outputs
 
 
-def dict_to_xml(data: Dict[str, str], tag_name: str) -> str:
+def dict_to_xml(data: Dict[str, Any], tag_name: str) -> str:
     # Create the root element
     root = ET.Element(f"{tag_name}s")
 
@@ -51,7 +51,7 @@ def dict_to_xml(data: Dict[str, str], tag_name: str) -> str:
     for name, value in data.items():
         tag = ET.SubElement(root, tag_name)
         tag.set("name", name)
-        tag.text = value
+        tag.text = str(value)  # Convert value to string
 
     # Convert the XML tree to a string
     rough_string = ET.tostring(root, encoding="unicode")
