@@ -21,7 +21,11 @@ from ape.proposer.grounded_proposer import GroundedProposer
 from ape.utils import run_async, logger
 from ape.prompt.prompt_base import Prompt
 from ape.types import Dataset
-from ape.types.response_format import ResponseFormat, ResponseFormatType
+from ape.types.response_format import (
+    ResponseFormat,
+    ResponseFormatJSON,
+    ResponseFormatType,
+)
 
 
 BOOTSTRAPPED_FEWSHOT_EXAMPLES_IN_CONTEXT = 3
@@ -61,7 +65,7 @@ class MIPRO(MIPROBase):
         minibatch=True,
         prompt_aware_proposer=True,
         requires_permission_to_run=True,
-        response_format: ResponseFormat = ResponseFormat(type=ResponseFormatType.XML),
+        response_format: ResponseFormat = ResponseFormatJSON,
         log_dir: str,
     ):
         # Define ANSI escape codes for colors
@@ -137,7 +141,7 @@ class MIPRO(MIPROBase):
         if run:
             # Reformat the prompt to use xml format.
             student = await reformat_prompt(
-                prompt=student, response_format=self.response_format
+                prompt=student, response_format=response_format
             )
 
             logger.info("Reformatted student prompt")

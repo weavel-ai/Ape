@@ -14,7 +14,11 @@ from ape.prompt.prompt_base import Prompt
 from ape.types import Dataset
 from ape.types.dataset_item import DatasetItem
 from ape.optimizer import OptunaSingletonStorage
-from ape.types.response_format import ResponseFormat, ResponseFormatType
+from ape.types.response_format import (
+    ResponseFormat,
+    ResponseFormatJSON,
+    ResponseFormatType,
+)
 
 
 class MIPROWithHIL(MIPROBase):
@@ -36,7 +40,7 @@ class MIPROWithHIL(MIPROBase):
         prompt_desc: Optional[str] = None,
         inputs_desc: Optional[Dict[str, str]] = None,
         outputs_desc: Optional[Dict[str, str]] = None,
-        response_format: ResponseFormat = ResponseFormat(type=ResponseFormatType.XML),
+        response_format: ResponseFormat = ResponseFormatJSON,
         base_prompt: Optional[Prompt] = None,
     ) -> Tuple[optuna.Study, bool]:
         if self.storage is None:

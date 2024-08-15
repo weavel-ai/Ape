@@ -2,7 +2,11 @@ import os
 from typing import Any, Dict, List, Optional, Self, Union
 from litellm import acompletion
 from ape.prompt.utils import format_fewshot
-from ape.types.response_format import ResponseFormat, ResponseFormatType
+from ape.types.response_format import (
+    ResponseFormat,
+    ResponseFormatJSON,
+    ResponseFormatType,
+)
 from ape.utils import parse_xml_outputs, logger
 from pydantic import ConfigDict
 import promptfile as pf
@@ -25,9 +29,7 @@ else:
 
 
 class Prompt(pf.PromptConfig):
-    response_format: Optional[ResponseFormat] = ResponseFormat(
-        type=ResponseFormatType.XML
-    )
+    response_format: Optional[ResponseFormat] = ResponseFormatJSON
     temperature: float = 0.0
     _optimized = False
 
