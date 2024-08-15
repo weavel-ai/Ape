@@ -1,3 +1,4 @@
+import json
 import os
 from typing import Any, Dict, List, Optional, Self, Union
 from litellm import acompletion
@@ -28,7 +29,7 @@ else:
 
 
 class Prompt(pf.PromptConfig):
-    response_format: ResponseFormat = ResponseFormat(type=ResponseFormatType.JSON)
+    response_format: Optional[ResponseFormat] = None
     temperature: float = 0.0
     _optimized = False
 
@@ -104,7 +105,13 @@ class Prompt(pf.PromptConfig):
 
         try:
             logger.info(res_text)
-            parsed_outputs = parse_xml_outputs(res_text)
+            if not self.response_format:
+                return res_text
+            parsed_outputs: Dict[str, Any]
+            if self.response_format.type == ResponseFormatType.XML:
+                parsed_outputs = parse_xml_outputs(res_text)
+            else:
+                parsed_outputs = json.loads(res_text)
             logger.info("Parsed outputs")
             logger.info(parsed_outputs)
             return parsed_outputs

@@ -9,6 +9,12 @@ class ResponseFormatType(str, Enum):
     XML = "xml"
 
 
+class JsonSchema(BaseModel):
+    name: str
+    schema: Dict[str, Any]
+    strict: bool = True
+
+
 class ResponseFormat(BaseModel):
     type: ResponseFormatType
-    json_schema: Optional[Dict[str, Any]] = None
+    json_schema: Optional[JsonSchema] = None

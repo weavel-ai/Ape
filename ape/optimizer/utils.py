@@ -40,6 +40,7 @@ async def reformat_prompt(prompt: Prompt, response_format: ResponseFormat) -> Pr
             retry_count += 1
             if retry_count > 3:
                 logger.error("Failed to reformat prompt after 3 retries")
+                logger.error("Generated prompt:" + res)
                 raise e
     return new_prompt
 

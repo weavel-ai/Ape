@@ -14,10 +14,8 @@ def format_fewshot(fewshot: Dataset, response_format: ResponseFormat) -> str:
             else:
                 inputs, outputs = data["inputs"], data.get("outputs", {})
             if response_format.type == ResponseFormatType.XML:
-                print(type(inputs), type(outputs))
                 inputs_xml = dict_to_xml(inputs, "input")
                 outputs_xml = dict_to_xml(outputs, "output")
-                print(type(inputs_xml), type(outputs_xml))
                 formatted += f"<example>\n{inputs_xml}\n{outputs_xml}\n</example>"
             else:
                 formatted += f"Inputs:\n{json.dumps(inputs, indent=2)}"

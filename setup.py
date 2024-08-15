@@ -10,7 +10,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name="ape",
-    version="0.3.4",
+    version="0.3.5",
     packages=find_namespace_packages(),
     include_package_data=True,
     entry_points={},

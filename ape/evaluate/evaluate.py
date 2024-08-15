@@ -95,7 +95,9 @@ class Evaluate:
 
         for result in results:
             example_idx, example, prediction, score = result
-            reordered_devset.append((example_idx, example, prediction, score))
+            reordered_devset.append(
+                (example_idx, example.model_dump(), prediction, score)
+            )
             ncorrect += score
             ntotal += 1
             self._update_progress(pbar, ncorrect, ntotal)
@@ -145,8 +147,7 @@ class Evaluate:
                 )
                 prediction: Union[str, Dict[str, Any]] = await prompt(**inputs)
                 score = metric(
-                    example,
-                    prediction,
+                    example, prediction, None
                 )  # FIXME: TODO: What's the right order? Maybe force name-based kwargs!
 
                 return example_idx, example, prediction, score
@@ -252,7 +253,7 @@ class Evaluate:
         return round(100 * ncorrect / ntotal, 2)
 
 
-def merge_dicts(d1, d2) -> dict:
+def merge_dicts(d1: Dict, d2: Dict) -> dict:
     merged = {}
     for k, v in d1.items():
         if k in d2:

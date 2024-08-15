@@ -5,6 +5,8 @@ inputs:
     examples: A list of examples from the dataset
 outputs:
     observations: Something that holds true for most or all of the data you observed
+response_format:
+    type: xml
 ---
 # system prompt (persona)
 <system>
