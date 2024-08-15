@@ -23,7 +23,6 @@ from ape.prompt.prompt_base import Prompt
 from ape.types import Dataset
 from ape.types.response_format import (
     ResponseFormat,
-    ResponseFormatJSON,
     ResponseFormatType,
 )
 
@@ -65,7 +64,7 @@ class MIPRO(MIPROBase):
         minibatch=True,
         prompt_aware_proposer=True,
         requires_permission_to_run=True,
-        response_format: ResponseFormat = ResponseFormatJSON,
+        response_format: ResponseFormat = ResponseFormat(type=ResponseFormatType.JSON),
         log_dir: str,
     ):
         # Define ANSI escape codes for colors

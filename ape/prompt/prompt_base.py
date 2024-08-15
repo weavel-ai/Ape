@@ -4,7 +4,6 @@ from litellm import acompletion
 from ape.prompt.utils import format_fewshot
 from ape.types.response_format import (
     ResponseFormat,
-    ResponseFormatJSON,
     ResponseFormatType,
 )
 from ape.utils import parse_xml_outputs, logger
@@ -29,7 +28,7 @@ else:
 
 
 class Prompt(pf.PromptConfig):
-    response_format: Optional[ResponseFormat] = ResponseFormatJSON
+    response_format: ResponseFormat = ResponseFormat(type=ResponseFormatType.JSON)
     temperature: float = 0.0
     _optimized = False
 
@@ -85,7 +84,7 @@ class Prompt(pf.PromptConfig):
             model=self.model,
             messages=messages,
             response_format=(
-                self.response_format.model_dump()
+                self.response_format.model_dump(exclude_none=True)
                 if (
                     self.response_format
                     and self.response_format.type != ResponseFormatType.XML

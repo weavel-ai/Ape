@@ -16,7 +16,6 @@ from ape.types.dataset_item import DatasetItem
 from ape.optimizer import OptunaSingletonStorage
 from ape.types.response_format import (
     ResponseFormat,
-    ResponseFormatJSON,
     ResponseFormatType,
 )
 
@@ -40,7 +39,7 @@ class MIPROWithHIL(MIPROBase):
         prompt_desc: Optional[str] = None,
         inputs_desc: Optional[Dict[str, str]] = None,
         outputs_desc: Optional[Dict[str, str]] = None,
-        response_format: ResponseFormat = ResponseFormatJSON,
+        response_format: ResponseFormat = ResponseFormat(type=ResponseFormatType.JSON),
         base_prompt: Optional[Prompt] = None,
     ) -> Tuple[optuna.Study, bool]:
         if self.storage is None:
@@ -59,8 +58,8 @@ class MIPROWithHIL(MIPROBase):
         if is_new_study:
             # if not trainset:
             #     raise ValueError("Trainset is required for a new study.")
-            if not task_description:
-                raise ValueError("Task description is required for a new study.")
+            # if not task_description:
+            #     raise ValueError("Task description is required for a new study.")
             if base_prompt:
                 base_prompt = await reformat_prompt(
                     prompt=base_prompt, response_format=response_format

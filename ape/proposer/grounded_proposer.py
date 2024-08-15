@@ -9,7 +9,6 @@ from ape.proposer.utils import create_history_string, extract_prompt
 from ape.proposer.propose_base import Proposer
 from ape.types.response_format import (
     ResponseFormat,
-    ResponseFormatJSON,
     ResponseFormatType,
 )
 from ape.utils import logger
@@ -81,7 +80,7 @@ class GroundedProposer(Proposer):
         fewshot_candidates: Optional[List[Dataset]] = None,
         inputs_desc: Optional[Dict[str, str]] = None,
         outputs_desc: Optional[Dict[str, str]] = None,
-        response_format: ResponseFormat = ResponseFormatJSON,
+        response_format: ResponseFormat = ResponseFormat(type=ResponseFormatType.JSON),
         tip=None,
     ) -> List[Prompt]:
         """This method is responsible for returning the full set of new instructions for our task, given the specified criteria."""
@@ -146,7 +145,7 @@ class GroundedProposer(Proposer):
         fewshot: Optional[Dataset] = None,
         inputs_desc: Optional[Dict[str, str]] = None,
         outputs_desc: Optional[Dict[str, str]] = None,
-        response_format: ResponseFormat = ResponseFormatJSON,
+        response_format: ResponseFormat = ResponseFormat(type=ResponseFormatType.JSON),
         tip=None,
     ) -> Prompt:
         """This method is responsible for returning a single instruction for a given predictor, using the specified criteria."""
