@@ -68,10 +68,10 @@ class GroundedProposer(Proposer):
 
     async def propose_prompts(
         self,
-        task_description: str,
         trial_logs: Dict[str, Any],
         N: int,
         T: float,
+        task_description: Optional[str] = None,
         prompt_desc: Optional[str] = None,
         base_prompt: Optional[Prompt] = None,
         fewshot_candidates: Optional[List[Dataset]] = None,
@@ -134,9 +134,9 @@ class GroundedProposer(Proposer):
 
     async def propose_one(
         self,
-        task_description: str,
         trial_logs: Dict[str, Any],
         T: float,
+        task_description: Optional[str] = None,
         prompt_desc: Optional[str] = None,
         base_prompt: Optional[Prompt] = None,
         fewshot: Optional[Dataset] = None,
@@ -186,7 +186,7 @@ class GroundedProposer(Proposer):
         logger.info("Formatted prompt for generation")
         logger.info(
             self.generate_instructions.format(
-                task_description=task_description,
+                task_description=task_description or "-",
                 dataset_desc=self.data_summary if self.use_dataset_summary else "-",
                 task_fewshot=task_fewshot,
                 previous_prompts=(
@@ -218,7 +218,13 @@ class GroundedProposer(Proposer):
             logger.info("Extracted prompt")
             logger.info(base_prompt)
 
-            return Prompt.load(output)
+            new_prompt = Prompt.load(output)
+            new_prompt.model = self.prompt_model
+            new_prompt.inputs_desc = inputs_desc
+            new_prompt.outputs_desc = outputs_desc
+            new_prompt.response_format = response_format
+
+            return new_prompt
         except Exception as e:
             logger.error(f"Error extracting prompt.\n{e}")
             logger.error(output)

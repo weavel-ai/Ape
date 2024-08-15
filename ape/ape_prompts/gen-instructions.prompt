@@ -64,10 +64,10 @@ Previous prompts (previous prompts we've attemped, along with their scores):
 Basic prompt:
 {basic_prompt}
 
-Tip (a suggestion for how to go with writing the new prompt):
+Idea:
 {tip}
 --
-Assigned task (this is what you are asked to do):
+Suggestion for improvement (a suggestion for how to go with writing the new prompt):
 {task_description}
 
 Think step by step. Wrap the prompt section in ```prompt

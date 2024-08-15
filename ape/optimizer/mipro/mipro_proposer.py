@@ -10,7 +10,7 @@ class MIPROProposer(MIPROBase):
     async def generate_candidates(
         self,
         trainset: Dataset,
-        task_description: str,
+        task_description: Optional[str] = None,
         prompt_desc: Optional[str] = None,
         prompt: Optional[Prompt] = None,
         fewshot_candidates: Optional[List[Dataset]] = None,
@@ -33,12 +33,12 @@ class MIPROProposer(MIPROBase):
 
         logger.info(f"Generating {self.num_candidates} instruction candidates")
         prompt_candidates = await proposer.propose_prompts(
-            task_description=task_description,
             prompt_desc=prompt_desc,
             base_prompt=prompt,
             fewshot_candidates=fewshot_candidates,
             N=self.num_candidates,
             T=self.init_temperature,
+            task_description=task_description,
             trial_logs={},
             inputs_desc=inputs_desc,
             outputs_desc=outputs_desc,
