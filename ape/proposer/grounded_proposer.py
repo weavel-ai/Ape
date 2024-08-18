@@ -229,6 +229,7 @@ class GroundedProposer(Proposer):
             new_prompt.model = self.prompt_model
             new_prompt.inputs_desc = inputs_desc
             new_prompt.outputs_desc = outputs_desc
+            new_prompt.response_format = response_format
             logger.info(new_prompt)
             logger.info(type(new_prompt))
 
