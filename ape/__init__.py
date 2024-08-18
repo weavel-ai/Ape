@@ -1,3 +1,4 @@
+from .prompt.cost_tracker import CostTracker
 from .prompt.prompt_base import Prompt
 from .types.dataset_item import DatasetItem
 

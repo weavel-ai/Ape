@@ -183,12 +183,8 @@ class Evaluate:
             [
                 merge_dicts(
                     r.example,
-                    (
-                        {"prediction": r.prediction}
-                        if isinstance(r.prediction, str)
-                        else r.prediction
-                    ),
-                    {"correct": r.score},
+                    {"prediction": r.prediction, "correct": r.score}
+                    | (r.prediction if isinstance(r.prediction, dict) else {}),
                 )
                 for r in results
             ]

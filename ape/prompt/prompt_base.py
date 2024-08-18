@@ -2,6 +2,7 @@ import json
 import os
 from typing import Any, Dict, List, Optional, Self, Union
 from litellm import acompletion
+from ape.prompt.cost_tracker import CostTracker
 from ape.prompt.utils import format_fewshot
 from ape.types.dataset_item import DatasetItem
 from ape.types.response_format import (
@@ -31,9 +32,10 @@ else:
 class Prompt(pf.PromptConfig):
     # response_format: Optional[ResponseFormat] = None
     temperature: float = 0.0
+    cost_tracker: Optional[CostTracker] = None
     _optimized = False
 
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True)
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -41,6 +43,8 @@ class Prompt(pf.PromptConfig):
         self._restructure_models()
 
     def _ensure_metadata(self):
+        if not hasattr(self, "metadata"):
+            self.metadata = {}
         self.metadata.setdefault("response_format", None)
         self.metadata.setdefault("fewshot", [])
         self.metadata.setdefault("inputs", {})
@@ -87,8 +91,13 @@ class Prompt(pf.PromptConfig):
         self.metadata["outputs"] = value
 
     async def __call__(
-        self, lm_config: Dict[str, Any] = {}, **kwargs
+        self,
+        lm_config: Optional[Dict[str, Any]] = None,
+        cost_tracker: Optional[CostTracker] = None,
+        **kwargs,
     ) -> Union[str, Dict[str, Any]]:
+        if lm_config is None:
+            lm_config = {}
         if self.inputs_desc:
             inputs = {k: v for k, v in kwargs.items() if k in self.inputs_desc}
             if len(inputs) != len(self.inputs_desc):
@@ -102,16 +111,24 @@ class Prompt(pf.PromptConfig):
             logger.error("Error: No messages in prompt.")
             return None
         response_format = None
+        model = self.model
         if self.response_format:
             if self.response_format.type != "xml":
+                if self.response_format.type == "json_schema":
+                    model = "gpt-4o-2024-08-06"
                 response_format = self.response_format.model_dump(exclude_none=True)
 
         res = await acompletion(
-            model=self.model,
+            model=model,
             messages=messages,
             response_format=response_format,
             **lm_config,
         )
+        if cost_tracker:
+            self.cost_tracker = cost_tracker
+        if self.cost_tracker:
+            cost = res._hidden_params["response_cost"]
+            self.cost_tracker.add_cost(cost=cost, details=self.__name__)
 
         res_text = res.choices[0].message.content
         if not res_text:
