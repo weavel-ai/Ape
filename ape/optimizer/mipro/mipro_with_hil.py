@@ -1,11 +1,8 @@
 import json
+import random
 from typing import Dict, List, Optional, Tuple, Union
 
 import optuna
-import sqlalchemy
-import sqlalchemy.ext.asyncio as async_sqlalchemy
-from sqlalchemy.ext.asyncio import create_async_engine
-from sqlalchemy import text
 from pydantic import ConfigDict
 from ape.optimizer.mipro.mipro_base import MIPROBase
 from ape.optimizer.mipro.mipro_proposer import MIPROProposer
@@ -21,7 +18,7 @@ from ape.types.response_format import (
 
 class MIPROWithHIL(MIPROBase):
     instruction_candidates: List[Prompt] = []
-    fewshot_candidates: List[DatasetItem] = []
+    fewshot_candidates: List[Dataset] = []
     storage: optuna.storages.RDBStorage = None
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -40,6 +37,7 @@ class MIPROWithHIL(MIPROBase):
         outputs_desc: Optional[Dict[str, str]] = None,
         response_format: Optional[ResponseFormat] = None,
         base_prompt: Optional[Prompt] = None,
+        max_demos: int = 5,
     ) -> Tuple[optuna.Study, bool]:
         if self.storage is None:
             raise ValueError("Storage is not set up.")
@@ -78,14 +76,17 @@ class MIPROWithHIL(MIPROBase):
                 "prompt_candidates",
                 json.dumps([p.dump() for p in self.instruction_candidates]),
             )
+            fewshot_candidates = [
+                [
+                    d.model_dump() if isinstance(d, DatasetItem) else d
+                    for d in random.sample(trainset, min(max_demos, len(trainset)))
+                ]
+                for _ in range(self.num_candidates)
+            ]
+
             study.set_user_attr(
                 "fewshot_candidates",
-                json.dumps(
-                    [
-                        d.model_dump() if isinstance(d, DatasetItem) else d
-                        for d in trainset
-                    ]
-                ),
+                json.dumps(fewshot_candidates),
             )
         else:
             prompt_candidates_json = study.user_attrs["prompt_candidates"]
@@ -94,7 +95,8 @@ class MIPROWithHIL(MIPROBase):
                 Prompt.load(p) for p in json.loads(prompt_candidates_json)
             ]
             self.fewshot_candidates = [
-                DatasetItem(**d) for d in json.loads(fewshot_candidates_json)
+                [DatasetItem(**d) for d in fewshot_set]
+                for fewshot_set in json.loads(fewshot_candidates_json)
             ]
 
         return study, is_new_study

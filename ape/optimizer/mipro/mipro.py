@@ -451,7 +451,7 @@ class MIPRO(MIPROBase):
             logger.info("Started optimization")
             sampler = optuna.samplers.TPESampler(seed=seed, multivariate=True)
             study = optuna.create_study(direction="maximize", sampler=sampler)
-            score = study.optimize(objective_function, n_trials=max_steps)
+            study.optimize(objective_function, n_trials=max_steps)
 
             if best_prompt is not None and self.track_stats:
                 best_prompt.trial_logs = trial_logs
