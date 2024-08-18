@@ -76,7 +76,7 @@ class MIPROWithHIL(MIPROBase):
                 "prompt_candidates",
                 json.dumps([p.dump() for p in self.instruction_candidates]),
             )
-            fewshot_candidates = [
+            self.fewshot_candidates = [
                 [
                     d.model_dump() if isinstance(d, DatasetItem) else d
                     for d in random.sample(trainset, min(max_demos, len(trainset)))
@@ -86,7 +86,7 @@ class MIPROWithHIL(MIPROBase):
 
             study.set_user_attr(
                 "fewshot_candidates",
-                json.dumps(fewshot_candidates),
+                json.dumps(self.fewshot_candidates),
             )
         else:
             prompt_candidates_json = study.user_attrs["prompt_candidates"]
