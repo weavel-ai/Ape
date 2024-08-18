@@ -7,4 +7,4 @@ class DatasetItem(BaseModel):
     outputs: Optional[Dict[str, Any]] = None
     metadata: Optional[Dict[str, Any]] = None
 
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="ignore")
