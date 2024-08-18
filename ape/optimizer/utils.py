@@ -1,15 +1,17 @@
 import asyncio
 import os
 import random
-from typing import Any, Awaitable, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import numpy as np
+from ape.evaluate.evaluate import Evaluate
+from ape.metric.metric_base import BaseMetric
 from ape.optimizer.bootstrap_fewshot import BootstrapFewShot
 from ape.optimizer.fewshot_optimizer import FewShotOptimizer
 from ape.prompt.prompt_base import Prompt
 from ape.proposer.utils import extract_prompt
 from ape.types import Dataset
-from ape.types.response_format import ResponseFormat, ResponseFormatType
+from ape.types.response_format import ResponseFormat
 from ape.utils import logger
 
 
@@ -17,11 +19,11 @@ async def reformat_prompt(prompt: Prompt, response_format: ResponseFormat) -> Pr
     """Reformat the prompt to be in XML style."""
     formatter_filename: str
     match response_format.type:
-        case ResponseFormatType.XML:
+        case "xml":
             formatter_filename = "reformat-prompt-xml"
-        case ResponseFormatType.JSON:
+        case "json_object":
             formatter_filename = "reformat-prompt-json-object"
-        case ResponseFormatType.JSON_SCHEMA:
+        case "json_schema":
             formatter_filename = "reformat-prompt-json-schema"
     formatter = Prompt.from_filename(formatter_filename)
     new_prompt: Prompt
@@ -51,7 +53,7 @@ async def create_single_fewshot_demo_set(
     seed: int,
     max_labeled_demos: int,
     max_bootstrapped_demos: int,
-    metric: Callable[..., Awaitable[Any]],
+    metric: BaseMetric,
     teacher_settings: dict,
     max_rounds: int,
     labeled_sample: bool,
@@ -104,7 +106,7 @@ async def create_n_fewshot_demo_sets(
     trainset: Dataset,
     max_labeled_demos: int,
     max_bootstrapped_demos: int,
-    metric: Callable[..., Awaitable[Any]],
+    metric: BaseMetric,
     teacher_settings: dict,
     max_rounds=1,
     labeled_sample=True,
@@ -159,17 +161,17 @@ async def eval_candidate_prompt(
     batch_size: int,
     trainset: Dataset,
     candidate_prompt: Prompt,
-    evaluate: Callable[..., Awaitable[Any]],
+    evaluate: Evaluate,
 ):
     """Evaluate a candidate program on the trainset, using the specified batch size."""
     # Evaluate on the full trainset
     if batch_size >= len(trainset):
-        score = await evaluate(candidate_prompt, devset=trainset, display_table=0)
+        score = await evaluate(candidate_prompt, testset=trainset, display_table=0)
     # Or evaluate on a minibatch
     else:
         score = await evaluate(
             candidate_prompt,
-            devset=create_minibatch(trainset, batch_size),
+            testset=create_minibatch(trainset, batch_size),
             display_table=0,
         )
 

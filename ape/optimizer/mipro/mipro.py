@@ -5,8 +5,8 @@ import optuna
 from collections import defaultdict
 import pickle
 import random
-from typing import Any, Awaitable, Callable, List, Literal, Sequence
 import numpy as np
+from typing import Any, Awaitable, Callable, List, Literal, Optional, Sequence
 from ape.evaluate.evaluate import Evaluate
 from ape.optimizer.mipro.mipro_base import MIPROBase
 from ape.optimizer.mipro.mipro_proposer import MIPROProposer
@@ -23,7 +23,6 @@ from ape.prompt.prompt_base import Prompt
 from ape.types import Dataset
 from ape.types.response_format import (
     ResponseFormat,
-    ResponseFormatType,
 )
 
 
@@ -54,7 +53,7 @@ class MIPRO(MIPROBase):
         *,
         task_description: str = "",
         trainset: Dataset,
-        valset=None,
+        testset=None,
         max_steps=30,
         max_bootstrapped_demos=5,
         max_labeled_demos=2,
@@ -64,7 +63,7 @@ class MIPRO(MIPROBase):
         minibatch=True,
         prompt_aware_proposer=True,
         requires_permission_to_run=True,
-        response_format: ResponseFormat = ResponseFormat(type=ResponseFormatType.JSON),
+        response_format: Optional[ResponseFormat] = None,
         log_dir: str,
     ):
         # Define ANSI escape codes for colors
@@ -74,7 +73,7 @@ class MIPRO(MIPROBase):
         ENDC = "\033[0m"  # Resets the color to default
 
         random.seed(seed)
-        valset = valset or trainset
+        testset = testset or trainset
         estimated_prompt_model_calls = (
             10 + self.num_candidates + 1
         )  # num data summary calls + N + 1
@@ -164,7 +163,7 @@ class MIPRO(MIPROBase):
 
             # Set up prompt and evaluation function
             prompt = student.deepcopy()
-            evaluate = Evaluate(devset=trainset, metric=self.metric, **eval_kwargs)
+            evaluate = Evaluate(testset=testset, metric=self.metric, **eval_kwargs)
 
             # Determine the number of fewshot examples to use to generate demos for prompt
             if max_bootstrapped_demos == 0 and max_labeled_demos == 0:
@@ -210,6 +209,7 @@ class MIPRO(MIPROBase):
                 trainset=trainset,
                 task_description=task_description,
                 fewshot_candidates=fewshot_candidates,
+                response_format=response_format,
             )
             # proposer.program_aware = prompt_aware_proposer
             # proposer.use_tip = True
@@ -224,7 +224,6 @@ class MIPRO(MIPROBase):
             #     T=self.init_temperature,
             #     trial_logs={},
             # )
-            prompt_candidates[0].messages = prompt.messages
 
             # instruction_candidates[1][0] = "Given the question, and context, respond with the number of the document that is most relevant to answering the question in the field 'Answer' (ex. Answer: '3')."
 
@@ -257,7 +256,7 @@ class MIPRO(MIPROBase):
                 baseline_prompt: Prompt,
                 instruction_candidates: list[dict[Literal["role", "content"], str]],
                 fewshot_candidates: List[Dataset],
-                evaluate: Callable[..., Awaitable[Any]],
+                evaluate: Evaluate,
                 trainset: Dataset,
             ):
                 def objective(
@@ -424,14 +423,14 @@ class MIPRO(MIPROBase):
                             best_score_updated = True
 
                     # If the best score was updated, do a full eval on the dev set
-                    if best_score_updated:
-                        full_dev_score = run_async(
-                            evaluate(
-                                best_prompt,
-                                devset=valset,
-                                display_table=0,
-                            )
-                        )
+                    # if best_score_updated:
+                    #     full_dev_score = run_async(
+                    #         evaluate(
+                    #             best_prompt,
+                    #             devset=valset,
+                    #             display_table=0,
+                    #         )
+                    #     )
 
                     if score >= goal_score:
                         trial.study.stop()

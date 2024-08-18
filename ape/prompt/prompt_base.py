@@ -3,9 +3,9 @@ import os
 from typing import Any, Dict, List, Optional, Self, Union
 from litellm import acompletion
 from ape.prompt.utils import format_fewshot
+from ape.types.dataset_item import DatasetItem
 from ape.types.response_format import (
     ResponseFormat,
-    ResponseFormatType,
 )
 from ape.utils import parse_xml_outputs, logger
 from pydantic import ConfigDict
@@ -29,7 +29,7 @@ else:
 
 
 class Prompt(pf.PromptConfig):
-    response_format: Optional[ResponseFormat] = None
+    # response_format: Optional[ResponseFormat] = None
     temperature: float = 0.0
     _optimized = False
 
@@ -38,11 +38,29 @@ class Prompt(pf.PromptConfig):
     def __init__(self, **data):
         super().__init__(**data)
         self._ensure_metadata()
+        self._restructure_models()
 
     def _ensure_metadata(self):
+        self.metadata.setdefault("response_format", None)
         self.metadata.setdefault("fewshot", [])
         self.metadata.setdefault("inputs", {})
         self.metadata.setdefault("outputs", {})
+
+    def _restructure_models(self):
+        if self.response_format:
+            self.response_format = ResponseFormat(**self.response_format)
+        if self.fewshot:
+            self.fewshot = [
+                DatasetItem(**x) if isinstance(x, dict) else x for x in self.fewshot
+            ]
+
+    @property
+    def response_format(self) -> Optional[ResponseFormat]:
+        return self.metadata["response_format"]
+
+    @response_format.setter
+    def response_format(self, value: Optional[ResponseFormat]):
+        self.metadata["response_format"] = value
 
     @property
     def fewshot(self) -> Optional[List[Dict[str, Any]]]:
@@ -80,18 +98,18 @@ class Prompt(pf.PromptConfig):
                 return None
 
         messages = self.format(**kwargs).messages
+        if not messages:
+            logger.error("Error: No messages in prompt.")
+            return None
+        response_format = None
+        if self.response_format:
+            if self.response_format.type != "xml":
+                response_format = self.response_format.model_dump(exclude_none=True)
 
         res = await acompletion(
             model=self.model,
             messages=messages,
-            response_format=(
-                self.response_format.model_dump(exclude_none=True)
-                if (
-                    self.response_format
-                    and self.response_format.type != ResponseFormatType.XML
-                )
-                else None
-            ),
+            response_format=response_format,
             **lm_config,
         )
 
@@ -99,16 +117,12 @@ class Prompt(pf.PromptConfig):
         if not res_text:
             logger.error(res)
 
-        if not self.outputs_desc:
-            logger.info(f"Generated: {res_text}")
-            return res_text
-
         try:
             logger.info(res_text)
             if not self.response_format:
                 return res_text
             parsed_outputs: Dict[str, Any]
-            if self.response_format.type == ResponseFormatType.XML:
+            if self.response_format.type == "xml":
                 parsed_outputs = parse_xml_outputs(res_text)
             else:
                 parsed_outputs = json.loads(res_text)
@@ -146,3 +160,17 @@ class Prompt(pf.PromptConfig):
         new = self.deepcopy()
         new.fewshot = []
         return new
+
+    def dump(self) -> str:
+        response_format_cache = self.response_format
+        fewshot_cache = self.fewshot
+        self.response_format = (
+            self.response_format.model_dump() if self.response_format else None
+        )
+        self.fewshot = [
+            x.model_dump() if isinstance(x, DatasetItem) else x for x in self.fewshot
+        ]
+        raw = super().dump()
+        self.response_format = response_format_cache
+        self.fewshot = fewshot_cache
+        return raw

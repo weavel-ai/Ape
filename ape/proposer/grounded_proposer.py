@@ -9,7 +9,6 @@ from ape.proposer.utils import create_history_string, extract_prompt
 from ape.proposer.propose_base import Proposer
 from ape.types.response_format import (
     ResponseFormat,
-    ResponseFormatType,
 )
 from ape.utils import logger
 from ape.types import Dataset
@@ -80,7 +79,7 @@ class GroundedProposer(Proposer):
         fewshot_candidates: Optional[List[Dataset]] = None,
         inputs_desc: Optional[Dict[str, str]] = None,
         outputs_desc: Optional[Dict[str, str]] = None,
-        response_format: ResponseFormat = ResponseFormat(type=ResponseFormatType.JSON),
+        response_format: Optional[ResponseFormat] = None,
         tip=None,
     ) -> List[Prompt]:
         """This method is responsible for returning the full set of new instructions for our task, given the specified criteria."""
@@ -145,7 +144,7 @@ class GroundedProposer(Proposer):
         fewshot: Optional[Dataset] = None,
         inputs_desc: Optional[Dict[str, str]] = None,
         outputs_desc: Optional[Dict[str, str]] = None,
-        response_format: ResponseFormat = ResponseFormat(type=ResponseFormatType.JSON),
+        response_format: Optional[ResponseFormat] = None,
         tip=None,
     ) -> Prompt:
         """This method is responsible for returning a single instruction for a given predictor, using the specified criteria."""
@@ -217,15 +216,21 @@ class GroundedProposer(Proposer):
         )
 
         try:
+            logger.info("output")
+            logger.info(output)
             base_prompt = extract_prompt(output)
             logger.info("Extracted prompt")
             logger.info(base_prompt)
+            logger.info("Extracted prompt")
+            logger.info(base_prompt)
 
-            new_prompt = Prompt.load(output)
+            new_prompt = Prompt.load(base_prompt)
+            logger.info("New prompt")
             new_prompt.model = self.prompt_model
             new_prompt.inputs_desc = inputs_desc
             new_prompt.outputs_desc = outputs_desc
-            new_prompt.response_format = response_format
+            logger.info(new_prompt)
+            logger.info(type(new_prompt))
 
             return new_prompt
         except Exception as e:

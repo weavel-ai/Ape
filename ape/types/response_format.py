@@ -1,12 +1,5 @@
-from enum import Enum
-from typing import Any, Dict, Literal, Optional, Union
+from typing import Any, Dict, Literal, Optional
 from pydantic import BaseModel
-
-
-class ResponseFormatType(str, Enum):
-    JSON = "json_object"
-    JSON_SCHEMA = "json_schema"
-    XML = "xml"
 
 
 class JsonSchema(BaseModel):
@@ -16,5 +9,5 @@ class JsonSchema(BaseModel):
 
 
 class ResponseFormat(BaseModel):
-    type: ResponseFormatType
+    type: Literal["json_object", "json_schema", "xml"]
     json_schema: Optional[JsonSchema] = None

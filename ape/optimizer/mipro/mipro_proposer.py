@@ -2,6 +2,7 @@ from ape.optimizer.mipro.mipro_base import MIPROBase
 from ape.proposer.grounded_proposer import GroundedProposer
 from ape.prompt.prompt_base import Prompt
 from ape.types import Dataset
+from ape.types.response_format import ResponseFormat
 from ape.utils.logging import logger
 from typing import Dict, List, Optional
 
@@ -16,6 +17,7 @@ class MIPROProposer(MIPROBase):
         fewshot_candidates: Optional[List[Dataset]] = None,
         inputs_desc: Optional[Dict[str, str]] = None,
         outputs_desc: Optional[Dict[str, str]] = None,
+        response_format: Optional[ResponseFormat] = None,
     ) -> List[Prompt]:
         logger.info("Initializing GroundedProposer")
         proposer = GroundedProposer(
@@ -42,6 +44,7 @@ class MIPROProposer(MIPROBase):
             trial_logs={},
             inputs_desc=inputs_desc,
             outputs_desc=outputs_desc,
+            response_format=response_format,
         )
 
         return prompt_candidates

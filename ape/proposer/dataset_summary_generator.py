@@ -6,7 +6,7 @@ from functools import partial
 from ape.prompt.prompt_base import Prompt
 from ape.types import Dataset
 from ape.types.dataset_item import DatasetItem
-from ape.types.response_format import ResponseFormat, ResponseFormatType
+from ape.types.response_format import ResponseFormat
 
 
 async def process_batch(
@@ -16,7 +16,7 @@ async def process_batch(
     prompt_model: str,
 ) -> str:
     descriptor = Prompt.from_filename("dataset-descriptor")
-    descriptor.response_format = ResponseFormat(type=ResponseFormatType.XML)
+    descriptor.response_format = ResponseFormat(type="xml")
     descriptor.model = prompt_model
     trainset = [
         item.model_dump() if isinstance(item, DatasetItem) else item

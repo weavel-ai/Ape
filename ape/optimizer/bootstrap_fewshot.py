@@ -2,9 +2,10 @@ import asyncio
 import random
 import threading
 from typing import Any, Awaitable, Callable, Dict, Optional, Union
-from pydantic import Field
+from pydantic import Field, ConfigDict
 
 from ape.base import lm as base_lm
+from ape.metric.metric_base import BaseMetric
 from ape.optimizer.fewshot_optimizer import FewShotOptimizer
 from ape.optimizer.optimizer_base import Optimizer
 from ape.prompt.prompt_base import Prompt
@@ -19,7 +20,7 @@ class BootstrapFewShot(Optimizer):
 
     Parameters
     ----------
-    metric: Callable
+    metric: BaseMetric
         A function that compares an expected value and predicted value, outputting the result of that comparison.
     metric_threshold: optional float, default `None`
         If the metric yields a numerical value, then check it against this threshold when
@@ -36,7 +37,7 @@ class BootstrapFewShot(Optimizer):
         Maximum number of errors until program ends.
     """
 
-    metric: Callable[..., Union[Any, Awaitable[Any]]] = None
+    metric: BaseMetric = None
     metric_threshold: Optional[float] = None
     teacher_settings: Dict = {}
     max_bootstrapped_demos: int = 4
@@ -48,13 +49,15 @@ class BootstrapFewShot(Optimizer):
     bootstrapped_fewshot: Optional[Dataset] = None
     validation: Optional[Dataset] = None
 
+    model_config: ConfigDict = ConfigDict(arbitrary_types_allowed=True)
+
     async def optimize(
         self,
         student: Prompt,
         *,
         teacher: Optional[Prompt] = None,
         trainset: Dataset,
-    ):
+    ) -> Prompt:
         self.trainset = trainset
 
         await self._prepare_student_and_teacher(student, teacher)
@@ -150,11 +153,7 @@ class BootstrapFewShot(Optimizer):
             teacher.fewshot = cache
 
             if self.metric:
-                # Check if the metric function is a coroutine function
-                if asyncio.iscoroutinefunction(self.metric):
-                    metric_val = await self.metric(example, prediction, None)
-                else:
-                    metric_val = self.metric(example, prediction, None)
+                metric_val = await self.metric(example.outputs, prediction, None)
 
                 if self.metric_threshold:
                     success = metric_val >= self.metric_threshold
