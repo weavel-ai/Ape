@@ -1,43 +1,40 @@
 import asyncio
 import random
 import threading
-from typing import Any, Awaitable, Callable, Dict, Optional, Union
+from typing import Any, Dict, Optional, Union
 from pydantic import Field, ConfigDict
 
-from ape.base import lm as base_lm
 from ape.metric.metric_base import BaseMetric
-from ape.optimizer.fewshot_optimizer import FewShotOptimizer
+from ape.optimizer.sampled_fewshot import SampledFewshot
 from ape.optimizer.optimizer_base import Optimizer
 from ape.prompt.prompt_base import Prompt
 from ape.utils import logger
-from ape.types import DataItem, Dataset, DatasetItem
+from ape.types import DataItem, Dataset
 
 
 class BootstrapFewShot(Optimizer):
     """
-    An Optimizer class that composes a set of demos/examples to go into a predictor's prompt.
-    These demos come from a combination of labeled examples in the training set, and bootstrapped demos.
+    A class for optimizing prompts using bootstrapped few-shot examples.
 
-    Parameters
-    ----------
-    metric: BaseMetric
-        A function that compares an expected value and predicted value, outputting the result of that comparison.
-    metric_threshold: optional float, default `None`
-        If the metric yields a numerical value, then check it against this threshold when
-        deciding whether or not to accept a bootstrap example.
-    teacher_settings: dict, optional
-        Settings for the `teacher` model.
-    max_bootstrapped_demos: int, default 4
-        Maximum number of bootstrapped demonstrations to include
-    max_labeled_demos: int, default 3
-        Maximum number of labeled demonstrations to include.
-    max_rounds: int, default 1
-        Number of iterations to attempt generating the required bootstrap examples. If unsuccessful after `max_rounds`, the program ends.
-    max_errors: int, default 5
-        Maximum number of errors until program ends.
+    This optimizer uses a combination of labeled and bootstrapped examples to create
+    an optimized prompt. It iteratively improves the prompt by bootstrapping examples
+    from the training set.
+
+    Attributes:
+        metric (Optional[BaseMetric]): The metric used to evaluate bootstrapped examples.
+        metric_threshold (Optional[float]): The threshold for the metric to consider an example successful.
+        teacher_settings (Dict): Settings for the teacher prompt.
+        max_bootstrapped_demos (int): Maximum number of bootstrapped demonstrations to include.
+        max_labeled_demos (int): Maximum number of labeled demonstrations to include.
+        max_rounds (int): Maximum number of bootstrapping rounds.
+        max_errors (int): Maximum number of errors allowed before raising an exception.
+        error_count (int): Current count of errors encountered.
+        error_lock (threading.Lock): Lock for thread-safe error counting.
+        bootstrapped_fewshot (Optional[Dataset]): Dataset of successfully bootstrapped examples.
+        validation (Optional[Dataset]): Dataset used for validation.
     """
 
-    metric: BaseMetric = None
+    metric: Optional[BaseMetric] = None
     metric_threshold: Optional[float] = None
     teacher_settings: Dict = {}
     max_bootstrapped_demos: int = 4
@@ -45,11 +42,16 @@ class BootstrapFewShot(Optimizer):
     max_rounds: int = 1
     max_errors: int = 5
     error_count: int = 0
-    error_lock: Any = Field(default_factory=threading.Lock, exclude=True)
+    error_lock: threading.Lock = Field(default_factory=threading.Lock, exclude=True)
     bootstrapped_fewshot: Optional[Dataset] = None
     validation: Optional[Dataset] = None
 
     model_config: ConfigDict = ConfigDict(arbitrary_types_allowed=True)
+
+    def __init__(self, **data):
+        """Initialize the BootstrapFewShot optimizer."""
+        super().__init__(**data)
+        self.error_lock = threading.Lock()
 
     async def optimize(
         self,
@@ -57,41 +59,57 @@ class BootstrapFewShot(Optimizer):
         *,
         teacher: Optional[Prompt] = None,
         trainset: Dataset,
+        **kwargs,
     ) -> Prompt:
+        """
+        Optimize the student prompt using bootstrapped few-shot examples.
+
+        Args:
+            student (Prompt): The student prompt to be optimized.
+            teacher (Optional[Prompt]): The teacher prompt used for bootstrapping.
+            trainset (Dataset): The dataset used for training and bootstrapping.
+
+        Returns:
+            Prompt: The optimized student prompt.
+        """
         self.trainset = trainset
 
         await self._prepare_student_and_teacher(student, teacher)
         await self._bootstrap()
 
         self.student = self._train()
-        self.student._optimized = True
-
-        # set assert_failures and suggest_failures as attributes of student w/ value 0
-        self.student._assert_failures = 0
-        self.student._suggest_failures = 0
+        self.student.set_optimized(True)
 
         return self.student
 
     async def _prepare_student_and_teacher(self, student: Prompt, teacher: Prompt):
+        """
+        Prepare the student and teacher prompts for optimization.
+
+        Args:
+            student (Prompt): The student prompt to be optimized.
+            teacher (Prompt): The teacher prompt used for bootstrapping.
+        """
         self.student = student.reset_copy()
         self.teacher = (
             teacher.deepcopy() if teacher is not None else student.reset_copy()
         )
 
-        assert (
-            getattr(self.student, "_compiled", False) is False
-        ), "Student must be uncompiled."
+        assert self.student.is_optimized() is False, "Student must be unoptimized."
 
-        if (
-            self.max_labeled_demos
-            and getattr(self.teacher, "_compiled", False) is False
-        ):
-            optimizer = FewShotOptimizer(k=self.max_labeled_demos)
+        if self.max_labeled_demos and self.teacher.is_optimized() is False:
+            optimizer = SampledFewshot(k=self.max_labeled_demos)
             self.teacher = await optimizer.optimize(
                 self.teacher.reset_copy(), trainset=self.trainset
             )
 
     async def _bootstrap(self, *, max_bootstraps=None):
+        """
+        Bootstrap examples from the training set.
+
+        Args:
+            max_bootstraps (Optional[int]): Maximum number of examples to bootstrap.
+        """
         max_bootstraps = max_bootstraps or self.max_bootstrapped_demos
 
         bootstrapped = {}
@@ -129,14 +147,24 @@ class BootstrapFewShot(Optimizer):
         # score = evaluate(self.metric, display_table=False, display_progress=True)
 
     async def _bootstrap_one_example(self, example: DataItem, round_idx=0):
-        teacher = self.teacher  # .deepcopy()
+        """
+        Bootstrap a single example from the training set.
+
+        Args:
+            example (DataItem): The example to bootstrap.
+            round_idx (int): The current bootstrapping round index.
+
+        Returns:
+            bool: True if the example was successfully bootstrapped, False otherwise.
+        """
+        teacher = self.teacher
         cache = []
 
         try:
-            lm = (
-                base_lm.copy(temperature=0.7 + 0.001 * round_idx)
+            lm_config = (
+                {"temperature": 0.7 + 0.001 * round_idx}
                 if round_idx > 0
-                else base_lm
+                else {"temperature": 1.0}
             )
 
             cache = teacher.fewshot
@@ -146,14 +174,19 @@ class BootstrapFewShot(Optimizer):
                 if hasattr(example, "inputs")
                 else example.get("inputs", {})
             )
+            outputs = (
+                example.outputs
+                if hasattr(example, "outputs")
+                else example.get("outputs", {})
+            )
             prediction: Union[str, Dict[str, Any]] = await teacher(
-                lm_config=lm, **inputs
+                lm_config=lm_config, **inputs
             )
 
             teacher.fewshot = cache
 
-            if self.metric:
-                metric_val = await self.metric(example.outputs, prediction, None)
+            if self.metric is not None:
+                metric_val = await self.metric(outputs, prediction, None)
 
                 if self.metric_threshold:
                     success = metric_val >= self.metric_threshold
@@ -178,6 +211,12 @@ class BootstrapFewShot(Optimizer):
         return success
 
     def _train(self):
+        """
+        Train the student prompt using the bootstrapped and raw few-shot examples.
+
+        Returns:
+            Prompt: The trained student prompt.
+        """
         rng = random.Random(0)
         raw_fewshot = self.validation
         augmented_fewshot = self.bootstrapped_fewshot[: self.max_bootstrapped_demos]

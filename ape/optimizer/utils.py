@@ -1,13 +1,13 @@
 import asyncio
 import os
 import random
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import numpy as np
 from ape.evaluate.evaluate import Evaluate
 from ape.metric.metric_base import BaseMetric
 from ape.optimizer.bootstrap_fewshot import BootstrapFewShot
-from ape.optimizer.fewshot_optimizer import FewShotOptimizer
+from ape.optimizer.sampled_fewshot import SampledFewshot
 from ape.prompt.prompt_base import Prompt
 from ape.proposer.utils import extract_prompt
 from ape.types import Dataset
@@ -33,6 +33,11 @@ async def reformat_prompt(prompt: Prompt, response_format: ResponseFormat) -> Pr
         try:
             res = await formatter(prompt=prompt.dump())
             extracted = extract_prompt(res)
+            if response_format.type == "json_object":
+                if "json" not in extracted.lower():
+                    raise ValueError(
+                        "Reformatted prompt does not include the word 'JSON'"
+                    )
             logger.info(f"Reformatted prompt: {extracted}")
             new_prompt = Prompt.load(extracted)
             new_prompt.response_format = response_format
@@ -69,7 +74,7 @@ async def create_single_fewshot_demo_set(
         prompt2 = student.reset_copy()
     elif seed == -2 and max_labeled_demos > 0 and include_non_bootstrapped:
         # labels only
-        optimizer = FewShotOptimizer(k=max_labeled_demos)
+        optimizer = SampledFewshot(k=max_labeled_demos)
         prompt2 = await optimizer.optimize(
             student, trainset=trainset2, sample=labeled_sample
         )
@@ -203,31 +208,36 @@ def save_candidate_prompt(
 
 
 def get_prompt_with_highest_avg_score(
-    param_score_dict: Dict, fully_evaled_param_combos: Dict
-):
-    """Used as a helper function for bayesian + minibatching optimizers. Returns the program with the highest average score from the batches evaluated so far."""
+    param_score_dict: Dict[str, List[Tuple[float, Prompt]]],
+    fully_evaled_param_combos: Set[str],
+) -> Tuple[Prompt, str]:
+    """
+    Returns the prompt with the highest average score from the batches evaluated so far.
 
-    # Calculate the mean for each combination of categorical parameters, based on past trials
-    results = []
-    for key, values in param_score_dict.items():
-        scores = np.array([v[0] for v in values])
-        mean = np.average(scores)
-        program = values[0][1]
-        results.append((key, mean, program))
+    This function is used as a helper for Bayesian and minibatching optimizers.
 
-    # Sort results by the mean
+    Args:
+        param_score_dict: A dictionary mapping parameter combinations to lists of (score, prompt) tuples.
+        fully_evaled_param_combos: A set of parameter combinations that have been fully evaluated.
+
+    Returns:
+        A tuple containing the best prompt and its corresponding parameter combination key.
+    """
+    results = [
+        (key, np.mean([v[0] for v in values]), values[0][1])
+        for key, values in param_score_dict.items()
+    ]
+
     sorted_results = sorted(results, key=lambda x: x[1], reverse=True)
 
-    # Find the combination with the highest mean, skip fully evaluated ones
-    for combination in sorted_results:
-        key, mean, program = combination
+    for key, mean, prompt in sorted_results:
+        if key not in fully_evaled_param_combos:
+            logger.info(f"Best Combination: {key} with Mean = {mean:.4f}")
+            return prompt, key
 
-        if key in fully_evaled_param_combos:
-            continue
-
-        print(f"Best Combination: {key} with Mean = {mean}")
-
-        return program, key
-
-    # If no valid program is found, we return the last valid one that we found
-    return program, key
+    # If all combinations are fully evaluated, return the overall best
+    best_prompt, best_key = sorted_results[0][2], sorted_results[0][0]
+    logger.warning(
+        "All parameter combinations fully evaluated. Returning overall best."
+    )
+    return best_prompt, best_key

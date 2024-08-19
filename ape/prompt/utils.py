@@ -11,7 +11,8 @@ def format_fewshot(
     """Format fewshot data into specific format."""
     formatted = ""
     try:
-        for data in fewshot:
+        for idx, data in enumerate(fewshot):
+            formatted += f"### Demo {idx+1} ###\n"
             if isinstance(data, DatasetItem):
                 inputs, outputs = data.inputs, data.outputs
             else:
@@ -20,39 +21,13 @@ def format_fewshot(
                 if response_format.type == "xml":
                     inputs_xml = dict_to_xml(inputs, "input")
                     outputs_xml = dict_to_xml(outputs, "output")
-                    formatted += f"<example>\n{inputs_xml}\n{outputs_xml}\n</example>"
+                    formatted += f"<example>\n{inputs_xml}\n{outputs_xml}\n</example>\n"
                     return formatted
-            formatted += f"Inputs:\n{json.dumps(inputs, indent=2)}"
-            formatted += f"Outputs:\n{json.dumps(outputs, indent=2)}"
+            formatted += "**Inputs**\n"
+            for key, value in inputs.items():
+                formatted += f"{key.capitalize()}:\n{value}\n"
+            formatted += f"**Outputs**\n{json.dumps(outputs, indent=2)}\n\n"
     except Exception as err:
         print(err)
 
     return formatted
-
-
-# def format_fewshot(
-#     fewshot: Dataset, response_format: Optional[ResponseFormat] = None
-# ) -> str:
-#     """Format fewshot data into specific format."""
-#     formatted = ""
-#     try:
-#         for idx, data in enumerate(fewshot):
-#             formatted += f"### Demo {idx+1}\n"
-#             if isinstance(data, DatasetItem):
-#                 inputs, outputs = data.inputs, data.outputs
-#             else:
-#                 inputs, outputs = data["inputs"], data.get("outputs", {})
-#             if response_format is not None:
-#                 if response_format.type == "xml":
-#                     inputs_xml = dict_to_xml(inputs, "input")
-#                     outputs_xml = dict_to_xml(outputs, "output")
-#                     formatted += f"<example>\n{inputs_xml}\n{outputs_xml}\n</example>\n"
-#                     return formatted
-#             formatted += "**Inputs**\n"
-#             for key, value in inputs.items():
-#                 formatted += f"{key.capitalize()}:\n{value}\n"
-#             formatted += f"**Outputs**\n{json.dumps(outputs, indent=2)}\n\n"
-#     except Exception as err:
-#         print(err)
-
-#     return formatted

@@ -1,10 +1,11 @@
 import json
-import logging
 import os
 from typing import Any, Dict, List, Optional, Self, Union
 import litellm
 from litellm import acompletion
 from litellm._logging import verbose_logger as litellm_logger
+from pydantic import ConfigDict
+import promptfile as pf
 
 from ape.prompt.cost_tracker import CostTracker
 from ape.prompt.utils import format_fewshot
@@ -13,8 +14,6 @@ from ape.types.response_format import (
     ResponseFormat,
 )
 from ape.utils import parse_xml_outputs, logger
-from pydantic import ConfigDict
-import promptfile as pf
 
 
 # Get the directory of the current file (prompt_base.py)
@@ -37,7 +36,20 @@ litellm.suppress_debug_info = True
 
 
 class Prompt(pf.PromptConfig):
-    # response_format: Optional[ResponseFormat] = None
+    """
+    A class representing a prompt configuration for language models.
+
+    This class extends the PromptConfig class from the promptfile library and adds
+    additional functionality for managing prompts, including response formats,
+    few-shot examples, and cost tracking.
+
+    Attributes:
+        temperature (float): The temperature setting for the language model. Defaults to 0.0.
+        cost_tracker (Optional[CostTracker]): An optional cost tracker for monitoring API usage.
+        _optimized (bool): A flag indicating whether the prompt has been optimized.
+
+    """
+
     temperature: float = 0.0
     cost_tracker: Optional[CostTracker] = None
     _optimized = False
@@ -45,11 +57,20 @@ class Prompt(pf.PromptConfig):
     model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True)
 
     def __init__(self, **data):
+        """
+        Initialize the Prompt object.
+
+        Args:
+            **data: Keyword arguments to initialize the prompt configuration.
+        """
         super().__init__(**data)
         self._ensure_metadata()
         self._restructure_models()
 
     def _ensure_metadata(self):
+        """
+        Ensure that the metadata dictionary has all necessary default keys.
+        """
         if not hasattr(self, "metadata"):
             self.metadata = {}
         self.metadata.setdefault("response_format", None)
@@ -58,6 +79,9 @@ class Prompt(pf.PromptConfig):
         self.metadata.setdefault("outputs", {})
 
     def _restructure_models(self):
+        """
+        Restructure the response format and few-shot examples to appropriate types.
+        """
         if self.response_format:
             self.response_format = ResponseFormat(**self.response_format)
         if self.fewshot:
@@ -67,35 +91,51 @@ class Prompt(pf.PromptConfig):
 
     @property
     def response_format(self) -> Optional[ResponseFormat]:
+        """Get the response format."""
         return self.metadata["response_format"]
 
     @response_format.setter
     def response_format(self, value: Optional[ResponseFormat]):
+        """Set the response format."""
         self.metadata["response_format"] = value
 
     @property
     def fewshot(self) -> Optional[List[DatasetItem]]:
+        """Get the few-shot examples."""
         return self.metadata["fewshot"]
 
     @fewshot.setter
     def fewshot(self, value: Optional[List[Dict[str, Any]]]):
+        """Set the few-shot examples."""
         self.metadata["fewshot"] = value
 
     @property
     def inputs_desc(self) -> Optional[Dict[str, str]]:
+        """Get the input descriptions."""
         return self.metadata["inputs"]
 
     @inputs_desc.setter
     def inputs_desc(self, value: Optional[Dict[str, str]]):
+        """Set the input descriptions."""
         self.metadata["inputs"] = value
 
     @property
     def outputs_desc(self) -> Optional[Dict[str, str]]:
+        """Get the output descriptions."""
         return self.metadata["outputs"]
 
     @outputs_desc.setter
     def outputs_desc(self, value: Optional[Dict[str, str]]):
+        """Set the output descriptions."""
         self.metadata["outputs"] = value
+
+    def set_optimized(self, value: bool):
+        """Set the optimization status of the prompt."""
+        self._optimized = value
+
+    def is_optimized(self) -> bool:
+        """Check if the prompt has been optimized."""
+        return self._optimized
 
     async def __call__(
         self,
@@ -104,6 +144,21 @@ class Prompt(pf.PromptConfig):
         num_retries: int = 3,
         **kwargs,
     ) -> Union[str, Dict[str, Any]]:
+        """
+        Call the language model with the configured prompt.
+
+        Args:
+            lm_config (Optional[Dict[str, Any]]): Configuration for the language model.
+            cost_tracker (Optional[CostTracker]): Cost tracker for monitoring API usage.
+            num_retries (int): Number of retries for API calls. Defaults to 3.
+            **kwargs: Additional keyword arguments for the prompt.
+
+        Returns:
+            Union[str, Dict[str, Any]]: The response from the language model.
+
+        Raises:
+            Exception: If the API call fails after all retries.
+        """
         if lm_config is None:
             lm_config = {}
         if self.inputs_desc:
@@ -167,20 +222,56 @@ class Prompt(pf.PromptConfig):
 
     @classmethod
     def load(cls, content: str) -> "Prompt":
+        """
+        Load a Prompt object from a string content.
+
+        Args:
+            content (str): The string content to load the prompt from.
+
+        Returns:
+            Prompt: A new Prompt object.
+        """
         config = super().load(content)
         return cls(**config.model_dump())
 
     @classmethod
     def from_filename(cls, name: str) -> "Prompt":
+        """
+        Create a Prompt object from a filename.
+
+        Args:
+            name (str): The name of the file to load the prompt from.
+
+        Returns:
+            Prompt: A new Prompt object.
+        """
         config = super().from_filename(name)
         return cls(**config.model_dump())
 
     @classmethod
     def load_file(cls, file_path: str) -> "Prompt":
+        """
+        Load a Prompt object from a file.
+
+        Args:
+            file_path (str): The path to the file to load the prompt from.
+
+        Returns:
+            Prompt: A new Prompt object.
+        """
         content = super().load_file(file_path)
         return cls(**content.model_dump())
 
     def format(self, **kwargs) -> Self:
+        """
+        Format the prompt with the given keyword arguments.
+
+        Args:
+            **kwargs: Keyword arguments to format the prompt with.
+
+        Returns:
+            Self: The formatted Prompt object.
+        """
         if self.fewshot:
             kwargs["_FEWSHOT_"] = format_fewshot(
                 fewshot=self.fewshot or [], response_format=self.response_format
@@ -188,11 +279,23 @@ class Prompt(pf.PromptConfig):
         return super().format(**kwargs)
 
     def reset_copy(self):
+        """
+        Create a reset copy of the Prompt object with empty few-shot examples.
+
+        Returns:
+            Prompt: A new Prompt object with reset few-shot examples.
+        """
         new = self.deepcopy()
         new.fewshot = []
         return new
 
     def dump(self) -> str:
+        """
+        Dump the Prompt object to a string representation.
+
+        Returns:
+            str: A string representation of the Prompt object.
+        """
         response_format_cache = self.response_format
         fewshot_cache = self.fewshot
         self.response_format = (

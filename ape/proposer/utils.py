@@ -5,6 +5,7 @@ from typing import Any, Dict, List
 from pydantic import BaseModel
 from ape.prompt.prompt_base import Prompt
 from ape.types import DataItem
+from ape.types.response_format import ResponseFormat
 
 
 def extract_prompt(text: str):
@@ -13,6 +14,15 @@ def extract_prompt(text: str):
         return match.group(1).strip()
     else:
         raise ValueError("No prompt found")
+
+
+def get_response_format_instructions(response_format: ResponseFormat):
+    if response_format.type == "xml":
+        return "The prompt's inputs and response should be in XML format."
+    elif response_format.type == "json_object":
+        return "The prompt should enforce a JSON output and must include the word JSON in the prompt."
+    else:
+        return ""
 
 
 class HistoryItem(BaseModel):

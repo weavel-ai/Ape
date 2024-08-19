@@ -6,8 +6,8 @@ class Proposer(ABC):
         pass
 
     @abstractmethod
-    def propose_prompts(self):
+    async def propose_prompts(self):
         pass
 
-    def propose_one(self):
+    async def propose_one(self):
         pass

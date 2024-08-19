@@ -8,6 +8,10 @@ from typing import Dict, List, Optional
 
 
 class MIPROProposer(MIPROBase):
+    """
+    A class for generating prompt candidates using the MIPRO (Model-based Instruction Prompt Optimization) approach.
+    """
+
     async def generate_candidates(
         self,
         trainset: Dataset,
@@ -19,6 +23,22 @@ class MIPROProposer(MIPROBase):
         outputs_desc: Optional[Dict[str, str]] = None,
         response_format: Optional[ResponseFormat] = None,
     ) -> List[Prompt]:
+        """
+        Generate a list of prompt candidates based on the given parameters.
+
+        Args:
+            trainset (Dataset): The dataset used for training.
+            task_description (Optional[str]): A description of the task.
+            prompt_desc (Optional[str]): A description of the prompt.
+            prompt (Optional[Prompt]): A base prompt to start from.
+            fewshot_candidates (Optional[List[Dataset]]): A list of few-shot example datasets.
+            inputs_desc (Optional[Dict[str, str]]): A description of the input fields.
+            outputs_desc (Optional[Dict[str, str]]): A description of the output fields.
+            response_format (Optional[ResponseFormat]): The desired format for the response.
+
+        Returns:
+            List[Prompt]: A list of generated prompt candidates.
+        """
         logger.info("Initializing GroundedProposer")
         proposer = GroundedProposer(
             trainset=trainset,

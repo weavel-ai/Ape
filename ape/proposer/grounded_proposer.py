@@ -5,7 +5,11 @@ from typing import Any, Dict, List, Optional, Union
 from ape.prompt.prompt_base import Prompt
 from ape.prompt.utils import format_fewshot
 from ape.proposer.dataset_summary_generator import create_dataset_summary
-from ape.proposer.utils import create_history_string, extract_prompt
+from ape.proposer.utils import (
+    create_history_string,
+    extract_prompt,
+    get_response_format_instructions,
+)
 from ape.proposer.propose_base import Proposer
 from ape.types.response_format import (
     ResponseFormat,
@@ -27,6 +31,28 @@ TIPS = {
 
 
 class GroundedProposer(Proposer):
+    """
+    A class for generating grounded proposals based on various criteria and configurations.
+
+    This class extends the Proposer base class and provides methods for generating
+    instruction proposals using dataset summaries, task demonstrations, instruction history,
+    and other configurable parameters.
+
+    Attributes:
+        use_dataset_summary (bool): Whether to use dataset summary in proposals.
+        use_task_demos (bool): Whether to use task demonstrations in proposals.
+        use_instruct_history (bool): Whether to use instruction history in proposals.
+        use_tip (bool): Whether to include tips in proposals.
+        set_tip_randomly (bool): Whether to randomly select tips.
+        set_history_randomly (bool): Whether to randomly decide on using instruction history.
+        trainset (Dataset): The training dataset.
+        prompt_model (str): The name of the prompt model to use.
+        view_data_batch_size (int): The batch size for viewing data.
+        describe_prompt (Prompt): The prompt for describing tasks.
+        generate_instructions (Prompt): The prompt for generating instructions.
+        data_summary (Optional[str]): The summary of the dataset.
+    """
+
     def __init__(
         self,
         prompt_model: str,
@@ -39,6 +65,20 @@ class GroundedProposer(Proposer):
         set_history_randomly=True,
         view_data_batch_size=10,
     ):
+        """
+        Initialize the GroundedProposer.
+
+        Args:
+            prompt_model (str): The name of the prompt model to use.
+            trainset (Dataset): The training dataset.
+            use_dataset_summary (bool, optional): Whether to use dataset summary. Defaults to True.
+            use_task_demos (bool, optional): Whether to use task demonstrations. Defaults to True.
+            use_instruct_history (bool, optional): Whether to use instruction history. Defaults to True.
+            use_tip (bool, optional): Whether to include tips. Defaults to True.
+            set_tip_randomly (bool, optional): Whether to randomly select tips. Defaults to True.
+            set_history_randomly (bool, optional): Whether to randomly decide on using instruction history. Defaults to True.
+            view_data_batch_size (int, optional): The batch size for viewing data. Defaults to 10.
+        """
         self.use_dataset_summary = use_dataset_summary
         self.use_task_demos = use_task_demos
         self.use_instruct_history = use_instruct_history
@@ -59,6 +99,12 @@ class GroundedProposer(Proposer):
         self,
         view_data_batch_size=10,
     ):
+        """
+        Prepare a summary of the dataset.
+
+        Args:
+            view_data_batch_size (int, optional): The batch size for viewing data. Defaults to 10.
+        """
         self.view_data_batch_size = view_data_batch_size
         logger.info("Preparing dataset summary")
         self.data_summary = await create_dataset_summary(
@@ -82,8 +128,25 @@ class GroundedProposer(Proposer):
         response_format: Optional[ResponseFormat] = None,
         tip=None,
     ) -> List[Prompt]:
-        """This method is responsible for returning the full set of new instructions for our task, given the specified criteria."""
+        """
+        Propose a set of new instructions for the task based on specified criteria.
 
+        Args:
+            trial_logs (Dict[str, Any]): Logs from previous trials.
+            N (int): Number of proposals to generate.
+            T (float): Temperature for generation.
+            task_description (Optional[str], optional): Description of the task. Defaults to None.
+            prompt_desc (Optional[str], optional): Description of the prompt. Defaults to None.
+            base_prompt (Optional[Prompt], optional): Base prompt to start from. Defaults to None.
+            fewshot_candidates (Optional[List[Dataset]], optional): Candidates for few-shot learning. Defaults to None.
+            inputs_desc (Optional[Dict[str, str]], optional): Description of inputs. Defaults to None.
+            outputs_desc (Optional[Dict[str, str]], optional): Description of outputs. Defaults to None.
+            response_format (Optional[ResponseFormat], optional): Format for the response. Defaults to None.
+            tip (optional): Tip for generation. Defaults to None.
+
+        Returns:
+            List[Prompt]: A list of proposed prompts.
+        """
         if not self.data_summary and self.trainset:
             await self.prepare_dataset_summary()
 
@@ -147,8 +210,24 @@ class GroundedProposer(Proposer):
         response_format: Optional[ResponseFormat] = None,
         tip=None,
     ) -> Prompt:
-        """This method is responsible for returning a single instruction for a given predictor, using the specified criteria."""
+        """
+        Propose a single instruction based on the given criteria.
 
+        Args:
+            trial_logs (Dict[str, Any]): Logs from previous trials.
+            T (float): Temperature for generation.
+            task_description (Optional[str], optional): Description of the task. Defaults to None.
+            prompt_desc (Optional[str], optional): Description of the prompt. Defaults to None.
+            base_prompt (Optional[Prompt], optional): Base prompt to start from. Defaults to None.
+            fewshot (Optional[Dataset], optional): Dataset for few-shot learning. Defaults to None.
+            inputs_desc (Optional[Dict[str, str]], optional): Description of inputs. Defaults to None.
+            outputs_desc (Optional[Dict[str, str]], optional): Description of outputs. Defaults to None.
+            response_format (Optional[ResponseFormat], optional): Format for the response. Defaults to None.
+            tip (optional): Tip for generation. Defaults to None.
+
+        Returns:
+            Prompt: A proposed prompt.
+        """
         # Create an instruction history string for our predictor
         instruction_history = create_history_string(
             base_prompt,
@@ -157,17 +236,6 @@ class GroundedProposer(Proposer):
         )
         logger.info(f"Create instruction history: {instruction_history}")
 
-        # task_fewshot = ""
-        # curr_fewshots_num = 0
-
-        # for example in fewshot_candidates[fewshot_i]:
-        #     if "augmented" in example.keys():
-        #         fields_to_use = {**prompt.inputs_desc, **prompt.outputs_desc}
-        #         example_string = create_example_string(fields_to_use, example)
-        #         task_fewshot += f"{example_string}\n"
-        #         curr_fewshots_num += 1
-        #         if curr_fewshots_num >= max_demos:
-        #             break
         if self.use_task_demos and fewshot:
             logger.info("Formatting fewshot for generation")
             task_fewshot = format_fewshot(
@@ -177,13 +245,12 @@ class GroundedProposer(Proposer):
         else:
             task_fewshot = "-"
 
-        # if self.prompt_aware:
-        #     output = await self.describe_prompt(prompt=prompt.dump())
-
-        #     prompt_description = (
-        #         output if isinstance(output, str) else output.get("description", "-")
-        #     )
-        #     logger.info(f"Prompt description: {prompt_description}")
+        if response_format:
+            response_format_instructions = get_response_format_instructions(
+                response_format
+            )
+        else:
+            response_format_instructions = "-"
 
         logger.info("Formatted prompt for generation")
         logger.info(
@@ -199,6 +266,7 @@ class GroundedProposer(Proposer):
                 tip=tip if self.use_tip else "-",
                 inputs_desc=inputs_desc if inputs_desc else "-",
                 outputs_desc=outputs_desc if outputs_desc else "-",
+                response_format_instructions=response_format_instructions,
             ).dump()
         )
 
@@ -213,6 +281,7 @@ class GroundedProposer(Proposer):
             tip=tip if self.use_tip else "-",
             inputs_desc=inputs_desc if inputs_desc else "-",
             outputs_desc=outputs_desc if outputs_desc else "-",
+            response_format_instructions=response_format_instructions,
         )
 
         try:

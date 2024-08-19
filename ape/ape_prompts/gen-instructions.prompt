@@ -1,6 +1,7 @@
 ---
 model: gpt-4o
 inputs: 
+    response_format_instructions: A description of the response format instructions
     task_description: A description of the task that the LLM will be asked to perform
     dataset_desc: A description of the dataset we are using
     task_fewshot: A list of few shot examples of the task
@@ -39,6 +40,8 @@ A good way to structure the prompt is to add format/persona/instructions to the 
 If you would like to use few shot examples, use the reserved variable {{_FEWSHOT_}} - just insert it into the prompt and a list of task demonstrations will be filled in afterwards. Your goal is to generate the proper and complete instructions that can be used without revision.
 
 > Use brackets {{}} ONLY for input variables and the reserved few shot variable. Use [] instead for placeholders.
+
+{response_format_instructions}
 </system>
 <user>
 Use the information below to learn about a task that we are trying to solve using calls to an LM, then write a new prompt that will be used to prompt a Language Model to better solve the task.

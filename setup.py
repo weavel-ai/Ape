@@ -9,8 +9,8 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setup(
-    name="ape",
-    version="0.4.7",
+    name="ape-core",
+    version="0.5.0",
     packages=find_namespace_packages(),
     include_package_data=True,
     entry_points={},

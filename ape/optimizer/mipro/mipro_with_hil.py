@@ -17,6 +17,8 @@ from ape.types.response_format import (
 
 
 class MIPROWithHIL(MIPROBase):
+    """MIPRO optimizer with Human-In-the-Loop capabilities."""
+
     instruction_candidates: List[Prompt] = []
     fewshot_candidates: List[Dataset] = []
     storage: optuna.storages.RDBStorage = None
@@ -30,7 +32,7 @@ class MIPROWithHIL(MIPROBase):
     async def create_or_load_study(
         self,
         study_name: str,
-        trainset: Dataset = [],
+        trainset: Optional[Dataset] = None,
         task_description: Optional[str] = None,
         prompt_desc: Optional[str] = None,
         inputs_desc: Optional[Dict[str, str]] = None,
@@ -39,6 +41,26 @@ class MIPROWithHIL(MIPROBase):
         base_prompt: Optional[Prompt] = None,
         max_demos: int = 5,
     ) -> Tuple[optuna.Study, bool]:
+        """
+        Create or load an Optuna study for prompt optimization.
+
+        Args:
+            study_name (str): Name of the study.
+            trainset (Optional[Dataset]): Training dataset.
+            task_description (Optional[str]): Description of the task.
+            prompt_desc (Optional[str]): Description of the prompt.
+            inputs_desc (Optional[Dict[str, str]]): Description of inputs.
+            outputs_desc (Optional[Dict[str, str]]): Description of outputs.
+            response_format (Optional[ResponseFormat]): Format of the response.
+            base_prompt (Optional[Prompt]): Base prompt to start with.
+            max_demos (int): Maximum number of demonstrations.
+
+        Returns:
+            Tuple[optuna.Study, bool]: The created or loaded study and a boolean indicating if it's a new study.
+        """
+        if trainset is None:
+            trainset = []
+
         if self.storage is None:
             raise ValueError("Storage is not set up.")
 
@@ -102,6 +124,15 @@ class MIPROWithHIL(MIPROBase):
         return study, is_new_study
 
     def suggest_next_prompt(self, study: optuna.Study) -> Tuple[optuna.Trial, Prompt]:
+        """
+        Suggests the next prompt for the optimization study.
+
+        Args:
+            study (optuna.Study): The optimization study.
+
+        Returns:
+            Tuple[optuna.Trial, Prompt]: A tuple containing the suggested trial and prompt.
+        """
         trial = study.ask()
         if len(self.instruction_candidates) == 0:
             raise ValueError("No instruction candidates available.")
@@ -121,9 +152,27 @@ class MIPROWithHIL(MIPROBase):
     def complete_trial(
         self, study: optuna.Study, trial: Union[optuna.Trial, int], score: float
     ):
+        """
+        Completes a trial by telling the study the score obtained.
+
+        Args:
+            study (optuna.Study): The study object.
+            trial (Union[optuna.Trial, int]): The trial object or trial number.
+            score (float): The score obtained for the trial.
+        """
         study.tell(trial, score)
 
     async def get_best_prompt(self, study: optuna.Study) -> Prompt:
+        """
+        Retrieves the best prompt based on the given Optuna study.
+
+        Args:
+            study (optuna.Study): The Optuna study object.
+
+        Returns:
+            Prompt: The best prompt object.
+
+        """
         best_trial = study.best_trial
         instruction_idx = best_trial.params["instruction"]
         fewshot_idx = best_trial.params["fewshot"]

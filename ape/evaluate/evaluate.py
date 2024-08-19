@@ -120,6 +120,8 @@ class Evaluate:
                     else example.get("outputs", {})
                 )
                 prediction = await prompt(**inputs)
+                if not prediction:
+                    raise ValueError("Prediction is None")
                 score = await config.metric(gold=outputs, pred=prediction, trace=None)
                 return EvaluationResult(
                     example=outputs, prediction=prediction, score=score
@@ -148,9 +150,9 @@ class Evaluate:
             return result
 
     def _update_progress(self, pbar, score: float):
-        self.total_score += score 
+        self.total_score += score
         pbar.n += 1
-        average_score = self.total_score / pbar.n 
+        average_score = self.total_score / pbar.n
         pbar.set_description(
             f"Average Metric: {average_score:.2f} ({100 * average_score:.1f}%)"
         )
@@ -264,8 +266,3 @@ def configure_dataframe_display(df, metric_name) -> pd.DataFrame:
             "max-width": "400px",
         },
     )
-
-
-# FIXME: TODO: The merge_dicts stuff above is way too quick and dirty.
-# TODO: the display_table can't handle False but can handle 0!
-# Not sure how it works with True exactly, probably fails too.
