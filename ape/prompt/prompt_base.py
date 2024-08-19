@@ -5,7 +5,6 @@ from typing import Any, Dict, List, Optional, Self, Union
 import litellm
 from litellm import acompletion
 from litellm._logging import verbose_logger as litellm_logger
-from tenacity import before_sleep_log, retry, stop_after_attempt, wait_fixed, retry_if_exception_type
 
 from ape.prompt.cost_tracker import CostTracker
 from ape.prompt.utils import format_fewshot
@@ -35,6 +34,7 @@ else:
 
 litellm_logger.disabled = True
 litellm.suppress_debug_info = True
+
 
 class Prompt(pf.PromptConfig):
     # response_format: Optional[ResponseFormat] = None
@@ -96,26 +96,12 @@ class Prompt(pf.PromptConfig):
     @outputs_desc.setter
     def outputs_desc(self, value: Optional[Dict[str, str]]):
         self.metadata["outputs"] = value
-        
-    @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_fixed(1),
-        retry=retry_if_exception_type(Exception),
-        reraise=True,
-        before_sleep=before_sleep_log(logger, logging.DEBUG)
-    )
-    async def _attempt_completion(self, model, messages, response_format, **lm_config):
-        return await acompletion(
-            model=model,
-            messages=messages,
-            response_format=response_format,
-            **lm_config,
-        )
 
     async def __call__(
         self,
         lm_config: Optional[Dict[str, Any]] = None,
         cost_tracker: Optional[CostTracker] = None,
+        num_retries: int = 3,
         **kwargs,
     ) -> Union[str, Dict[str, Any]]:
         if lm_config is None:
@@ -141,16 +127,17 @@ class Prompt(pf.PromptConfig):
                 response_format = self.response_format.model_dump(exclude_none=True)
 
         try:
-            res = await self._attempt_completion(
+            res = await acompletion(
                 model=model,
                 messages=messages,
                 response_format=response_format,
+                num_retries=num_retries,
                 **lm_config,
             )
         except Exception as e:
             logger.error(f"Failed to complete after 3 attempts: {e}")
             raise e
-        
+
         if cost_tracker:
             self.cost_tracker = cost_tracker
         if self.cost_tracker:
