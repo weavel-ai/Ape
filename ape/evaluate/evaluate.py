@@ -79,6 +79,7 @@ class Evaluate:
             **kwargs,
         )
         self.error_count = 0
+        self.total_score = 0
 
     async def __call__(
         self,
@@ -88,6 +89,7 @@ class Evaluate:
         **kwargs,
     ) -> Union[float, Tuple[float, List[EvaluationResult]], Tuple[float, List[float]]]:
         config = self._update_config(metric, testset, **kwargs)
+        self.total_score = 0
         results = await self._process_testset(prompt, config)
         return self._prepare_output(results, config)
 
@@ -146,10 +148,11 @@ class Evaluate:
             return result
 
     def _update_progress(self, pbar, score: float):
-        total = pbar.total
+        self.total_score += score 
         pbar.n += 1
+        average_score = self.total_score / pbar.n 
         pbar.set_description(
-            f"Average Metric: {pbar.n * score:.2f} / {total} ({100 * score:.1f}%)"
+            f"Average Metric: {average_score:.2f} ({100 * average_score:.1f}%)"
         )
         pbar.refresh()
 

@@ -31,6 +31,7 @@ setup(
         "numpy",
         "sqlalchemy",
         "litellm",
+        "tenacity",
         "nest_asyncio",
         "rich",
     ],

@@ -1,0 +1,13 @@
+pydantic
+pyyaml
+optuna
+psycopg2-binary
+numpy
+promptfile
+structlog
+pandas
+sqlalchemy
+litellm
+nest_asyncio
+rich
+tenacity

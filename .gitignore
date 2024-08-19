@@ -31,3 +31,5 @@ key.key
 *.log
 .mipro_logs
 .gsm8k
+
+testfile
