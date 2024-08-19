@@ -114,9 +114,7 @@ class MIPROWithHIL(MIPROBase):
             fewshot_idx = trial.suggest_categorical(
                 "fewshot", range(len(self.fewshot_candidates))
             )
-            prompt.fewshot = [
-                DatasetItem(**d) for d in self.fewshot_candidates[fewshot_idx]
-            ]
+            prompt.fewshot = self.fewshot_candidates[fewshot_idx]
 
         return trial, prompt
 

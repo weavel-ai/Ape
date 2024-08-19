@@ -67,7 +67,7 @@ class Prompt(pf.PromptConfig):
         self.metadata["response_format"] = value
 
     @property
-    def fewshot(self) -> Optional[List[Dict[str, Any]]]:
+    def fewshot(self) -> Optional[List[DatasetItem]]:
         return self.metadata["fewshot"]
 
     @fewshot.setter
