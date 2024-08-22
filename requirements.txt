@@ -10,3 +10,4 @@ sqlalchemy
 litellm
 nest_asyncio
 rich
+pysbd

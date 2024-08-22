@@ -122,7 +122,7 @@ class Evaluate:
                 prediction = await prompt(**inputs)
                 if not prediction:
                     raise ValueError("Prediction is None")
-                score = await config.metric(gold=outputs, pred=prediction, trace=None)
+                score = await config.metric(inputs=inputs, gold=outputs, pred=prediction, trace=None)
                 return EvaluationResult(
                     example=outputs, prediction=prediction, score=score
                 )
