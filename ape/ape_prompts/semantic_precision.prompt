@@ -1,0 +1,80 @@
+---
+model: gpt-4o-mini
+inputs:
+  ground_truth: str
+  statements: List[str]
+response_format:
+    type: json_schema
+    json_schema:
+        name: SemanticPrecision
+        schema:
+            type: object
+            properties:
+                answer:
+                    type: array
+                    items:
+                        type: object
+                        properties:
+                            statement:
+                                type: string
+                            reason:
+                                type: string
+                            verdict:
+                                type: integer
+                        required:
+                            - statement
+                            - reason
+                            - verdict
+                        additionalProperties: false
+            required:
+                - answer
+            additionalProperties: false
+---
+
+<system>
+Your task is to judge the faithfulness of a series of statements based on a given ground_truth. For each statement you must return verdict as 1 if the statement can be directly inferred based on the ground_truth or 0 if the statement can not be directly inferred based on the ground_truth.
+You can verdict as 1 if the statement is similar enough to the ground_truth, even if it is not an exact match.
+Here are the discrepancies to look for:
+    1) Numerical Accuracy:
+        For numerical answers, if the absolute error from the statement is no more than 10% of the ground_truth, you should consider it correct and return: 1
+        i) Here is example of "[ground_truth]" | "[statement]" pair that should be considered correct:
+            "800 trees"      │ "754" (because the error [abs(800 - 754) = 46)] is only 5.7% [46/800] of the ground_truth)
+        ii) Here is example that should be considered incorrect since the error from the answer is more than 10%.
+            "10%"       | "20%" (because the error [abs(10 - 20) = 10)] is 100% [10/10] of the ground_truth)
+    2)  Date Accuracy:
+        You can be lenient when it comes to date specification except the question clearly requires a certain specificity.
+        i) Examples of correct assessments for dates:
+        "July 2023"      |       "25th of July 2023"
+        "12/12/1994"     |       "Dec, 1994"
+        --
+        For each of the above, you response should be: 1
+        ii) Examples of incorrect assesments
+        "July 2019"     |       "23/05/2019" (because July 2019 cannot pass as the same date for May 2019)
+        For the above, you response should be: 0
+    3) Lists:
+        When comparing the statement for lists, except when a specific number of items is specified in a list, as far as the majority of items in both the ground_truth and the statement are the same, you can evaluate the statement as correct.        
+        i) Examples of correct assessments for list comparisons:
+        "ground_truth : Founders of airtable are Howie Liu, Andrew Ofstad, Emmett Nicholas"    |   "statement: Founders of airtable are Howie Liu, Andrew Ofstad, and Emmett Nicholas" (because most names in both lists are the same, irrespective of order)
+        Your Response for the above should be: 1 
+        ii) Examples of incorrect assessments for list comparisons:
+        "ground_truth : Top 3 players in the NFL are Michael James, Evander Holyfield, Emmet Shear"    |   "statement: Top 3 players in the NFL are Michael James, Evander Holyfield, John Boyega" (because it cares about ranking and only wants a specific list of 3, so even if two of the names are present, the last name is not correct)
+        Your Response for the above should be: 0
+        
+The output should be a well-formatted JSON instance.
+
+Examples:
+
+ground_truth: "John is a student at XYZ University. He is pursuing a degree in Computer Science. He is enrolled in several courses this semester, including Data Structures, Algorithms, and Database Management. John is a diligent student and spends a significant amount of time studying and completing assignments. He often stays late in the library to work on his projects."
+statements: ["John is majoring in Biology.", "John is taking a course on Artificial Intelligence.", "John is a dedicated student.", "John has a part-time job."]
+answer: {{"answer":[{{"statement": "John is majoring in Biology.", "reason": "John's major is explicitly mentioned as Computer Science. There is no information suggesting he is majoring in Biology.", "verdict": 0}}, {{"statement": "John is taking a course on Artificial Intelligence.", "reason": "The context mentions the courses John is currently enrolled in, and Artificial Intelligence is not mentioned. Therefore, it cannot be deduced that John is taking a course on AI.", "verdict": 0}}, {{"statement": "John is a dedicated student.", "reason": "The context states that he spends a significant amount of time studying and completing assignments. Additionally, it mentions that he often stays late in the library to work on his projects, which implies dedication.", "verdict": 1}}, {{"statement": "John has a part-time job.", "reason": "There is no information given in the context about John having a part-time job.", "verdict": 0}}]}}
+
+ground_truth: "Photosynthesis is a process used by plants, algae, and certain bacteria to convert light energy into chemical energy."
+statements: ["Albert Einstein was a genius."]
+answer: {{"answer":[{{"statement": "Albert Einstein was a genius.", "reason": "The ground_truth and statement are unrelated", "verdict": 0}}]}}
+
+Your actual task:
+
+ground_truth: {ground_truth}
+statements: {statements}
+answer:
+</system>

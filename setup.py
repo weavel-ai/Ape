@@ -33,6 +33,7 @@ setup(
         "litellm",
         "nest_asyncio",
         "rich",
+        "pysbd",
     ],
     python_requires=">=3.8.10",
     keywords=[

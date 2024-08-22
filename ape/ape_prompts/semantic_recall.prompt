@@ -1,0 +1,79 @@
+---
+model: gpt-4o-mini
+inputs:
+  prediction: str
+  ground_truth_statements: List[str]
+response_format:
+    type: json_schema
+    json_schema:
+        name: SemanticRecall
+        schema:
+            type: object
+            properties:
+                answer:
+                    type: array
+                    items:
+                        type: object
+                        properties:
+                            statement:
+                                type: string
+                            reason:
+                                type: string
+                            verdict:
+                                type: integer
+                        required:
+                            - statement
+                            - reason
+                            - verdict
+                        additionalProperties: false
+            required:
+                - answer
+            additionalProperties: false
+---
+
+<system>
+Your task is to judge how many ground_truth_statements are included in prediction. For each ground_truth statement you must return verdict as 1 if the statement is included in prediction or 0 if the statement can not be found in prediction.
+You can verdict as 1 if the statement is similar enough to the prediction, even if it is not an exact match.
+Here are the discrepancies to look for:
+    1) Numerical Accuracy:
+        For numerical answers, if the absolute error from the statement is no more than 10% of the prediction, you should consider it is included and return: 1
+        i) Here is example of "[prediction]" | "[statement]" pair that should be considered correct:
+            "800 trees"      │ "754" (because the error [abs(800 - 754) = 46)] is only 5.7% [46/800] of the prediction)
+        ii) Here is example that should be considered not included since the error from the answer is more than 10%.
+            "10%"       | "20%" (because the error [abs(10 - 20) = 10)] is 100% [10/10] of the prediction)
+    2)  Date Accuracy:
+        You can be lenient when it comes to date specification.
+        i) Examples of correct assessments for dates:
+        "July 2023"      |       "25th of July 2023"
+        "12/12/1994"     |       "Dec, 1994"
+        --
+        your response should be: 1
+        ii) Examples of incorrect assesments
+        "July 2019"     |       "23/05/2019" (because July 2019 cannot pass as the same date for May 2019)
+        your response should be: 0
+    3) Lists:
+        When comparing the statement for lists, except when a specific number of items is specified in a list, as far as the majority of items in both the prediction and the statement are the same, you can evaluate the statement is included.        
+        i) Examples of correct assessments for list comparisons:
+        "prediction : Founders of airtable are Howie Liu, Andrew Ofstad, Emmett Nicholas"    |   "statement: Founders of airtable are Howie Liu, Andrew Ofstad, and Emmett Nicholas" (because most names in both lists are the same, irrespective of order)
+        Your Response for the above should be: 1 
+        ii) Examples of incorrect assessments for list comparisons:
+        "prediction : Top 3 players in the NFL are Michael James, Evander Holyfield, Emmet Shear"    |   "statement: Top 3 players in the NFL are Michael James, Evander Holyfield, John Boyega" (because it cares about ranking and only wants a specific list of 3, so even if two of the names are present, the last name is not correct)
+        Your Response for the above should be: 0
+        
+The output should be a well-formatted JSON instance.
+Examples:
+
+prediction: "John is a student at XYZ University. He is pursuing a degree in Computer Science. He is enrolled in several courses this semester, including Data Structures, Algorithms, and Database Management. John is a diligent student and spends a significant amount of time studying and completing assignments. He often stays late in the library to work on his projects."
+ground_truth_statements: ["John is majoring in Biology.", "John is taking a course on Artificial Intelligence.", "John is a dedicated student.", "John has a part-time job."]
+answer: {{"answer":[{{"statement": "John is majoring in Biology.", "reason": "The prediction states that John is pursuing a degree in Computer Science, not Biology.", "verdict": 0}}, {{"statement": "John is taking a course on Artificial Intelligence.", "reason": "The prediction lists the courses John is enrolled in: Data Structures, Algorithms, and Database Management. Artificial Intelligence is not mentioned.", "verdict": 0}}, {{"statement": "John is a dedicated student.", "reason": "The prediction states that John is a diligent student, spends a significant amount of time studying and completing assignments, and often stays late in the library. This indicates he is dedicated.", "verdict": 1}}, {{"statement": "John has a part-time job.", "reason": "The prediction does not mention anything about John having a part-time job.", "verdict": 0}}]}}
+
+prediction: "Photosynthesis is a process used by plants, algae, and certain bacteria to convert light energy into chemical energy."
+ground_truth_statements: ["Albert Einstein was a genius."]
+answer: {{"answer":[{{"statement": "Albert Einstein was a genius.", "reason": "The prediction is about photosynthesis and does not mention Albert Einstein or his intelligence.", "verdict": 0}}]}}
+
+Your actual task:
+
+prediction: {prediction}
+ground_truth_statements: {ground_truth_statements}
+answer:
+</system>

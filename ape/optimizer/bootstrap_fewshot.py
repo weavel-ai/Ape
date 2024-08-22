@@ -186,7 +186,7 @@ class BootstrapFewShot(Optimizer):
             teacher.fewshot = cache
 
             if self.metric is not None:
-                metric_val = await self.metric(outputs, prediction, None)
+                metric_val = await self.metric(inputs, outputs, prediction, None)
 
                 if self.metric_threshold:
                     success = metric_val >= self.metric_threshold
