@@ -294,7 +294,21 @@ class GroundedProposer(Proposer):
             logger.info(base_prompt)
 
             new_prompt = Prompt.load(base_prompt)
+            if not new_prompt.messages:
+                new_prompt = await self.propose_one(
+                    trial_logs=trial_logs,
+                    T=T,
+                    task_description=task_description,
+                    prompt_desc=prompt_desc,
+                    base_prompt=base_prompt,
+                    fewshot=fewshot,
+                    inputs_desc=inputs_desc,
+                    outputs_desc=outputs_desc,
+                    response_format=response_format,
+                    tip=tip,
+                )
             logger.info("New prompt")
+            new_prompt.name = base_prompt.name
             new_prompt.model = self.prompt_model
             new_prompt.inputs_desc = inputs_desc
             new_prompt.outputs_desc = outputs_desc

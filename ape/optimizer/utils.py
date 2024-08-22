@@ -40,6 +40,7 @@ async def reformat_prompt(prompt: Prompt, response_format: ResponseFormat) -> Pr
                     )
             logger.info(f"Reformatted prompt: {extracted}")
             new_prompt = Prompt.load(extracted)
+            new_prompt.name = prompt.name
             new_prompt.response_format = response_format
             break
         except Exception as e:

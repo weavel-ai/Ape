@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Any, Dict, List, Optional, Self, Union
+from typing import Any, Dict, List, Optional, Union
 import litellm
 from litellm import acompletion
 from litellm._logging import verbose_logger as litellm_logger
@@ -45,13 +45,11 @@ class Prompt(pf.PromptConfig):
 
     Attributes:
         temperature (float): The temperature setting for the language model. Defaults to 0.0.
-        cost_tracker (Optional[CostTracker]): An optional cost tracker for monitoring API usage.
         _optimized (bool): A flag indicating whether the prompt has been optimized.
 
     """
 
     temperature: float = 0.0
-    cost_tracker: Optional[CostTracker] = None
     _optimized = False
 
     model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True)
@@ -88,6 +86,16 @@ class Prompt(pf.PromptConfig):
             self.fewshot = [
                 DatasetItem(**x) if isinstance(x, dict) else x for x in self.fewshot
             ]
+
+    @property
+    def name(self) -> Optional[str]:
+        """Get the name of the prompt."""
+        return self.metadata["name"]
+
+    @name.setter
+    def name(self, value: Optional[str]):
+        """Set the name of the prompt."""
+        self.metadata["name"] = value
 
     @property
     def response_format(self) -> Optional[ResponseFormat]:
@@ -140,7 +148,6 @@ class Prompt(pf.PromptConfig):
     async def __call__(
         self,
         lm_config: Optional[Dict[str, Any]] = None,
-        cost_tracker: Optional[CostTracker] = None,
         num_retries: int = 3,
         **kwargs,
     ) -> Union[str, Dict[str, Any]]:
@@ -149,7 +156,6 @@ class Prompt(pf.PromptConfig):
 
         Args:
             lm_config (Optional[Dict[str, Any]]): Configuration for the language model.
-            cost_tracker (Optional[CostTracker]): Cost tracker for monitoring API usage.
             num_retries (int): Number of retries for API calls. Defaults to 3.
             **kwargs: Additional keyword arguments for the prompt.
 
@@ -193,11 +199,8 @@ class Prompt(pf.PromptConfig):
             logger.error(f"Failed to complete after 3 attempts: {e}")
             raise e
 
-        if cost_tracker:
-            self.cost_tracker = cost_tracker
-        if self.cost_tracker:
-            cost = res._hidden_params["response_cost"]
-            self.cost_tracker.add_cost(cost=cost, details=self.__name__)
+        cost = res._hidden_params["response_cost"]
+        CostTracker.add_cost(cost=cost, label=self.name)
 
         res_text = res.choices[0].message.content
         if not res_text:
@@ -232,7 +235,8 @@ class Prompt(pf.PromptConfig):
             Prompt: A new Prompt object.
         """
         config = super().load(content)
-        return cls(**config.model_dump())
+        instance = cls(**config.model_dump())
+        return instance
 
     @classmethod
     def from_filename(cls, name: str) -> "Prompt":
@@ -246,7 +250,9 @@ class Prompt(pf.PromptConfig):
             Prompt: A new Prompt object.
         """
         config = super().from_filename(name)
-        return cls(**config.model_dump())
+        instance = cls(**config.model_dump())
+        instance.name = name.split(".prompt")[0]
+        return instance
 
     @classmethod
     def load_file(cls, file_path: str) -> "Prompt":
@@ -259,10 +265,13 @@ class Prompt(pf.PromptConfig):
         Returns:
             Prompt: A new Prompt object.
         """
-        content = super().load_file(file_path)
-        return cls(**content.model_dump())
+        _prompt = super().load_file(file_path)
 
-    def format(self, **kwargs) -> Self:
+        instance = cls(**_prompt.model_dump())
+        instance.name = os.path.basename(file_path).split(".prompt")[0]
+        return instance
+
+    def format(self, **kwargs) -> "Prompt":
         """
         Format the prompt with the given keyword arguments.
 
@@ -270,7 +279,7 @@ class Prompt(pf.PromptConfig):
             **kwargs: Keyword arguments to format the prompt with.
 
         Returns:
-            Self: The formatted Prompt object.
+            Prompt: The formatted Prompt object.
         """
         if self.fewshot:
             kwargs["_FEWSHOT_"] = format_fewshot(
