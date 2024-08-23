@@ -287,13 +287,11 @@ class GroundedProposer(Proposer):
         try:
             logger.info("output")
             logger.info(output)
-            base_prompt = extract_prompt(output)
+            extracted_prompt = extract_prompt(output)
             logger.info("Extracted prompt")
-            logger.info(base_prompt)
-            logger.info("Extracted prompt")
-            logger.info(base_prompt)
+            logger.info(extracted_prompt)
 
-            new_prompt = Prompt.load(base_prompt)
+            new_prompt = Prompt.load(extracted_prompt)
             if not new_prompt.messages:
                 new_prompt = await self.propose_one(
                     trial_logs=trial_logs,

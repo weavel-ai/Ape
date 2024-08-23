@@ -8,7 +8,7 @@ from ape.types import DataItem
 from ape.types.response_format import ResponseFormat
 
 
-def extract_prompt(text: str):
+def extract_prompt(text: str) -> str:
     match = re.search(r"```prompt(.*?)```", text, re.DOTALL)
     if match:
         return match.group(1).strip()
