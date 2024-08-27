@@ -1,0 +1,16 @@
+---
+model: claude-3-5-sonnet-20240620
+description: Create a refined reflection
+inputs: 
+    reflections: all reflections
+outputs:
+    prompt: A new prompt based on the base prompt and reflection
+---
+<system>
+Make it better and remove any non-general insights.
+Keep the format of question and insight.
+Only return the questions and insights, nothing else.
+</system>
+<user>
+{reflections}
+</user>

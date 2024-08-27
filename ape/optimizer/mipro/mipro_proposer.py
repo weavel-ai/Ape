@@ -16,7 +16,6 @@ class MIPROProposer(MIPROBase):
         self,
         trainset: Dataset,
         task_description: Optional[str] = None,
-        prompt_desc: Optional[str] = None,
         prompt: Optional[Prompt] = None,
         fewshot_candidates: Optional[List[Dataset]] = None,
         inputs_desc: Optional[Dict[str, str]] = None,
@@ -55,7 +54,6 @@ class MIPROProposer(MIPROBase):
 
         logger.info(f"Generating {self.num_candidates} instruction candidates")
         prompt_candidates = await proposer.propose_prompts(
-            prompt_desc=prompt_desc,
             base_prompt=prompt,
             fewshot_candidates=fewshot_candidates,
             N=self.num_candidates,

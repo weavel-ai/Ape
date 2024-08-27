@@ -1,0 +1,62 @@
+---
+model: gpt-4o-2024-08-06
+description: Find the keys in the response
+inputs: 
+    response: The response to extract the keys from
+outputs:
+    keys: The keys in the response
+response_format:
+    type: json_schema
+    json_schema:
+        name: KeysResponse
+        schema:
+            type: object
+            properties:
+                answer:
+                    type: string
+                reasoning:
+                    type: string
+            required:
+                - answer
+                - reasoning
+            additionalProperties: false
+---
+<system>
+You are an expert at extracting keys from the response
+
+Find the keys corresponding to the answer and reasoning in the response.
+
+If there are no keys corresponding to the reasoning, then set reasoning as None.
+
+<EXAMPLE>
+<input>
+{
+    "answer": "123",
+    "reasoning": "Example Reasoning"
+}
+</input>
+<output>
+{
+    "answer": "answer",
+    "reasoning": "reasoning"
+}
+</output>
+
+<input>
+{
+    "answer": "123",
+    "gold_reasoning": "Example Reasoning"
+}
+</input>
+<output>
+{
+    "answer": "answer",
+    "reasoning": "gold_reasoning"
+}
+</output>
+</EXAMPLE>
+</system>
+<user>
+Find the keys in the response
+{response}
+</user>
