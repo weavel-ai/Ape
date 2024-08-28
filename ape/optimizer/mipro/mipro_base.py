@@ -20,6 +20,7 @@ class MIPROBase(BaseModel):
         log_dir (Optional[str]): Directory for logging. Default is None.
         view_data_batch_size (int): Batch size for viewing data. Default is 10.
         minibatch_size (int): Size of minibatches for evaluation. Default is 25.
+        update_prompt_after_full_eval (bool): Whether to only update the best prompt after full evaluation. Default is True.
         minibatch_full_eval_steps (int): Number of steps for full evaluation on minibatches. Default is 10.
     """
 
@@ -34,6 +35,7 @@ class MIPROBase(BaseModel):
     log_dir: Optional[str] = None
     view_data_batch_size: int = 10
     minibatch_size: int = 25
+    update_prompt_after_full_eval: bool = True
     minibatch_full_eval_steps: int = 10
 
     class Config:
