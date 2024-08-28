@@ -69,10 +69,14 @@ class MIPRO(MIPROBase):
             estimated_task_model_calls = len(trainset) * max_steps
             task_model_line = f"- Task Model: {len(trainset)} examples in train set * {max_steps} batches * # of LM calls in your program = ({estimated_task_model_calls} * # of LM calls in your program) task model calls"
         else:
-            estimated_task_model_calls = self.minibatch_size * max_steps + (
-                len(trainset) * (max_steps // self.minibatch_full_eval_steps)
-            )
-            task_model_line = f"- Task Model: {self.minibatch_size} examples in minibatch * {max_steps} batches + {len(trainset)} examples in train set * {max_steps // self.minibatch_full_eval_steps} full evals = {estimated_task_model_calls} task model calls"
+            if self.update_prompt_after_full_eval:
+                estimated_task_model_calls = self.minibatch_size * max_steps + (
+                    len(trainset) * (max_steps // self.minibatch_full_eval_steps)
+                )
+                task_model_line = f"- Task Model: {self.minibatch_size} examples in minibatch * {max_steps} batches + {len(trainset)} examples in train set * {max_steps // self.minibatch_full_eval_steps} full evals = {estimated_task_model_calls} task model calls"
+            else:
+                estimated_task_model_calls = self.minibatch_size * max_steps
+                task_model_line = f"- Task Model: {self.minibatch_size} examples in minibatch * {max_steps} batches = {estimated_task_model_calls} task model calls"
 
         warning_text = Text.from_markup(
             f"[bold yellow]WARNING: Projected Language Model (LM) Calls[/bold yellow]\n\n"
@@ -254,51 +258,59 @@ class MIPRO(MIPROBase):
             )
             total_eval_calls += batch_size
 
-            if (
-                score > best_score
-                and trial_logs[trial.number]["full_eval"]
-                and not minibatch
-            ):
-                best_score = score
-                best_prompt = candidate_prompt.deepcopy()
+            if self.update_prompt_after_full_eval:
+                if (
+                    score > best_score
+                    and trial_logs[trial.number]["full_eval"]
+                    and not minibatch
+                ):
+                    best_score = score
+                    best_prompt = candidate_prompt.deepcopy()
 
-            if minibatch and trial.number % self.minibatch_full_eval_steps == 0:
-                trial_logs[trial.number]["mb_score"] = score
-                trial_logs[trial.number]["mb_prompt_path"] = trial_logs[trial.number][
-                    "prompt_path"
-                ]
+                if minibatch and (
+                    trial.number % self.minibatch_full_eval_steps == 0
+                    or trial.number == max_steps - 1
+                ):
+                    trial_logs[trial.number]["mb_score"] = score
+                    trial_logs[trial.number]["mb_prompt_path"] = trial_logs[
+                        trial.number
+                    ]["prompt_path"]
 
-                highest_mean_prompt, combo_key = get_prompt_with_highest_avg_score(
-                    param_score_dict, fully_evaled_param_combos
-                )
-                full_train_score: float = run_async(
-                    eval_candidate_prompt(
-                        len(trainset), trainset, highest_mean_prompt, evaluate
+                    highest_mean_prompt, combo_key = get_prompt_with_highest_avg_score(
+                        param_score_dict, fully_evaled_param_combos
                     )
-                )
+                    full_train_score: float = run_async(
+                        eval_candidate_prompt(
+                            len(trainset), trainset, highest_mean_prompt, evaluate
+                        )
+                    )
 
-                fully_evaled_param_combos[combo_key] = {
-                    "program": highest_mean_prompt,
-                    "score": full_train_score,
-                }
-                total_eval_calls += len(trainset)
-                trial_logs[trial.number].update(
-                    {
-                        "total_eval_calls_so_far": total_eval_calls,
-                        "full_eval": True,
-                        "prompt_path": save_candidate_prompt(
-                            prompt=highest_mean_prompt,
-                            log_dir=log_dir,
-                            trial_num=trial.number,
-                            note="full_eval",
-                        ),
+                    fully_evaled_param_combos[combo_key] = {
+                        "program": highest_mean_prompt,
                         "score": full_train_score,
                     }
-                )
+                    total_eval_calls += len(trainset)
+                    trial_logs[trial.number].update(
+                        {
+                            "total_eval_calls_so_far": total_eval_calls,
+                            "full_eval": True,
+                            "prompt_path": save_candidate_prompt(
+                                prompt=highest_mean_prompt,
+                                log_dir=log_dir,
+                                trial_num=trial.number,
+                                note="full_eval",
+                            ),
+                            "score": full_train_score,
+                        }
+                    )
 
-                if full_train_score > best_score:
-                    best_score = full_train_score
-                    best_prompt = highest_mean_prompt.deepcopy()
+                    if full_train_score > best_score:
+                        best_score = full_train_score
+                        best_prompt = highest_mean_prompt.deepcopy()
+            else:
+                if score > best_score:
+                    best_score = score
+                    best_prompt = candidate_prompt.deepcopy()
 
             if score >= goal_score:
                 trial.study.stop()
