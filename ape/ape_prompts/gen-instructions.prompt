@@ -2,6 +2,7 @@
 model: gpt-4o
 inputs: 
     response_format_instructions: A description of the response format instructions
+    prompt_desc: A description of the prompt that we are trying to generate
     task_description: A description of the task that the LLM will be asked to perform
     dataset_desc: A description of the dataset we are using
     task_fewshot: A list of few shot examples of the task
@@ -47,7 +48,7 @@ If you would like to use few shot examples, use the reserved variable {{_FEWSHOT
 Use the information below to learn about a task that we are trying to solve using calls to an LM, then write a new prompt that will be used to prompt a Language Model to better solve the task.
 
 Task for LLM:
-{task_description}
+{prompt_desc}
 
 Expected input variables:
 {inputs_desc}
@@ -70,6 +71,8 @@ Basic prompt:
 Idea:
 {tip}
 --
+Suggestion for improvement (a suggestion for how to go with writing the new prompt):
+{task_description}
 
 Think step by step. Wrap the prompt section in ```prompt
 ``` tags. You should NEVER include bracket variables other than the input variables for the task.

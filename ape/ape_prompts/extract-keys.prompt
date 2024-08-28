@@ -31,27 +31,27 @@ If there are no keys corresponding to the reasoning, then set reasoning as None.
 <EXAMPLE>
 <input>
 {
-    "answer": "123",
-    "reasoning": "Example Reasoning"
+    "reasoning": "Example Reasoning",
+    "answer": "123"
 }
 </input>
 <output>
 {
-    "answer": "answer",
-    "reasoning": "reasoning"
+    "reasoning": "reasoning",
+    "answer": "answer"
 }
 </output>
 
 <input>
 {
-    "answer": "123",
-    "gold_reasoning": "Example Reasoning"
+    "gold_reasoning": "Example Reasoning",
+    "answer": "123"
 }
 </input>
 <output>
 {
-    "answer": "answer",
-    "reasoning": "gold_reasoning"
+    "reasoning": "gold_reasoning",
+    "answer": "answer"
 }
 </output>
 </EXAMPLE>

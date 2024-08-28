@@ -21,6 +21,7 @@ class MIPROProposer(MIPROBase):
         inputs_desc: Optional[Dict[str, str]] = None,
         outputs_desc: Optional[Dict[str, str]] = None,
         response_format: Optional[ResponseFormat] = None,
+        prompt_desc: Optional[str] = None,
     ) -> List[Prompt]:
         """
         Generate a list of prompt candidates based on the given parameters.
@@ -63,6 +64,7 @@ class MIPROProposer(MIPROBase):
             inputs_desc=inputs_desc,
             outputs_desc=outputs_desc,
             response_format=response_format,
+            prompt_desc=prompt_desc,
         )
 
         return prompt_candidates

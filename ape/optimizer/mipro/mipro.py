@@ -138,6 +138,9 @@ class MIPRO(MIPROBase):
         self,
         student: Prompt,
         *,
+        prompt_desc: str = "",
+        inputs_desc: Optional[Dict[str, str]] = None,
+        outputs_desc: Optional[Dict[str, str]] = None,
         task_description: str = "",
         trainset: Dataset,
         testset: Optional[Dataset] = None,
@@ -152,8 +155,6 @@ class MIPRO(MIPROBase):
         response_format: Optional[ResponseFormat] = None,
         log_dir: str,
         reflect: bool = False,
-        inputs_desc: Optional[Dict[str, str]] = None,
-        outputs_desc: Optional[Dict[str, str]] = None,
     ) -> Optional[Prompt]:
         """
         Optimize the given prompt using MIPRO (Multi-prompt Instruction PRoposal Optimizer).
@@ -162,9 +163,10 @@ class MIPRO(MIPROBase):
         It supports minibatch evaluation, fewshot examples, and various optimization strategies.
         Args:
             student (Prompt): The initial prompt to be optimized.
-            task_description (str): Description of the task. Defaults to an empty string. Will be used to generate instructions.
+            prompt_desc (str): Description of the prompt to generate. Will be used used to generate instructions.
             inputs_desc (Optional[Dict[str, str]]): Description of input fields. Will be used to generate instructions.
             outputs_desc (Optional[Dict[str, str]]): Description of output fields. Will be used to generate instructions.
+            task_description (str): Description of the task. Defaults to an empty string. Will be used as a suggestion for improvement.
             trainset (Dataset): The dataset used for training.
             testset (Optional[Dataset]): The dataset used for testing. If None, trainset is used.
             max_steps (int): Maximum number of optimization steps. Defaults to 30.
@@ -177,7 +179,7 @@ class MIPRO(MIPROBase):
             requires_permission_to_run (bool): Whether user confirmation is required before running. Defaults to True.
             response_format (Optional[ResponseFormat]): The desired format for the response.
             log_dir (str): Directory to save logs and results.
-            reflect (bool): Whether to perform reflection on the best performing prompt. Defaults to False.
+            reflect (bool): [Experimental] Whether to perform reflection on the best performing prompt. Defaults to False.
         Returns:
             Optional[Prompt]: The best performing prompt, or None if optimization is aborted.
         """
@@ -244,6 +246,7 @@ class MIPRO(MIPROBase):
             response_format=response_format,
             inputs_desc=inputs_desc,
             outputs_desc=outputs_desc,
+            prompt_desc=prompt_desc,
         )
 
         if log_dir:
