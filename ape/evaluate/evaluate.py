@@ -38,8 +38,8 @@ class AsyncExecutor:
 
 
 class EvaluationResult(BaseModel):
-    example: dict
-    prediction: Union[str, dict]
+    example: Union[dict, str]
+    prediction: Union[dict, str]
     score: float
 
 
@@ -122,7 +122,7 @@ class Evaluate:
                 prediction = await prompt(**inputs)
                 if not prediction:
                     raise ValueError("Prediction is None")
-                score = await config.metric(inputs=inputs, gold=outputs, pred=prediction, trace=None)
+                score = await config.metric(gold=outputs, pred=prediction, trace=None)
                 return EvaluationResult(
                     example=outputs, prediction=prediction, score=score
                 )
@@ -187,7 +187,7 @@ class Evaluate:
         df = pd.DataFrame(
             [
                 merge_dicts(
-                    r.example,
+                    r.example if isinstance(r.example, dict) else {"example": r.example},
                     {"prediction": r.prediction, "correct": r.score}
                     | (r.prediction if isinstance(r.prediction, dict) else {}),
                 )
