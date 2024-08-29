@@ -122,11 +122,11 @@ async def create_n_fewshot_demo_sets(
     include_non_bootstrapped=True,
     seed=0,
 ) -> List[Dataset]:
-    num_candidate_sets -= 3
+    num_candidate_sets = max(num_candidate_sets, 3)
     random.Random(seed).shuffle(trainset)
 
     tasks = []
-    for seed in range(-3, num_candidate_sets):
+    for seed in range(-3, num_candidate_sets - 3):
         task = create_single_fewshot_demo_set(
             student=student,
             trainset=trainset,
@@ -143,9 +143,17 @@ async def create_n_fewshot_demo_sets(
             include_non_bootstrapped=include_non_bootstrapped,
         )
         tasks.append(task)
+        
+    max_workers = min(3, num_candidate_sets)
+    semaphore = asyncio.Semaphore(max_workers)
 
-    fewshot_candidates = await asyncio.gather(*tasks)
-    return [prompt.fewshot for prompt in fewshot_candidates]
+    async def worker(task):
+        async with semaphore:
+            return await task
+
+    fewshot_candidates = await asyncio.gather(*[worker(task) for task in tasks])
+    
+    return [prompt.fewshot for prompt in fewshot_candidates if prompt and hasattr(prompt, 'fewshot')]
 
 
 def create_minibatch(trainset, batch_size=50):
