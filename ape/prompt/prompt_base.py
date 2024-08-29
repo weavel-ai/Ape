@@ -207,7 +207,7 @@ class Prompt(pf.PromptConfig):
             logger.error(res)
 
         try:
-            logger.info(res_text)
+            # logger.info(res_text)
             if not self.response_format:
                 return res_text
             parsed_outputs: Dict[str, Any]
@@ -215,8 +215,8 @@ class Prompt(pf.PromptConfig):
                 parsed_outputs = parse_xml_outputs(res_text)
             else:
                 parsed_outputs = json.loads(res_text)
-            logger.info("Parsed outputs")
-            logger.info(parsed_outputs)
+            # logger.info("Parsed outputs")
+            # logger.info(parsed_outputs)
             return parsed_outputs
         except Exception as e:
             logger.error(f"Error parsing outputs: {e}")

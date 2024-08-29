@@ -41,7 +41,7 @@ class JsonMatchMetric(BaseMetric):
         )  # List of keys to ignore during comparison
 
     async def compute(
-        self, gold: DataItem, pred: Dict[str, Any], trace: Optional[Dict] = None
+        self, inputs, gold: DataItem, pred: Dict[str, Any], trace: Optional[Dict] = None
     ) -> float:
         """
         Compute the similarity score between the gold standard and prediction.

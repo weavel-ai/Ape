@@ -252,23 +252,23 @@ class GroundedProposer(Proposer):
         else:
             response_format_instructions = "-"
 
-        logger.info("Formatted prompt for generation")
-        logger.info(
-            self.generate_instructions.format(
-                task_description=task_description or "-",
-                dataset_desc=self.data_summary if self.use_dataset_summary else "-",
-                task_fewshot=task_fewshot,
-                previous_prompts=(
-                    instruction_history if self.use_instruct_history else "-"
-                ),
-                prompt_desc=prompt_desc if prompt_desc else "-",
-                basic_prompt=base_prompt.dump(),
-                tip=tip if self.use_tip else "-",
-                inputs_desc=inputs_desc if inputs_desc else "-",
-                outputs_desc=outputs_desc if outputs_desc else "-",
-                response_format_instructions=response_format_instructions,
-            ).dump()
-        )
+        # logger.info("Formatted prompt for generation")
+        # logger.info(
+        #     self.generate_instructions.format(
+        #         task_description=task_description or "-",
+        #         dataset_desc=self.data_summary if self.use_dataset_summary else "-",
+        #         task_fewshot=task_fewshot,
+        #         previous_prompts=(
+        #             instruction_history if self.use_instruct_history else "-"
+        #         ),
+        #         prompt_desc=prompt_desc if prompt_desc else "-",
+        #         basic_prompt=base_prompt.dump(),
+        #         tip=tip if self.use_tip else "-",
+        #         inputs_desc=inputs_desc if inputs_desc else "-",
+        #         outputs_desc=outputs_desc if outputs_desc else "-",
+        #         response_format_instructions=response_format_instructions,
+        #     ).dump()
+        # )
 
         output = await self.generate_instructions(
             lm_config=dict(temperature=T),
@@ -285,11 +285,11 @@ class GroundedProposer(Proposer):
         )
 
         try:
-            logger.info("output")
-            logger.info(output)
+            # logger.info("output")
+            # logger.info(output)
             extracted_prompt = extract_prompt(output)
-            logger.info("Extracted prompt")
-            logger.info(extracted_prompt)
+            # logger.info("Extracted prompt")
+            # logger.info(extracted_prompt)
 
             new_prompt = Prompt.load(extracted_prompt)
             if not new_prompt.messages:
@@ -305,14 +305,14 @@ class GroundedProposer(Proposer):
                     response_format=response_format,
                     tip=tip,
                 )
-            logger.info("New prompt")
+            # logger.info("New prompt")
             new_prompt.name = base_prompt.name
             new_prompt.model = self.prompt_model
             new_prompt.inputs_desc = inputs_desc
             new_prompt.outputs_desc = outputs_desc
             new_prompt.response_format = response_format
-            logger.info(new_prompt)
-            logger.info(type(new_prompt))
+            # logger.info(new_prompt)
+            # logger.info(type(new_prompt))
 
             return new_prompt
         except Exception as e:

@@ -34,7 +34,7 @@ class BaseMetric(ABC):
         Returns:
             float: The computed metric value.
         """
-        result = self.compute(gold, pred, trace)
+        result = self.compute(inputs, gold, pred, trace)
         if asyncio.iscoroutine(result):
             return await result
         return result
