@@ -182,16 +182,10 @@ class BootstrapFewShot(Optimizer):
             prediction: Union[str, Dict[str, Any]] = await teacher(
                 lm_config=lm_config, **inputs
             )
-            logger.info("PREDICTION")
-            logger.info(prediction, type(prediction))
-
             teacher.fewshot = cache
 
             if self.metric is not None:
                 metric_val = await self.metric(inputs, outputs, prediction, None)
-                logger.info("METRIC_VAL")
-                logger.info(metric_val, type(metric_val))
-
                 if self.metric_threshold:
                     success = metric_val >= self.metric_threshold
                 else:
