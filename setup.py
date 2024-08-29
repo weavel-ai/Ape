@@ -10,7 +10,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name="ape-core",
-    version="0.6.4",
+    version="0.6.5",
     packages=find_namespace_packages(),
     include_package_data=True,
     entry_points={},
