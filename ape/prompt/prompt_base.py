@@ -205,7 +205,7 @@ class Prompt(pf.PromptConfig):
             raise e
 
         cost = res._hidden_params["response_cost"]
-        CostTracker.add_cost(cost=cost, label=self.name)
+        await CostTracker.add_cost(cost=cost, label=self.name)
 
         res_text = res.choices[0].message.content
         if not res_text:
