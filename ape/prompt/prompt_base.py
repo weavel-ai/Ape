@@ -167,6 +167,10 @@ class Prompt(pf.PromptConfig):
         """
         if lm_config is None:
             lm_config = {}
+            
+        if "temperature" not in lm_config:
+            lm_config["temperature"] = self.temperature
+        
         if self.inputs_desc:
             inputs = {k: v for k, v in kwargs.items() if k in self.inputs_desc}
             if len(inputs) != len(self.inputs_desc):
@@ -184,7 +188,8 @@ class Prompt(pf.PromptConfig):
         if self.response_format:
             if self.response_format.type != "xml":
                 if self.response_format.type == "json_schema":
-                    model = "gpt-4o-2024-08-06"
+                    if model not in ["gpt-4o-2024-08-06", "gpt-4o-mini"]:
+                        model = "gpt-4o-2024-08-06"
                 response_format = self.response_format.model_dump(exclude_none=True)
 
         try:
