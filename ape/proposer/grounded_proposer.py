@@ -234,14 +234,14 @@ class GroundedProposer(Proposer):
             trial_logs,
             MAX_INSTRUCT_IN_HISTORY,
         )
-        logger.info(f"Create instruction history: {instruction_history}")
+        # logger.info(f"Create instruction history: {instruction_history}")
 
         if self.use_task_demos and fewshot:
             logger.info("Formatting fewshot for generation")
             task_fewshot = format_fewshot(
                 fewshot=fewshot, response_format=response_format
             )
-            logger.info(f"Formatted fewshot: {task_fewshot}")
+            # logger.info(f"Formatted fewshot: {task_fewshot}")
         else:
             task_fewshot = "-"
 

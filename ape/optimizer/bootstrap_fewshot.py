@@ -123,12 +123,13 @@ class BootstrapFewShot(Optimizer):
 
                 if example_idx not in bootstrapped:
                     tasks.append(self._bootstrap_one_example(example, round_idx))
-
-            results = await asyncio.gather(*tasks)
-
-            for example_idx, success in enumerate(results):
-                if success:
-                    bootstrapped[example_idx] = True
+                
+                if len(tasks) == 50 or example_idx == len(self.trainset) - 1:
+                    results = await asyncio.gather(*tasks)
+                    for idx, success in enumerate(results):
+                        if success:
+                            bootstrapped[example_idx - len(tasks) + 1 + idx] = True
+                    tasks = []  
 
             if len(bootstrapped) >= max_bootstraps:
                 break
