@@ -1,7 +1,7 @@
 from pydantic import BaseModel
-from typing import Any, Awaitable, Callable, Dict, Optional
+from typing import Any, Awaitable, Callable, Dict, Literal, Optional
 
-from ape.metric.metric_base import BaseMetric
+from ape.metric.metric_base import BaseMetric, ExtraMetric
 
 
 class MIPROBase(BaseModel):
@@ -29,6 +29,8 @@ class MIPROBase(BaseModel):
     teacher_settings: Dict = {}
     num_candidates: int = 10
     metric: Optional[BaseMetric] = None
+    metric_type: Optional[Literal["average", "global"]] = "average"
+    global_extra_metric: Optional[ExtraMetric] = None
     init_temperature: float = 1.0
     verbose: bool = False
     track_stats: bool = True

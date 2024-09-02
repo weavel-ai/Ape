@@ -142,7 +142,7 @@ class MIPRO(MIPROBase):
             )
 
         evaluate: Evaluate = Evaluate(
-            testset=testset, metric=self.metric, **eval_kwargs
+            testset=testset, metric=self.metric, metric_type=self.metric_type, global_extra_metric=self.global_extra_metric, **eval_kwargs
         )
 
         max_bootstrapped_demos_for_candidate_gen: int = (
@@ -178,7 +178,8 @@ class MIPRO(MIPROBase):
             logger.error(f"Error generating fewshot examples: {e}")
             logger.error("Running without fewshot examples.")
             fewshot_candidates = None
-
+        logger.info("finished generating fewshot candidates")
+        
         proposer: MIPROProposer = MIPROProposer(**self.model_dump())
         prompt_candidates: List[Prompt] = await proposer.generate_candidates(
             prompt=student,
@@ -187,7 +188,8 @@ class MIPRO(MIPROBase):
             fewshot_candidates=fewshot_candidates,
             response_format=response_format,
         )
-
+        logger.info("finished generating prompt candidates")
+        
         if log_dir:
             with open(os.path.join(log_dir, "instructions_to_save.pkl"), "wb") as file:
                 pickle.dump(prompt_candidates, file)
@@ -316,13 +318,15 @@ class MIPRO(MIPROBase):
                 trial.study.stop()
 
             return score
+        
+        logger.info("starting optuna study")
 
         study: optuna.Study = optuna.create_study(
             direction="maximize",
             sampler=optuna.samplers.TPESampler(seed=seed, multivariate=True),
         )
         study.optimize(objective, n_trials=max_steps)
-
+        logger.info("finished optuna study")
         if best_prompt is not None and self.track_stats:
             best_prompt.metadata["trial_logs"] = trial_logs
             best_prompt.metadata["score"] = best_score

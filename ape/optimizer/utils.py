@@ -50,6 +50,8 @@ async def reformat_prompt(prompt: Prompt, response_format: ResponseFormat) -> Pr
                 logger.error("Failed to reformat prompt after 3 retries")
                 logger.error("Generated prompt:" + res)
                 raise e
+            
+    new_prompt.fewshot_config = prompt.fewshot_config # TODO: fix this more pretty way
     return new_prompt
 
 

@@ -2,10 +2,9 @@ import sys
 import tqdm
 import asyncio
 import pandas as pd
-from pydantic import BaseModel, ConfigDict
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
-from ape.metric.metric_base import BaseMetric
+from ape.metric.metric_base import BaseMetric, EvaluationConfig, EvaluationResult, ExtraMetric
 from ape.types import DataItem, Dataset
 from ape.utils import logger
 from ape.prompt.prompt_base import Prompt
@@ -37,30 +36,13 @@ class AsyncExecutor:
         self.executor.shutdown()
 
 
-class EvaluationResult(BaseModel):
-    example: Union[dict, str]
-    prediction: Union[dict, str]
-    score: float
-
-
-class EvaluationConfig(BaseModel):
-    testset: Dataset
-    metric: Optional[BaseMetric] = None
-    display_progress: bool = False
-    display_table: Union[bool, int] = False
-    max_errors: int = 15
-    return_outputs: bool = False
-    batch_size: int = 50
-    return_all_scores: bool = False
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-
 class Evaluate:
     def __init__(
         self,
         testset: Dataset,
         metric: Optional[BaseMetric] = None,
+        metric_type: Optional[Literal["average", "global"]] = "average",
+        global_extra_metric: Optional[ExtraMetric] = None,
         display_progress: bool = False,
         display_table: Union[bool, int] = False,
         max_errors: int = 15,
@@ -71,6 +53,8 @@ class Evaluate:
         self.config = EvaluationConfig(
             testset=testset,
             metric=metric,
+            metric_type=metric_type,
+            global_extra_metric=global_extra_metric,
             display_progress=display_progress,
             display_table=display_table,
             max_errors=max_errors,
@@ -85,20 +69,29 @@ class Evaluate:
         self,
         prompt: Prompt,
         metric: Optional[BaseMetric] = None,
+        metric_type: Optional[Literal["average", "global"]] = "average",
+        global_extra_metric: Optional[ExtraMetric] = None,
         testset: Optional[Dataset] = None,
         **kwargs,
     ) -> Union[float, Tuple[float, List[EvaluationResult]], Tuple[float, List[float]]]:
-        config = self._update_config(metric, testset, **kwargs)
+        config = self._update_config(metric, metric_type, global_extra_metric, testset, **kwargs)
         self.total_score = 0
         results = await self._process_testset(prompt, config)
-        return self._prepare_output(results, config)
+        return await self._prepare_output(results, config)
 
     def _update_config(
-        self, metric: Optional[BaseMetric], testset: Optional[Dataset], **kwargs
+        self, 
+        metric: Optional[BaseMetric], 
+        metric_type: Optional[Literal["average", "global"]] = "average",
+        global_extra_metric: Optional[ExtraMetric] = None,
+        testset: Optional[Dataset] = None, 
+        **kwargs
     ) -> EvaluationConfig:
         return self.config.model_copy(
             update={
                 "metric": metric or self.config.metric,
+                "metric_type": metric_type or self.config.metric_type,
+                "global_extra_metric": global_extra_metric or self.config.global_extra_metric,
                 "testset": testset or self.config.testset,
                 **kwargs,
             }
@@ -123,9 +116,14 @@ class Evaluate:
                 if not prediction:
                     raise ValueError("Prediction is None")
                 score = await config.metric(inputs=inputs, gold=outputs, pred=prediction, trace=None)
-                return EvaluationResult(
-                    example=outputs, prediction=prediction, score=score
+                if type(score) == float:
+                    return EvaluationResult(
+                        example=outputs, prediction=prediction, score=score
                 )
+                else:
+                    return EvaluationResult(
+                        example=outputs, prediction=prediction, eval_results=score
+                    )
             except Exception as e:
                 self._handle_error(e, config)
                 return EvaluationResult(example=outputs, prediction={}, score=0.0)
@@ -164,10 +162,13 @@ class Evaluate:
             raise error
         logger.error(f"Error processing example: {error}")
 
-    def _prepare_output(
+    async def _prepare_output(
         self, results: List[EvaluationResult], config: EvaluationConfig
     ) -> Union[float, Tuple[float, List[EvaluationResult]], Tuple[float, List[float]]]:
-        average_score = sum(r.score for r in results) / len(results)
+        if config.metric_type == "average":
+            average_score = sum(r.score for r in results) / len(results)
+        elif config.metric_type == "global":
+            average_score = await config.global_extra_metric(results)
 
         if config.display_table:
             self._display_results_table(results, config)

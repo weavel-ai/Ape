@@ -1,6 +1,6 @@
-from .prompt.cost_tracker import CostTracker
+from .prompt.cost_tracker import CostTracker, CostTrackerContext
 from .prompt.prompt_base import Prompt
-from .metric.metric_base import BaseMetric
+from .metric.metric_base import BaseMetric, ExtraMetric
 from .types.dataset_item import DatasetItem
 
 from .optimizer.mipro.mipro import MIPRO
@@ -11,7 +11,9 @@ __all__ = [
     "CostTracker",
     "Prompt",
     "BaseMetric",
+    "ExtraMetric",
     "DatasetItem",
+    "CostTrackerContext",
     "MIPRO",
     "MIPROWithHIL",
 ]
