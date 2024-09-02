@@ -11,13 +11,15 @@ response_format:
             type: object
             properties:
                 score:
-                    type: boolean
+                    type: integer
             additionalProperties: false
             required:
             - score
 ---
 <system>
-You area a binary judge. Please provide a score of 0 or 1.
+You are a binary judge. Please provide a score of 0 or 1.
+If Ground truth and Prediction are same enough, provide a score of 1.
+If Ground truth and Prediction are different, provide a score of 0.
 </system>
 <user>
 Ground truth:
