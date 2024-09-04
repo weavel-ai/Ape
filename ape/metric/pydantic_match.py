@@ -42,7 +42,7 @@ class PydanticMatchMetric(BaseMetric):
         )  # List of keys to ignore during comparison
 
     async def compute(
-        self, inputs, gold: DataItem, pred: Any, trace: Optional[Dict] = None
+        self, inputs, gold: DataItem, pred: Any, trace: Optional[Dict] = None, metadata: Optional[Dict] = None
     ) -> float:
         """
         Compute the similarity score between the gold standard and prediction.

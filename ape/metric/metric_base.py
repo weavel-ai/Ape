@@ -23,7 +23,7 @@ class BaseMetric(ABC):
         pass
 
     async def __call__(
-        self, inputs: Dict[str, Any], gold: Any, pred: Any, trace: Optional[Dict] = None
+        self, inputs: Dict[str, Any], gold: Any, pred: Any, trace: Optional[Dict] = None, metadata: Optional[Dict] = None
     ) -> Union[float, Dict[str, Any]]:
         """
         Unified method to compute the metric, handling both sync and async implementations.
@@ -65,7 +65,7 @@ class ExtraMetric(ABC):
         Unified method to compute the metric, handling both sync and async implementations.
 
         Args:
-            results (List[EvaluationResult]): The results. use EvaluationResult.eval_result Dict to calculate final evaluation score.
+            results (List[EvaluationResult]): The results. use EvaluationResult.eval_results Dict to calculate final evaluation score.
 
         Returns:
             float: The computed metric value.   

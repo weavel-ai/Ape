@@ -44,7 +44,7 @@ class SemanticF1Metric(BaseMetric):
         self.segmenter = Segmenter(language="en", clean=False, char_span=True)
 
     async def compute(
-        self, inputs: Dict[str, Any], gold: str, pred: str, trace: Optional[Dict] = None
+        self, inputs: Dict[str, Any], gold: str, pred: str, trace: Optional[Dict] = None, metadata: Optional[Dict] = None
     ) -> float:
         """
         Compute the Semantic F1 score between the prediction and gold standard.

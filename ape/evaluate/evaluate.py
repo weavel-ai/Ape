@@ -69,7 +69,7 @@ class Evaluate:
         self,
         prompt: Prompt,
         metric: Optional[BaseMetric] = None,
-        metric_type: Optional[Literal["average", "global"]] = "average",
+        metric_type: Optional[Literal["average", "global"]] = None,
         global_extra_metric: Optional[ExtraMetric] = None,
         testset: Optional[Dataset] = None,
         **kwargs,
@@ -82,7 +82,7 @@ class Evaluate:
     def _update_config(
         self, 
         metric: Optional[BaseMetric], 
-        metric_type: Optional[Literal["average", "global"]] = "average",
+        metric_type: Optional[Literal["average", "global"]] = None,
         global_extra_metric: Optional[ExtraMetric] = None,
         testset: Optional[Dataset] = None, 
         **kwargs
@@ -112,10 +112,15 @@ class Evaluate:
                     if hasattr(example, "outputs")
                     else example.get("outputs", {})
                 )
+                metadata = (
+                    example.metadata
+                    if hasattr(example, "metadata")
+                    else example.get("metadata", {})
+                )
                 prediction = await prompt(**inputs)
                 if not prediction:
                     raise ValueError("Prediction is None")
-                score = await config.metric(inputs=inputs, gold=outputs, pred=prediction, trace=None)
+                score = await config.metric(inputs=inputs, gold=outputs, pred=prediction, trace=None, metadata=metadata)
                 if type(score) == float:
                     return EvaluationResult(
                         example=outputs, prediction=prediction, score=score

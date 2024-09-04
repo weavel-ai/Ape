@@ -23,7 +23,7 @@ class CosineSimilarityMetric(BaseMetric):
         self.model = model
 
     async def compute(
-        self, inputs, gold: str, pred: str, trace: Optional[Dict] = None
+        self, inputs, gold: str, pred: str, trace: Optional[Dict] = None, metadata: Optional[Dict] = None
     ) -> float:
         """
         Compute the cosine similarity between the gold standard and prediction texts.
