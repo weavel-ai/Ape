@@ -75,7 +75,7 @@ class Prompt(pf.PromptConfig):
         self.metadata.setdefault("fewshot", [])
         self.metadata.setdefault("inputs", {})
         self.metadata.setdefault("outputs", {})
-        self.fewshot_config = None # TODO: implement fewshot config = {input_ignore_key: [], output_ignore_key: []} into input variables of Prompt Init
+        # self.fewshot_config = None # TODO: implement fewshot config = {input_ignore_key: [], output_ignore_key: []} into input variables of Prompt Init
 
     def _restructure_models(self):
         """
@@ -180,7 +180,7 @@ class Prompt(pf.PromptConfig):
                 )
                 return None
 
-        messages = self.format(self.fewshot_config, **kwargs).messages
+        messages = self.format(**kwargs).messages
         if not messages:
             logger.error("Error: No messages in prompt.")
             return None
@@ -276,7 +276,7 @@ class Prompt(pf.PromptConfig):
         instance.name = os.path.basename(file_path).split(".prompt")[0]
         return instance
 
-    def format(self, fewshot_config: Optional[Dict[str, List[str]]] = None, **kwargs) -> "Prompt":
+    def format(self, **kwargs) -> "Prompt":
         """
         Format the prompt with the given keyword arguments.
 
@@ -287,16 +287,16 @@ class Prompt(pf.PromptConfig):
             Prompt: The formatted Prompt object.
         """
         if self.fewshot:
-            input_key_ignore = None
-            output_key_ignore = None
-            if fewshot_config:
-                input_key_ignore = fewshot_config.get("input_key_ignore", None)
-                output_key_ignore = fewshot_config.get("output_key_ignore", None)
+            # input_key_ignore = None
+            # output_key_ignore = None
+            # if fewshot_config:
+            #     input_key_ignore = fewshot_config.get("input_key_ignore", None)
+            #     output_key_ignore = fewshot_config.get("output_key_ignore", None)
             kwargs["_FEWSHOT_"] = format_fewshot(
                 fewshot=self.fewshot or [], 
                 response_format=self.response_format, 
-                input_key_ignore=input_key_ignore, 
-                output_key_ignore=output_key_ignore
+                # input_key_ignore=input_key_ignore, 
+                # output_key_ignore=output_key_ignore
             )
         return super().format(**kwargs)
 

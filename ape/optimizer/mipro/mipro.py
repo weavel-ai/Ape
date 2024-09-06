@@ -142,7 +142,7 @@ class MIPRO(MIPROBase):
             )
 
         evaluate: Evaluate = Evaluate(
-            testset=testset, metric=self.metric, metric_type=self.metric_type, global_extra_metric=self.global_extra_metric, **eval_kwargs
+            testset=testset, metric=self.metric, global_metric=self.global_metric, **eval_kwargs
         )
 
         max_bootstrapped_demos_for_candidate_gen: int = (
@@ -170,6 +170,9 @@ class MIPRO(MIPROBase):
                 )
             )
             if log_dir:
+                # if there is no directory, create it
+                if not os.path.exists(log_dir):
+                    os.makedirs(log_dir)
                 with open(
                     os.path.join(log_dir, "fewshot_examples_to_save.pkl"), "wb"
                 ) as file:

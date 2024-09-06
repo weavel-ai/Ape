@@ -1,30 +1,42 @@
 from abc import ABC, abstractmethod
 from pydantic import BaseModel, ConfigDict
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 import asyncio
 
-from ape.types import Dataset
-
+from ape.types import Dataset, MetricResult, EvaluationResult
 
 class BaseMetric(ABC):
     @abstractmethod
-    def compute(self, inputs: Dict[str, Any], gold: Any, pred: Any, trace: Optional[Dict] = None) -> float:
+    def compute(
+        self,
+        inputs: Dict[str, Any],
+        gold: Any,
+        pred: Any,
+        trace: Optional[Dict] = None,
+        metadata: Optional[Dict] = None,
+    ) -> MetricResult:
         """
         Compute the metric. This method can be implemented as either synchronous or asynchronous.
 
         Args:
+            inputs (Dict[str, Any]): The inputs.
             gold (Any): The ground truth.
             pred (Any): The prediction.
             trace (Optional[Dict]): Additional trace information.
-
+            metadata (Optional[Dict]): Additional metadata.
         Returns:
-            float: The computed metric value.
+            MetricResult: An object containing the score and intermediate values.
         """
         pass
 
     async def __call__(
-        self, inputs: Dict[str, Any], gold: Any, pred: Any, trace: Optional[Dict] = None, metadata: Optional[Dict] = None
-    ) -> Union[float, Dict[str, Any]]:
+        self,
+        inputs: Dict[str, Any],
+        gold: Any,
+        pred: Any,
+        trace: Optional[Dict] = None,
+        metadata: Optional[Dict] = None,
+    ) -> MetricResult:
         """
         Unified method to compute the metric, handling both sync and async implementations.
 
@@ -33,54 +45,64 @@ class BaseMetric(ABC):
             gold (Any): The ground truth.
             pred (Any): The prediction.
             trace (Optional[Dict]): Additional trace information.
+            metadata (Optional[Dict]): Additional metadata.
 
         Returns:
-            float: The computed metric value.
+            MetricResult: An object containing the score and intermediate values.
         """
-        result = self.compute(inputs, gold, pred, trace)
+        result = self.compute(inputs, gold, pred, trace, metadata)
         if asyncio.iscoroutine(result):
             return await result
         return result
 
-class EvaluationResult(BaseModel):
-    example: Union[dict, str]
-    prediction: Union[dict, str]
-    score: Optional[float] = 0.0
-    eval_results: Optional[Dict[str, Any]] = None
-
-
-class ExtraMetric(ABC):
+class GlobalMetric(ABC):
     @abstractmethod
     async def compute(self, results: List[EvaluationResult]) -> float:
         """
-        Compute the metric. This method can be implemented as either synchronous or asynchronous.
+        Compute the global metric.
 
         Args:
-            results (List[EvaluationResult]): The results.
-        """
-        pass
-    
-    async def __call__(self, results: List[EvaluationResult]) -> float:
-        """
-        Unified method to compute the metric, handling both sync and async implementations.
-
-        Args:
-            results (List[EvaluationResult]): The results. use EvaluationResult.eval_results Dict to calculate final evaluation score.
+            results (List[EvaluationResult]): The results from BaseMetric evaluations.
 
         Returns:
-            float: The computed metric value.   
+            float: The computed global metric value.
+        """
+        pass
+
+    async def __call__(self, results: List[EvaluationResult]) -> float:
+        """
+        Unified method to compute the global metric, handling both sync and async implementations.
+
+        Args:
+            results (List[EvaluationResult]): The results from BaseMetric evaluations. use results[i].intermediate_values to get the local metric results.
+
+        Returns:
+            float: The computed global metric value.
         """
         result = self.compute(results)
         if asyncio.iscoroutine(result):
             return await result
         return result
-    
+
+class AverageGlobalMetric(GlobalMetric):
+    async def compute(self, results: List[EvaluationResult]) -> float:
+        """
+        Compute the average of local scores as the global metric.
+
+        Args:
+            results (List[EvaluationResult]): The results from BaseMetric evaluations.
+
+        Returns:
+            float: The average score.
+        """
+        if not results:
+            return 0.0
+        return sum(result.score for result in results) / len(results)
 
 class EvaluationConfig(BaseModel):
     testset: Dataset
-    metric: Optional[BaseMetric] = None
-    metric_type: Optional[Literal["average", "global"]] = "average"
-    global_extra_metric: Optional[ExtraMetric] = None
+    metric: BaseMetric
+    global_metric: Optional[GlobalMetric] = AverageGlobalMetric()
     display_progress: bool = False
     display_table: Union[bool, int] = False
     max_errors: int = 15

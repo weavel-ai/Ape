@@ -43,14 +43,14 @@ def parse_xml_outputs(text: str) -> Dict[str, str]:
     return outputs
 
 
-def dict_to_xml(data: Dict[str, Any], tag_name: str, key_ignore: Optional[List[str]] = None) -> str:
+def dict_to_xml(data: Dict[str, Any], tag_name: str) -> str:
     # Create the root element
     root = ET.Element(f"{tag_name}s")
 
     # Add each output as a child element
     for name, value in data.items():
-        if key_ignore and name in key_ignore:
-            continue
+        # if key_ignore and name in key_ignore:
+        #     continue
         tag = ET.SubElement(root, tag_name)
         tag.set("name", name)
         tag.text = str(value)  # Convert value to string

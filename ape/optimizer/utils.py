@@ -51,7 +51,7 @@ async def reformat_prompt(prompt: Prompt, response_format: ResponseFormat) -> Pr
                 logger.error("Generated prompt:" + res)
                 raise e
             
-    new_prompt.fewshot_config = prompt.fewshot_config # TODO: fix this more pretty way
+    # new_prompt.fewshot_config = prompt.fewshot_config # TODO: fix this more pretty way
     return new_prompt
 
 
@@ -128,11 +128,11 @@ async def create_n_fewshot_demo_sets(
     random.Random(seed).shuffle(trainset)
 
     tasks = []
-    for seed in range(-3, num_candidate_sets - 3):
+    for candidate_seed in range(-3, num_candidate_sets - 3):
         task = create_single_fewshot_demo_set(
             student=student,
             trainset=trainset,
-            seed=seed,
+            seed=candidate_seed,
             max_labeled_demos=max_labeled_demos,
             max_bootstrapped_demos=max_bootstrapped_demos,
             metric=metric,
@@ -190,6 +190,8 @@ async def eval_candidate_prompt(
             testset=create_minibatch(trainset, batch_size),
             display_table=0,
         )
+    if isinstance(score, tuple):
+        score = score[0]
 
     return score
 
