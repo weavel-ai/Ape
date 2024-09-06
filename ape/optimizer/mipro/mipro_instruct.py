@@ -19,7 +19,7 @@ from ape.types.response_format import ResponseFormat
 BOOTSTRAPPED_FEWSHOT_EXAMPLES_IN_CONTEXT: int = 3
 LABELED_FEWSHOT_EXAMPLES_IN_CONTEXT: int = 0
 
-
+# Instruction Generation. Later Add Optuna and GroundedProposer to do (N+1) x (M+1) search.
 class MIPROInstruct(MIPROBase):
     """
     MIPROInstruct class for optimizing prompts.
@@ -54,6 +54,7 @@ class MIPROInstruct(MIPROBase):
 
         estimated_prompt_model_calls = 10 + self.num_candidates + 1
 
+        # TODO: Modify to match the actual number of LM calls in the program.
         if not minibatch:
             estimated_task_model_calls = len(trainset) * max_steps
             task_model_line = f"- Task Model: {len(trainset)} examples in train set * {max_steps} batches * # of LM calls in your program = ({estimated_task_model_calls} * # of LM calls in your program) task model calls"
@@ -121,11 +122,11 @@ class MIPROInstruct(MIPROBase):
         evaluate: Evaluate = Evaluate(
             testset=testset,
             metric=self.metric,
-            metric_type=self.metric_type,
-            global_extra_metric=self.global_extra_metric,
+            global_metric=self.global_metric,
             **eval_kwargs,
         )
-
+        
+        # This is the proposer.
         proposer = InstructByScore(
             prompt_model=self.prompt_model,
             trainset=trainset,
@@ -138,6 +139,8 @@ class MIPROInstruct(MIPROBase):
         proposer.set_history_randomly = False
 
         logger.info(f"Generating {self.num_candidates} instruction candidates")
+        
+        # Generate N candidates using InstructByScore.
         prompt_candidates = await proposer.propose_prompts(
             base_prompt=student,
             N=self.num_candidates,

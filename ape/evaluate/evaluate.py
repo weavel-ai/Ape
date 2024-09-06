@@ -175,6 +175,8 @@ class Evaluate:
             return global_score, results
         elif config.return_all_scores:
             return global_score, [r.score for r in results]
+        # elif config.custom:
+        #     return global_score, config.calculate(results)
         else:
             return global_score
 

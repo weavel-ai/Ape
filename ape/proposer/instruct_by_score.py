@@ -2,17 +2,13 @@ import asyncio
 import json
 import random
 from re import M
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 from ape.evaluate.evaluate import Evaluate
 from ape.prompt.prompt_base import Prompt
 from ape.prompt.utils import format_fewshot
 from ape.proposer.dataset_summary_generator import create_dataset_summary
-from ape.proposer.utils import (
-    create_history_string,
-    extract_prompt,
-    get_response_format_instructions,
-)
+from ape.proposer.utils import extract_prompt
 from ape.proposer.propose_base import Proposer
 from ape.types.response_format import (
     ResponseFormat,
@@ -20,6 +16,8 @@ from ape.types.response_format import (
 from ape.utils import logger
 from ape.types import Dataset
 
+# TIPS for generating new instructions.
+# TODO: Refine these tips.
 TIPS = {
     "none": "Make it better",
     "one_side_first": "Try to optimize a certain part of the evaluation score first. For example, if the evaluation is based on both precision and recall, try to optimize for recall first. Be extreme at times.",
@@ -112,15 +110,19 @@ class InstructByScore(Proposer):
         Returns:
             List[Prompt]: A list of proposed prompts.
         """
+        # This is not necessary. But I kept it here for now.
         if not self.data_summary and self.trainset:
             await self.prepare_dataset_summary()
 
-        evaluate._update_config(return_outputs=True)
-        base_evaluation_result = str(await evaluate(base_prompt))
+        # This is the part where we evaluate the base prompt.
+        # TODO: need to modify evaluate to return all scores (not only the final global score)
+        # Right now, it only returns the final global score (no recall, precision, etc.)
+        base_evaluation_result = str(await evaluate(base_prompt, return_outputs=True))
         print(f"Base Evaluation Result: {base_evaluation_result}")
     
         proposed_instructions = []
 
+        # Generate N new instructions based on evaluation result.
         for i in range(N):
             new_instruction = await self.generate_new_instruction(
                 index=i,
@@ -131,12 +133,6 @@ class InstructByScore(Proposer):
                 metric=metric,
             )
             proposed_instructions.append(new_instruction)
-
-            # Save the proposed prompt to a file
-            filename = f"proposed_prompt_{i+1}.prompt"
-            with open(filename, "w") as f:
-                f.write(new_instruction.dump())
-            print(f"Saved proposed prompt to {filename}")
 
         return proposed_instructions
 
@@ -181,7 +177,8 @@ class InstructByScore(Proposer):
         print(f"Response Format: {response_format}")
 
         try:
-            # Generate new instruction
+            # Generate new instruction from Prompt.from_filename("gen-instruction-with-eval")
+            # input : base_prompt, evaluation_result, evaluation_function, tip, response_format
             new_instruction_text = await self.generate_instructions(
                 base_prompt=base_prompt_messages_str,
                 evaluation_result=str(evaluation_result),
@@ -199,8 +196,7 @@ class InstructByScore(Proposer):
                 ),
             )
             
-            print(f"New Instruction: {new_instruction_text}")
-
+            # print(f"New Instruction: {new_instruction_text}")
             extracted_prompt = extract_prompt(new_instruction_text)
 
             # Create a new Prompt object with the generated instruction
@@ -213,6 +209,7 @@ class InstructByScore(Proposer):
 
         except Exception as e:
             print(f"Error generating new instruction: {e}")
+            # Retry logic for failed generation.
             new_prompt = await self.generate_new_instruction(
                 index=index,
                 base_prompt=base_prompt,
