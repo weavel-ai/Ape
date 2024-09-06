@@ -5,6 +5,7 @@ from .types.dataset_item import DatasetItem
 
 from .optimizer.mipro.mipro import MIPRO
 from .optimizer.mipro.mipro_with_hil import MIPROWithHIL
+from .optimizer.mipro.mipro_instruct import MIPROInstruct
 
 
 __all__ = [
@@ -17,4 +18,5 @@ __all__ = [
     "CostTrackerContext",
     "MIPRO",
     "MIPROWithHIL",
+    "MIPROInstruct",
 ]
