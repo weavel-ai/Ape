@@ -254,3 +254,76 @@ def get_prompt_with_highest_avg_score(
         "All parameter combinations fully evaluated. Returning overall best."
     )
     return best_prompt, best_key
+
+
+async def find_best_fewshot(
+    student: Prompt,
+    num_candidate_sets: int,
+    trainset: Dataset,
+    max_labeled_demos: int,
+    max_bootstrapped_demos: int,
+    metric: BaseMetric,
+    teacher_settings: dict,
+    evaluate: Evaluate,
+    max_rounds=1,
+    labeled_sample=True,
+    min_num_samples=1,
+    metric_threshold=None,
+    teacher=None,
+    include_non_bootstrapped=True,
+    seed=0,
+) -> Tuple[Prompt, float]:
+    # Generate candidate few-shot sets
+    fewshot_candidates = await create_n_fewshot_demo_sets(
+        student=student,
+        num_candidate_sets=num_candidate_sets,
+        trainset=trainset,
+        max_labeled_demos=max_labeled_demos,
+        max_bootstrapped_demos=max_bootstrapped_demos,
+        metric=metric,
+        teacher_settings=teacher_settings,
+        max_rounds=max_rounds,
+        labeled_sample=labeled_sample,
+        min_num_samples=min_num_samples,
+        metric_threshold=metric_threshold,
+        teacher=teacher,
+        include_non_bootstrapped=include_non_bootstrapped,
+        seed=seed,
+    )
+
+    # Evaluate each candidate
+    best_prompt = None
+    best_score = float('-inf')
+    best_fewshot = None
+
+    for fewshot in fewshot_candidates:
+        candidate_prompt = student.deepcopy()
+        candidate_prompt.fewshot = fewshot
+        score = await eval_candidate_prompt(
+            batch_size=len(trainset),  # Evaluate on full trainset
+            trainset=trainset,
+            candidate_prompt=candidate_prompt,
+            evaluate=evaluate,
+        )
+
+        if score > best_score:
+            best_score = score
+            best_prompt = candidate_prompt
+            best_fewshot = fewshot
+
+    return best_fewshot, best_score
+
+# Example usage:
+# best_prompt, best_score = await find_best_fewshot(
+#     student=student_prompt,
+#     num_candidate_sets=5,
+#     trainset=trainset,
+#     max_labeled_demos=3,
+#     max_bootstrapped_demos=5,
+#     metric=some_metric,
+#     teacher_settings=teacher_settings,
+#     evaluate=evaluate_function,
+#     teacher=teacher_model
+# )
+# print(f"Best few-shot prompt score: {best_score}")
+# print(f"Best few-shot prompt: {best_prompt.dump()}")

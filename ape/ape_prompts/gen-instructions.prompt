@@ -61,9 +61,6 @@ Dataset summary (description of the dataset we are using):
 Task demos (example inputs/outputs of the task):
 {task_fewshot}
 
-Previous prompts (previous prompts we've attemped, along with their scores):
-{previous_prompts} 
-
 Basic prompt:
 {basic_prompt}
 

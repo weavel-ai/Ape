@@ -30,7 +30,7 @@ class JsonMatchMetric(BaseMetric):
     def __init__(
         self, consider_list_order: bool = False, ignore_keys: Optional[List[str]] = None
     ):
-        self.binary_judge = Prompt.from_filename("binary_judge")
+        self.binary_judge = Prompt.from_filename("binary-judge")
         self.consider_list_order = (
             consider_list_order  # Flag to determine whether to consider list order
         )

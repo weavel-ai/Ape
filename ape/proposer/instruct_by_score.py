@@ -14,7 +14,7 @@ from ape.types.response_format import (
     ResponseFormat,
 )
 from ape.utils import logger
-from ape.types import Dataset
+from ape.types import Dataset, EvaluationResult
 
 # TIPS for generating new instructions.
 # TODO: Refine these tips.
@@ -34,9 +34,7 @@ class InstructByScore(Proposer):
         trainset: Dataset,
         use_dataset_summary=True,
         use_task_demos=True,
-        use_instruct_history=True,
         use_tip=True,
-        set_history_randomly=True,
         view_data_batch_size=10,
     ):
         """
@@ -47,17 +45,14 @@ class InstructByScore(Proposer):
             trainset (Dataset): The training dataset.
             use_dataset_summary (bool, optional): Whether to use dataset summary. Defaults to True.
             use_task_demos (bool, optional): Whether to use task demonstrations. Defaults to True.
-            use_instruct_history (bool, optional): Whether to use instruction history. Defaults to True.
             use_tip (bool, optional): Whether to include tips. Defaults to True.
             set_tip_randomly (bool, optional): Whether to randomly select tips. Defaults to True.
-            set_history_randomly (bool, optional): Whether to randomly decide on using instruction history. Defaults to True.
             view_data_batch_size (int, optional): The batch size for viewing data. Defaults to 10.
         """
         self.use_dataset_summary = use_dataset_summary
         self.use_task_demos = use_task_demos
-        self.use_instruct_history = use_instruct_history
+        # self.use_instruct_history = use_instruct_history
         self.use_tip = use_tip
-        self.set_history_randomly = set_history_randomly
 
         self.trainset: Dataset = trainset
         self.prompt_model = prompt_model
@@ -115,10 +110,7 @@ class InstructByScore(Proposer):
             await self.prepare_dataset_summary()
 
         # This is the part where we evaluate the base prompt.
-        # TODO: need to modify evaluate to return all scores (not only the final global score)
-        # Right now, it only returns the final global score (no recall, precision, etc.)
-        base_evaluation_result = str(await evaluate(base_prompt, return_outputs=True))
-        print(f"Base Evaluation Result: {base_evaluation_result}")
+        base_evaluation_score, base_evaluation_result = str(await evaluate(base_prompt, return_outputs=True))
     
         proposed_instructions = []
 
@@ -127,7 +119,8 @@ class InstructByScore(Proposer):
             new_instruction = await self.generate_new_instruction(
                 index=i,
                 base_prompt=base_prompt,
-                evaluation_result=base_evaluation_result,
+                # evaluation_score=base_evaluation_score,
+                evaluation_result=base_evaluation_score,
                 T=T,
                 response_format=base_prompt.response_format,
                 metric=metric,
@@ -140,23 +133,27 @@ class InstructByScore(Proposer):
         self,
         index: int,
         base_prompt: Prompt,
-        evaluation_result: str,
+        # evaluation_score: str,
+        evaluation_result: List[EvaluationResult],
         T: float,
         response_format: Optional[ResponseFormat] = None,
         metric: Optional[str] = None,
+        retry_count: int = 0,
     ) -> Prompt:
         """
         Generate a new instruction based on the base prompt and its evaluation result.
 
         Args:
             base_prompt (Prompt): The base prompt.
-            evaluation_result (Any): The result of evaluating the base prompt.
+            evaluation_score (str): The score of the base prompt.
+            evaluation_result (List[EvaluationResult]): The result of evaluating the base prompt.
             T (float): Temperature for generation.
             response_format (Optional[ResponseFormat], optional): Format for the response.
             metric (Optional[str], optional): Metric used for evaluation.
+            retry_count (int): 현재 재시도 횟수
 
         Returns:
-            Prompt: A new proposed prompt.
+            Prompt: A new proposed prompt or the base prompt if generation fails after 3 attempts.
         """
 
         # Select a tip
@@ -169,12 +166,6 @@ class InstructByScore(Proposer):
             json.dumps(message) for message in base_prompt.messages
         ]
         base_prompt_messages_str = "\n".join(base_prompt_messages)
-
-        print(f"Base Prompt: {base_prompt_messages_str}")
-        print(f"Evaluation Result: {evaluation_result}")
-        print(f"Metric: {metric}")
-        print(f"Tip: {selected_tip}")
-        print(f"Response Format: {response_format}")
 
         try:
             # Generate new instruction from Prompt.from_filename("gen-instruction-with-eval")
@@ -208,15 +199,19 @@ class InstructByScore(Proposer):
             new_prompt.name = "InstructNew"
 
         except Exception as e:
-            print(f"Error generating new instruction: {e}")
-            # Retry logic for failed generation.
-            new_prompt = await self.generate_new_instruction(
-                index=index,
-                base_prompt=base_prompt,
-                evaluation_result=evaluation_result,
-                T=T,
-                response_format=response_format,
-                metric=metric,
-            )
+            print(f"Error generating new instruction (attempt {retry_count + 1}): {e}")
+            if retry_count < 2:  # 최대 3번 시도 (0, 1, 2)
+                return await self.generate_new_instruction(
+                    index=index,
+                    base_prompt=base_prompt,
+                    evaluation_result=evaluation_result,
+                    T=T,
+                    response_format=response_format,
+                    metric=metric,
+                    retry_count=retry_count + 1,
+                )
+            else:
+                print("Failed to generate new instruction after 3 attempts. Returning base prompt.")
+                return base_prompt
 
         return new_prompt

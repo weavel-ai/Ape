@@ -18,7 +18,7 @@ from ape.utils import logger
 from ape.types import Dataset
 
 # Hardcoded variables
-MAX_INSTRUCT_IN_HISTORY = 5  # 10
+# MAX_INSTRUCT_IN_HISTORY = 5  # 10
 
 TIPS = {
     "none": "",
@@ -41,10 +41,8 @@ class GroundedProposer(Proposer):
     Attributes:
         use_dataset_summary (bool): Whether to use dataset summary in proposals.
         use_task_demos (bool): Whether to use task demonstrations in proposals.
-        use_instruct_history (bool): Whether to use instruction history in proposals.
         use_tip (bool): Whether to include tips in proposals.
         set_tip_randomly (bool): Whether to randomly select tips.
-        set_history_randomly (bool): Whether to randomly decide on using instruction history.
         trainset (Dataset): The training dataset.
         prompt_model (str): The name of the prompt model to use.
         view_data_batch_size (int): The batch size for viewing data.
@@ -59,10 +57,8 @@ class GroundedProposer(Proposer):
         trainset: Dataset,
         use_dataset_summary=True,
         use_task_demos=True,
-        use_instruct_history=True,
         use_tip=True,
         set_tip_randomly=True,
-        set_history_randomly=True,
         view_data_batch_size=10,
     ):
         """
@@ -73,18 +69,15 @@ class GroundedProposer(Proposer):
             trainset (Dataset): The training dataset.
             use_dataset_summary (bool, optional): Whether to use dataset summary. Defaults to True.
             use_task_demos (bool, optional): Whether to use task demonstrations. Defaults to True.
-            use_instruct_history (bool, optional): Whether to use instruction history. Defaults to True.
             use_tip (bool, optional): Whether to include tips. Defaults to True.
             set_tip_randomly (bool, optional): Whether to randomly select tips. Defaults to True.
-            set_history_randomly (bool, optional): Whether to randomly decide on using instruction history. Defaults to True.
             view_data_batch_size (int, optional): The batch size for viewing data. Defaults to 10.
         """
         self.use_dataset_summary = use_dataset_summary
         self.use_task_demos = use_task_demos
-        self.use_instruct_history = use_instruct_history
+        # self.use_instruct_history = use_instruct_history
         self.use_tip = use_tip
         self.set_tip_randomly = set_tip_randomly
-        self.set_history_randomly = set_history_randomly
 
         self.trainset: Dataset = trainset
         self.prompt_model = prompt_model
@@ -116,7 +109,7 @@ class GroundedProposer(Proposer):
 
     async def propose_prompts(
         self,
-        trial_logs: Dict[str, Any],
+        # trial_logs: Dict[str, Any],
         N: int,
         T: float,
         task_description: Optional[str] = None,
@@ -132,7 +125,6 @@ class GroundedProposer(Proposer):
         Propose a set of new instructions for the task based on specified criteria.
 
         Args:
-            trial_logs (Dict[str, Any]): Logs from previous trials.
             N (int): Number of proposals to generate.
             T (float): Temperature for generation.
             task_description (Optional[str], optional): Description of the task. Defaults to None.
@@ -171,11 +163,11 @@ class GroundedProposer(Proposer):
             )
             logger.info(f"Selected tip: {selected_tip_key}")
 
-        if self.set_history_randomly:
-            # Randomly select whether or not we're using instruction history
-            use_history = random.random() < 0.5
-            self.use_instruct_history = use_history
-            logger.info(f"Use history T/F: {self.use_instruct_history}")
+        # if self.set_history_randomly:
+        #     # Randomly select whether or not we're using instruction history
+        #     use_history = random.random() < 0.5
+        #     self.use_instruct_history = use_history
+        #     logger.info(f"Use history T/F: {self.use_instruct_history}")
 
         _tasks = [
             self.propose_one(
@@ -183,7 +175,7 @@ class GroundedProposer(Proposer):
                 base_prompt=base_prompt,
                 fewshot=fewshot_candidates[i],
                 prompt_desc=prompt_desc,
-                trial_logs=trial_logs,
+                # trial_logs=trial_logs,
                 T=T,
                 inputs_desc=inputs_desc,
                 outputs_desc=outputs_desc,
@@ -199,7 +191,7 @@ class GroundedProposer(Proposer):
 
     async def propose_one(
         self,
-        trial_logs: Dict[str, Any],
+        # trial_logs: Dict[str, Any],
         T: float,
         task_description: Optional[str] = None,
         prompt_desc: Optional[str] = None,
@@ -209,12 +201,12 @@ class GroundedProposer(Proposer):
         outputs_desc: Optional[Dict[str, str]] = None,
         response_format: Optional[ResponseFormat] = None,
         tip=None,
+        retry_count: int = 0,
     ) -> Prompt:
         """
         Propose a single instruction based on the given criteria.
 
         Args:
-            trial_logs (Dict[str, Any]): Logs from previous trials.
             T (float): Temperature for generation.
             task_description (Optional[str], optional): Description of the task. Defaults to None.
             prompt_desc (Optional[str], optional): Description of the prompt. Defaults to None.
@@ -224,16 +216,17 @@ class GroundedProposer(Proposer):
             outputs_desc (Optional[Dict[str, str]], optional): Description of outputs. Defaults to None.
             response_format (Optional[ResponseFormat], optional): Format for the response. Defaults to None.
             tip (optional): Tip for generation. Defaults to None.
+            retry_count (int, optional): Number of retry attempts. Defaults to 0.
 
         Returns:
             Prompt: A proposed prompt.
         """
-        # Create an instruction history string for our predictor
-        instruction_history = create_history_string(
-            base_prompt,
-            trial_logs,
-            MAX_INSTRUCT_IN_HISTORY,
-        )
+        # # Create an instruction history string for our predictor
+        # instruction_history = create_history_string(
+        #     base_prompt,
+        #     trial_logs,
+        #     MAX_INSTRUCT_IN_HISTORY,
+        # )
         # logger.info(f"Create instruction history: {instruction_history}")
 
         if self.use_task_demos and fewshot:
@@ -275,7 +268,7 @@ class GroundedProposer(Proposer):
             task_description=task_description,
             dataset_desc=self.data_summary if self.use_dataset_summary else "-",
             task_fewshot=task_fewshot,
-            previous_prompts=instruction_history if self.use_instruct_history else "-",
+            # previous_prompts=instruction_history if self.use_instruct_history else "-",
             prompt_desc=prompt_desc if prompt_desc else "-",
             basic_prompt=base_prompt.dump(),
             tip=tip if self.use_tip else "-",
@@ -293,19 +286,8 @@ class GroundedProposer(Proposer):
 
             new_prompt = Prompt.load(extracted_prompt)
             if not new_prompt.messages:
-                new_prompt = await self.propose_one(
-                    trial_logs=trial_logs,
-                    T=T,
-                    task_description=task_description,
-                    prompt_desc=prompt_desc,
-                    base_prompt=base_prompt,
-                    fewshot=fewshot,
-                    inputs_desc=inputs_desc,
-                    outputs_desc=outputs_desc,
-                    response_format=response_format,
-                    tip=tip,
-                )
-            # logger.info("New prompt")
+                raise ValueError("Generated prompt has no messages")
+
             new_prompt.name = base_prompt.name
             new_prompt.model = self.prompt_model
             new_prompt.inputs_desc = inputs_desc
@@ -316,6 +298,23 @@ class GroundedProposer(Proposer):
 
             return new_prompt
         except Exception as e:
-            logger.error(f"Error extracting prompt.\n{e}")
-            logger.error(output)
-            return base_prompt
+            logger.error(f"Error in propose_one: {e}")
+            logger.error(f"Output: {output}")
+            if retry_count < 3:
+                logger.warning(f"Retry attempt {retry_count + 1} for propose_one")
+                return await self.propose_one(
+                    # trial_logs=trial_logs,
+                    T=T,
+                    task_description=task_description,
+                    prompt_desc=prompt_desc,
+                    base_prompt=base_prompt,
+                    fewshot=fewshot,
+                    inputs_desc=inputs_desc,
+                    outputs_desc=outputs_desc,
+                    response_format=response_format,
+                    tip=tip,
+                    retry_count=retry_count + 1,
+                )
+            else:
+                logger.error("Max retries reached. Returning base prompt.")
+                return base_prompt
