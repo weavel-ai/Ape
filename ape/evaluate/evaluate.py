@@ -2,11 +2,10 @@ import sys
 import tqdm
 import asyncio
 import pandas as pd
-from pydantic import BaseModel, ConfigDict
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
-from ape.metric.metric_base import BaseMetric
-from ape.types import DataItem, Dataset
+from ape.metric.metric_base import BaseMetric, EvaluationConfig, GlobalMetric, AverageGlobalMetric
+from ape.types import DataItem, Dataset, EvaluationResult, MetricResult
 from ape.utils import logger
 from ape.prompt.prompt_base import Prompt
 
@@ -37,30 +36,12 @@ class AsyncExecutor:
         self.executor.shutdown()
 
 
-class EvaluationResult(BaseModel):
-    example: Union[dict, str]
-    prediction: Union[dict, str]
-    score: float
-
-
-class EvaluationConfig(BaseModel):
-    testset: Dataset
-    metric: Optional[BaseMetric] = None
-    display_progress: bool = False
-    display_table: Union[bool, int] = False
-    max_errors: int = 15
-    return_outputs: bool = False
-    batch_size: int = 50
-    return_all_scores: bool = False
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-
 class Evaluate:
     def __init__(
         self,
         testset: Dataset,
         metric: Optional[BaseMetric] = None,
+        global_metric: Optional[GlobalMetric] = None,
         display_progress: bool = False,
         display_table: Union[bool, int] = False,
         max_errors: int = 15,
@@ -71,6 +52,7 @@ class Evaluate:
         self.config = EvaluationConfig(
             testset=testset,
             metric=metric,
+            global_metric=global_metric or AverageGlobalMetric(),
             display_progress=display_progress,
             display_table=display_table,
             max_errors=max_errors,
@@ -85,20 +67,27 @@ class Evaluate:
         self,
         prompt: Prompt,
         metric: Optional[BaseMetric] = None,
+        global_metric: Optional[GlobalMetric] = None,
         testset: Optional[Dataset] = None,
         **kwargs,
     ) -> Union[float, Tuple[float, List[EvaluationResult]], Tuple[float, List[float]]]:
-        config = self._update_config(metric, testset, **kwargs)
+        config = self._update_config(metric, global_metric, testset, **kwargs)
         self.total_score = 0
-        results = await self._process_testset(prompt, config)
-        return self._prepare_output(results, config)
+        results: List[EvaluationResult] = await self._process_testset(prompt, config)
+        global_score = await self._compute_global_metric(results, config)
+        return self._prepare_output(results, global_score, config)
 
     def _update_config(
-        self, metric: Optional[BaseMetric], testset: Optional[Dataset], **kwargs
+        self, 
+        metric: Optional[BaseMetric], 
+        global_metric: Optional[GlobalMetric] = None,
+        testset: Optional[Dataset] = None, 
+        **kwargs
     ) -> EvaluationConfig:
         return self.config.model_copy(
             update={
                 "metric": metric or self.config.metric,
+                "global_metric": global_metric or self.config.global_metric,
                 "testset": testset or self.config.testset,
                 **kwargs,
             }
@@ -119,13 +108,17 @@ class Evaluate:
                     if hasattr(example, "outputs")
                     else example.get("outputs", {})
                 )
+                metadata = (
+                    example.metadata
+                    if hasattr(example, "metadata")
+                    else example.get("metadata", {})
+                )
                 prediction = await prompt(**inputs)
                 if not prediction:
                     raise ValueError("Prediction is None")
-                score = await config.metric(inputs=inputs, gold=outputs, pred=prediction, trace=None)
-                return EvaluationResult(
-                    example=outputs, prediction=prediction, score=score
-                )
+                result = await config.metric(inputs=inputs, gold=outputs, pred=prediction, trace=None, metadata=metadata)
+                result = EvaluationResult(example=example, prediction=prediction, score=result.score, intermediate_values=result.intermediate_values)
+                return result
             except Exception as e:
                 self._handle_error(e, config)
                 return EvaluationResult(example=outputs, prediction={}, score=0.0)
@@ -141,7 +134,8 @@ class Evaluate:
                 self._bounded_process_item(process_item, item, pbar, config)
                 for item in config.testset
             ]
-            return await asyncio.gather(*tasks)
+            results: List[EvaluationResult] = await asyncio.gather(*tasks)
+            return results
 
     async def _bounded_process_item(self, process_func, item, pbar, config):
         async with asyncio.Semaphore(config.batch_size):
@@ -164,22 +158,25 @@ class Evaluate:
             raise error
         logger.error(f"Error processing example: {error}")
 
-    def _prepare_output(
+    async def _compute_global_metric(
         self, results: List[EvaluationResult], config: EvaluationConfig
-    ) -> Union[float, Tuple[float, List[EvaluationResult]], Tuple[float, List[float]]]:
-        average_score = sum(r.score for r in results) / len(results)
+    ) -> float:
+        return await config.global_metric(results)
 
+    def _prepare_output(
+        self, results: List[EvaluationResult], global_score: float, config: EvaluationConfig
+    ) -> Union[float, Tuple[float, List[EvaluationResult]], Tuple[float, List[float]]]:
         if config.display_table:
             self._display_results_table(results, config)
 
         if config.return_outputs and config.return_all_scores:
-            return average_score, results, [r.score for r in results]
+            return global_score, results, [r.score for r in results]
         elif config.return_outputs:
-            return average_score, results
+            return global_score, results
         elif config.return_all_scores:
-            return average_score, [r.score for r in results]
+            return global_score, [r.score for r in results]
         else:
-            return average_score
+            return global_score
 
     def _display_results_table(
         self, results: List[EvaluationResult], config: EvaluationConfig

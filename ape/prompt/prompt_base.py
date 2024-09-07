@@ -75,6 +75,7 @@ class Prompt(pf.PromptConfig):
         self.metadata.setdefault("fewshot", [])
         self.metadata.setdefault("inputs", {})
         self.metadata.setdefault("outputs", {})
+        # self.fewshot_config = None # TODO: implement fewshot config = {input_ignore_key: [], output_ignore_key: []} into input variables of Prompt Init
 
     def _restructure_models(self):
         """
@@ -191,7 +192,6 @@ class Prompt(pf.PromptConfig):
                     if model not in ["gpt-4o-2024-08-06", "gpt-4o-mini"]:
                         model = "gpt-4o-2024-08-06"
                 response_format = self.response_format.model_dump(exclude_none=True)
-
         try:
             res = await acompletion(
                 model=model,
@@ -287,8 +287,16 @@ class Prompt(pf.PromptConfig):
             Prompt: The formatted Prompt object.
         """
         if self.fewshot:
+            # input_key_ignore = None
+            # output_key_ignore = None
+            # if fewshot_config:
+            #     input_key_ignore = fewshot_config.get("input_key_ignore", None)
+            #     output_key_ignore = fewshot_config.get("output_key_ignore", None)
             kwargs["_FEWSHOT_"] = format_fewshot(
-                fewshot=self.fewshot or [], response_format=self.response_format
+                fewshot=self.fewshot or [], 
+                response_format=self.response_format, 
+                # input_key_ignore=input_key_ignore, 
+                # output_key_ignore=output_key_ignore
             )
         return super().format(**kwargs)
 

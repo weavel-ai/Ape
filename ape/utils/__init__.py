@@ -1,6 +1,6 @@
 import re
 import asyncio
-from typing import Any, Dict, Union
+from typing import Any, Dict, List, Optional, Union
 import xml.etree.ElementTree as ET
 import xml.dom.minidom as minidom
 from .logging import logger
@@ -49,6 +49,8 @@ def dict_to_xml(data: Dict[str, Any], tag_name: str) -> str:
 
     # Add each output as a child element
     for name, value in data.items():
+        # if key_ignore and name in key_ignore:
+        #     continue
         tag = ET.SubElement(root, tag_name)
         tag.set("name", name)
         tag.text = str(value)  # Convert value to string

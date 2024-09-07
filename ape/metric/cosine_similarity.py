@@ -1,68 +1,46 @@
-from typing import Any, Dict, Optional, List, Union
-
+from typing import Any, Dict, Optional
 import numpy as np
 from litellm import aembedding
-from .metric_base import BaseMetric
-
+from ape.metric.metric_base import BaseMetric
+from ape.types import MetricResult
 
 class CosineSimilarityMetric(BaseMetric):
-    """
-    A metric class that computes the cosine similarity between two text inputs using embeddings.
-
-    Attributes:
-        model (str): The name of the embedding model to use. Defaults to "text-embedding-3-large".
-    """
-
     def __init__(self, model: str = "text-embedding-3-large"):
-        """
-        Initialize the CosineSimilarityMetric.
-
-        Args:
-            model (str): The name of the embedding model to use. Defaults to "text-embedding-3-large".
-        """
         self.model = model
 
     async def compute(
-        self, inputs, gold: str, pred: str, trace: Optional[Dict] = None
-    ) -> float:
-        """
-        Compute the cosine similarity between the gold standard and prediction texts.
+        self, inputs: Dict[str, Any], gold: Any, pred: Any, trace: Optional[Dict] = None, metadata: Optional[Dict] = None
+    ) -> MetricResult:
+        try:
+            if not isinstance(gold, str):
+                gold = str(gold)
+            if not isinstance(pred, str):
+                pred = str(pred)
+                
+            def get_embedding(result):
+                if hasattr(result.data[0], 'embedding'):
+                    return result.data[0].embedding
+                elif isinstance(result.data[0], dict) and 'embedding' in result.data[0]:
+                    return result.data[0]['embedding']
+                else:
+                    raise ValueError("Embedding not found in the expected format")
 
-        Args:
-            gold (str): The gold standard text.
-            pred (str): The prediction text.
-            trace (Optional[Dict]): Additional trace information (not used in this implementation).
+            gold_embedding = await aembedding(model=self.model, input=gold)
+            gold_embedding = get_embedding(gold_embedding)
 
-        Returns:
-            float: The cosine similarity score between 0 and 1, or 0 if the similarity is negative.
+            pred_embedding = await aembedding(model=self.model, input=pred)
+            pred_embedding = get_embedding(pred_embedding)
 
-        Note:
-            This method converts inputs to strings if they aren't already,
-            generates embeddings for both inputs, and then computes their cosine similarity.
-        """
-        if not isinstance(gold, str):
-            gold = str(gold)
-        if not isinstance(pred, str):
-            pred = str(pred)
-            
-        def get_embedding(result):
-            if hasattr(result.data[0], 'embedding'):
-                return result.data[0].embedding
-            elif isinstance(result.data[0], dict) and 'embedding' in result.data[0]:
-                return result.data[0]['embedding']
-            else:
-                raise ValueError("Embedding not found in the expected format")
+            similarity = np.dot(gold_embedding, pred_embedding) / (
+                np.linalg.norm(gold_embedding) * np.linalg.norm(pred_embedding)
+            )
+            score = max(0.0, similarity)
 
-        gold_embedding = await aembedding(model=self.model, input=gold)
-        gold_embedding = get_embedding(gold_embedding)
-
-        pred_embedding = await aembedding(model=self.model, input=pred)
-        pred_embedding = get_embedding(pred_embedding)
-
-        similarity = np.dot(gold_embedding, pred_embedding) / (
-            np.linalg.norm(gold_embedding) * np.linalg.norm(pred_embedding)
-        )
-        if similarity <= 0:
-            return 0.0
-        else:
-            return similarity
+            return MetricResult(
+                score=score,
+            )
+        except Exception as e:
+            return MetricResult(
+                score=0.0,
+                intermediate_values={"error": str(e)}
+            )

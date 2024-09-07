@@ -1,10 +1,10 @@
-from ape.prompt.prompt_base import Prompt
-from .metric_base import BaseMetric
-from ape.types import DataItem, DatasetItem
-from typing import Any, Dict, Optional, List
-import json  # Module for JSON serialization
-from pydantic import BaseModel  # Import for Pydantic model handling
+import json
+from typing import Any, Dict, List, Optional
+from pydantic import BaseModel
 
+from ape.prompt.prompt_base import Prompt
+from ape.metric.metric_base import BaseMetric
+from ape.types import DataItem, MetricResult
 
 class PydanticMatchMetric(BaseMetric):
     """
@@ -42,8 +42,8 @@ class PydanticMatchMetric(BaseMetric):
         )  # List of keys to ignore during comparison
 
     async def compute(
-        self, inputs, gold: DataItem, pred: Any, trace: Optional[Dict] = None
-    ) -> float:
+        self, inputs: Dict[str, Any], gold: DataItem, pred: Any, trace: Optional[Dict] = None, metadata: Optional[Dict] = None
+    ) -> MetricResult:
         """
         Compute the similarity score between the gold standard and prediction.
 
@@ -53,7 +53,7 @@ class PydanticMatchMetric(BaseMetric):
             trace (Optional[Dict]): Additional trace information (not used in this implementation).
 
         Returns:
-            float: The computed similarity score between 0 and 1.
+            MetricResult: The computed similarity score between 0 and 1.
 
         This method normalizes both inputs, compares their structures recursively,
         and returns a float representing the overall similarity. It handles nested
@@ -134,7 +134,7 @@ class PydanticMatchMetric(BaseMetric):
 
         try:
             # Handle the possibility that gold or pred could be Pydantic models
-            if isinstance(gold, DatasetItem) or isinstance(gold, BaseModel):
+            if isinstance(gold, BaseModel):
                 gold = gold.model_dump()
             if isinstance(pred, BaseModel):
                 pred = pred.model_dump()
@@ -144,7 +144,12 @@ class PydanticMatchMetric(BaseMetric):
             pred_dict = {k.lower().replace(" ", "_"): v for k, v in pred.items()}
 
             accuracy = await compare_dicts(gold_dict, pred_dict)
-            return accuracy
+            return MetricResult(
+                score=accuracy,
+            )
 
         except Exception as e:
-            return 0
+            return MetricResult(
+                score=0.0,
+                intermediate_values={"error": str(e)}
+            )
