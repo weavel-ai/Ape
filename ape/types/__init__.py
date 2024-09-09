@@ -3,7 +3,8 @@ from .dataset_item import DatasetItem
 from .response_format import (
     ResponseFormat,
 )
-from .eval_result import EvaluationResult, MetricResult
+from .eval_result import EvaluationResult
+
 DataItem = Union[Dict[str, Any], DatasetItem]
 
 Dataset = Union[List[Dict[str, Any]], List[DatasetItem]]
@@ -18,6 +19,5 @@ __all__ = [
     "DataItem",
     "Evaluator",
     "EvaluationResult",
-    "MetricResult",
     "ResponseFormat",
 ]

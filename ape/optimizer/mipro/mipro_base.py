@@ -1,7 +1,8 @@
 from pydantic import BaseModel
 from typing import Any, Awaitable, Callable, Dict, Literal, Optional
 
-from ape.metric.metric_base import BaseMetric, GlobalMetric
+from ape.metric import BaseMetric
+from ape.global_metric import GlobalMetric
 
 
 class MIPROBase(BaseModel):

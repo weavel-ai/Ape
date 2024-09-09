@@ -4,7 +4,8 @@ from pydantic import BaseModel
 
 from ape.prompt.prompt_base import Prompt
 from ape.metric.metric_base import BaseMetric
-from ape.types import DataItem, MetricResult
+from ape.types import DataItem
+
 
 class PydanticMatchMetric(BaseMetric):
     """
@@ -42,8 +43,13 @@ class PydanticMatchMetric(BaseMetric):
         )  # List of keys to ignore during comparison
 
     async def compute(
-        self, inputs: Dict[str, Any], gold: DataItem, pred: Any, trace: Optional[Dict] = None, metadata: Optional[Dict] = None
-    ) -> MetricResult:
+        self,
+        inputs: Dict[str, Any],
+        gold: DataItem,
+        pred: Any,
+        trace: Optional[Dict] = None,
+        metadata: Optional[Dict] = None,
+    ) -> float:
         """
         Compute the similarity score between the gold standard and prediction.
 
@@ -53,7 +59,7 @@ class PydanticMatchMetric(BaseMetric):
             trace (Optional[Dict]): Additional trace information (not used in this implementation).
 
         Returns:
-            MetricResult: The computed similarity score between 0 and 1.
+            float: The computed similarity score between 0 and 1.
 
         This method normalizes both inputs, compares their structures recursively,
         and returns a float representing the overall similarity. It handles nested
@@ -144,12 +150,9 @@ class PydanticMatchMetric(BaseMetric):
             pred_dict = {k.lower().replace(" ", "_"): v for k, v in pred.items()}
 
             accuracy = await compare_dicts(gold_dict, pred_dict)
-            return MetricResult(
-                score=accuracy,
-            )
+            return accuracy
 
         except Exception as e:
-            return MetricResult(
-                score=0.0,
-                intermediate_values={"error": str(e)}
-            )
+            if trace is not None:
+                trace["error"] = str(e)
+            return 0.0

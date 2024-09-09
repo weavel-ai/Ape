@@ -3,7 +3,6 @@ from pysbd import Segmenter
 from pysbd.utils import TextSpan
 from ape.prompt.prompt_base import Prompt
 from ape.metric.metric_base import BaseMetric
-from ape.types import MetricResult
 
 
 class SemanticF1Metric(BaseMetric):
@@ -43,8 +42,13 @@ class SemanticF1Metric(BaseMetric):
         self.segmenter = Segmenter(language="en", clean=False, char_span=True)
 
     async def compute(
-        self, inputs: Dict[str, Any], gold: str, pred: str, trace: Optional[Dict] = None, metadata: Optional[Dict] = None
-    ) -> MetricResult:
+        self,
+        inputs: Dict[str, Any],
+        gold: str,
+        pred: str,
+        trace: Optional[Dict] = None,
+        metadata: Optional[Dict] = None,
+    ) -> float:
         """
         Compute the Semantic F1 score between the prediction and gold standard.
 
@@ -55,7 +59,7 @@ class SemanticF1Metric(BaseMetric):
             trace (Optional[Dict]): Additional trace information (not used in this implementation).
 
         Returns:
-            MetricResult: The computed Semantic F1 score between 0 and 1.
+            float: The computed Semantic F1 score between 0 and 1.
         """
         inputs = {k.lower().replace(" ", "_"): v for k, v in inputs.items()}
         question = inputs[self.inputs_question_key]
@@ -70,7 +74,7 @@ class SemanticF1Metric(BaseMetric):
 
         semantic_precision = await self._compute_precision(gold, prediction_statements)
         semantic_recall = await self._compute_recall(pred, gold_statements)
-        
+
         f1_score = (
             (2 * semantic_precision * semantic_recall)
             / (semantic_precision + semantic_recall)
@@ -78,15 +82,13 @@ class SemanticF1Metric(BaseMetric):
             else 0
         )
 
-        return MetricResult(
-            score=f1_score,
-            intermediate_values={
-                "precision": semantic_precision,
-                "recall": semantic_recall,
-                "prediction_statements": prediction_statements,
-                "gold_statements": gold_statements
-            }
-        )
+        if trace is not None:
+            trace["precision"] = semantic_precision
+            trace["recall"] = semantic_recall
+            trace["prediction_statements"] = prediction_statements
+            trace["gold_statements"] = gold_statements
+
+        return f1_score
 
     def _segment_text(self, text: str) -> str:
         """

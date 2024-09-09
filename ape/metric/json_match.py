@@ -1,7 +1,7 @@
 from typing import Any, Dict, Optional, List
 from ape.prompt.prompt_base import Prompt
 from ape.metric.metric_base import BaseMetric
-from ape.types import DataItem, DatasetItem, MetricResult
+from ape.types import DataItem, DatasetItem
 from ape.utils.logging import logger
 
 
@@ -41,8 +41,13 @@ class JsonMatchMetric(BaseMetric):
         )  # List of keys to ignore during comparison
 
     async def compute(
-        self, inputs: Dict[str, Any], gold: DataItem, pred: Dict[str, Any], trace: Optional[Dict] = None, metadata: Optional[Dict] = None
-    ) -> MetricResult:
+        self,
+        inputs: Dict[str, Any],
+        gold: DataItem,
+        pred: Dict[str, Any],
+        trace: Optional[Dict] = None,
+        metadata: Optional[Dict] = None,
+    ) -> float:
         """
         Compute the similarity score between the gold standard and prediction.
 
@@ -117,13 +122,10 @@ class JsonMatchMetric(BaseMetric):
             pred_dict = {k.lower().replace(" ", "_"): v for k, v in pred.items()}
 
             accuracy = await compare_dicts(gold_dict, pred_dict)
-            return MetricResult(
-                score=accuracy,
-            )
+            return accuracy
 
         except Exception as e:
             logger.error(f"Error in JsonMatchMetric: {e}")
-            return MetricResult(
-                score=0.0,
-                intermediate_values={"error": str(e)}
-            )
+            if trace is not None:
+                trace["error"] = str(e)
+            return 0.0

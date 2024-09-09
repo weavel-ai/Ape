@@ -2,10 +2,13 @@ import sys
 import tqdm
 import asyncio
 import pandas as pd
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
-from ape.metric.metric_base import BaseMetric, EvaluationConfig, GlobalMetric, AverageGlobalMetric
-from ape.types import DataItem, Dataset, EvaluationResult, MetricResult
+from ape.metric.metric_base import BaseMetric
+from ape.global_metric.global_metric_base import GlobalMetric
+from ape.global_metric.average import AverageGlobalMetric
+from ape.types import DataItem, Dataset, EvaluationResult
+from ape.evaluate.eval_config import EvaluationConfig
 from ape.utils import logger
 from ape.prompt.prompt_base import Prompt
 
@@ -78,11 +81,11 @@ class Evaluate:
         return self._prepare_output(results, global_score, config)
 
     def _update_config(
-        self, 
-        metric: Optional[BaseMetric], 
+        self,
+        metric: Optional[BaseMetric],
         global_metric: Optional[GlobalMetric] = None,
-        testset: Optional[Dataset] = None, 
-        **kwargs
+        testset: Optional[Dataset] = None,
+        **kwargs,
     ) -> EvaluationConfig:
         return self.config.model_copy(
             update={
@@ -116,8 +119,20 @@ class Evaluate:
                 prediction = await prompt(**inputs)
                 if not prediction:
                     raise ValueError("Prediction is None")
-                result = await config.metric(inputs=inputs, gold=outputs, pred=prediction, trace=None, metadata=metadata)
-                result = EvaluationResult(example=example, prediction=prediction, score=result.score, intermediate_values=result.intermediate_values)
+                trace = {}
+                score = await config.metric(
+                    inputs=inputs,
+                    gold=outputs,
+                    pred=prediction,
+                    trace=trace,
+                    metadata=metadata,
+                )
+                result = EvaluationResult(
+                    example=example,
+                    prediction=prediction,
+                    score=score,
+                    trace=trace,
+                )
                 return result
             except Exception as e:
                 self._handle_error(e, config)
@@ -164,7 +179,10 @@ class Evaluate:
         return await config.global_metric(results)
 
     def _prepare_output(
-        self, results: List[EvaluationResult], global_score: float, config: EvaluationConfig
+        self,
+        results: List[EvaluationResult],
+        global_score: float,
+        config: EvaluationConfig,
     ) -> Union[float, Tuple[float, List[EvaluationResult]], Tuple[float, List[float]]]:
         if config.display_table:
             self._display_results_table(results, config)
@@ -184,7 +202,11 @@ class Evaluate:
         df = pd.DataFrame(
             [
                 merge_dicts(
-                    r.example if isinstance(r.example, dict) else {"example": r.example},
+                    (
+                        r.example
+                        if isinstance(r.example, dict)
+                        else {"example": r.example}
+                    ),
                     {"prediction": r.prediction, "correct": r.score}
                     | (r.prediction if isinstance(r.prediction, dict) else {}),
                 )
