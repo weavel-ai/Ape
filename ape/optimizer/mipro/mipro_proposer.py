@@ -44,7 +44,6 @@ class MIPROProposer(MIPROBase):
             trainset=trainset,
             prompt_model=self.prompt_model,
             view_data_batch_size=self.view_data_batch_size,
-            set_tip_randomly=True,
         )
 
         proposer.use_tip = True
@@ -57,7 +56,6 @@ class MIPROProposer(MIPROBase):
             N=self.num_candidates,
             T=self.init_temperature,
             task_description=task_description,
-            trial_logs={},
             inputs_desc=inputs_desc,
             outputs_desc=outputs_desc,
             response_format=response_format,

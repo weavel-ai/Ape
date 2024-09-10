@@ -3,7 +3,7 @@ from pydantic import BaseModel, ConfigDict
 from typing import Any, Dict, List, Optional, Union
 import asyncio
 
-from ape.types import Dataset, MetricResult, EvaluationResult
+from ape.types import Dataset, MetricResult, EvaluationResult, GlobalMetricResult
 
 class BaseMetric(ABC):
     @abstractmethod
@@ -57,7 +57,7 @@ class BaseMetric(ABC):
 
 class GlobalMetric(ABC):
     @abstractmethod
-    async def compute(self, results: List[EvaluationResult]) -> float:
+    async def compute(self, results: List[EvaluationResult]) -> GlobalMetricResult:
         """
         Compute the global metric.
 
@@ -65,11 +65,11 @@ class GlobalMetric(ABC):
             results (List[EvaluationResult]): The results from BaseMetric evaluations.
 
         Returns:
-            float: The computed global metric value.
+            GlobalMetricResult: The computed global metric value.
         """
         pass
 
-    async def __call__(self, results: List[EvaluationResult]) -> float:
+    async def __call__(self, results: List[EvaluationResult]) -> GlobalMetricResult:
         """
         Unified method to compute the global metric, handling both sync and async implementations.
 
@@ -77,7 +77,7 @@ class GlobalMetric(ABC):
             results (List[EvaluationResult]): The results from BaseMetric evaluations. use results[i].intermediate_values to get the local metric results.
 
         Returns:
-            float: The computed global metric value.
+            GlobalMetricResult: The computed global metric value.
         """
         result = self.compute(results)
         if asyncio.iscoroutine(result):
@@ -85,7 +85,7 @@ class GlobalMetric(ABC):
         return result
 
 class AverageGlobalMetric(GlobalMetric):
-    async def compute(self, results: List[EvaluationResult]) -> float:
+    async def compute(self, results: List[EvaluationResult]) -> GlobalMetricResult:
         """
         Compute the average of local scores as the global metric.
 
@@ -93,11 +93,11 @@ class AverageGlobalMetric(GlobalMetric):
             results (List[EvaluationResult]): The results from BaseMetric evaluations.
 
         Returns:
-            float: The average score.
+            GlobalMetricResult: The average score.
         """
         if not results:
-            return 0.0
-        return sum(result.score for result in results) / len(results)
+            return GlobalMetricResult(score=0.0)
+        return GlobalMetricResult(score=sum(result.score for result in results) / len(results))
 
 class EvaluationConfig(BaseModel):
     testset: Dataset
@@ -109,5 +109,6 @@ class EvaluationConfig(BaseModel):
     return_outputs: bool = False
     batch_size: int = 50
     return_all_scores: bool = False
-
+    return_global_metric_metadata: bool = False
+    
     model_config = ConfigDict(arbitrary_types_allowed=True)

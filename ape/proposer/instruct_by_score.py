@@ -46,7 +46,6 @@ class InstructByScore(Proposer):
             use_dataset_summary (bool, optional): Whether to use dataset summary. Defaults to True.
             use_task_demos (bool, optional): Whether to use task demonstrations. Defaults to True.
             use_tip (bool, optional): Whether to include tips. Defaults to True.
-            set_tip_randomly (bool, optional): Whether to randomly select tips. Defaults to True.
             view_data_batch_size (int, optional): The batch size for viewing data. Defaults to 10.
         """
         self.use_dataset_summary = use_dataset_summary
@@ -60,7 +59,6 @@ class InstructByScore(Proposer):
         self.describe_prompt = Prompt.from_filename("describe-prompt")
         self.generate_instructions = Prompt.from_filename("gen-instruction-with-eval")
         self.describe_prompt.model = prompt_model
-        self.generate_instructions.model = prompt_model
         self.data_summary = None
 
     async def prepare_dataset_summary(
@@ -84,12 +82,12 @@ class InstructByScore(Proposer):
 
     async def propose_prompts(
         self,
-        trial_logs: Dict[str, Any],
         N: int,
         T: float,
         evaluate: Evaluate,
         base_prompt: Optional[Prompt] = None,
         metric: Optional[str] = None,
+        task_description: Optional[str] = None,
     ) -> List[Prompt]:
         """
         Propose a set of new instructions for the task based on specified criteria.
@@ -110,22 +108,23 @@ class InstructByScore(Proposer):
             await self.prepare_dataset_summary()
 
         # This is the part where we evaluate the base prompt.
-        base_evaluation_score, base_evaluation_result = str(await evaluate(base_prompt, return_outputs=True))
+        base_evaluation_score, base_evaluation_result, global_metric_metadata = await evaluate(base_prompt, return_outputs=True, return_global_metric_metadata=True)
     
-        proposed_instructions = []
-
-        # Generate N new instructions based on evaluation result.
-        for i in range(N):
-            new_instruction = await self.generate_new_instruction(
+        evaluation_result = "final score : " + str(base_evaluation_score) + "\nmetadata : " + str(global_metric_metadata)
+        _tasks = [
+            self.generate_new_instruction(
                 index=i,
                 base_prompt=base_prompt,
-                # evaluation_score=base_evaluation_score,
-                evaluation_result=base_evaluation_score,
+                evaluation_result=evaluation_result,
                 T=T,
                 response_format=base_prompt.response_format,
                 metric=metric,
+                task_description=task_description,
             )
-            proposed_instructions.append(new_instruction)
+            for i in range(N)
+        ]
+
+        proposed_instructions = await asyncio.gather(*_tasks)
 
         return proposed_instructions
 
@@ -138,6 +137,7 @@ class InstructByScore(Proposer):
         T: float,
         response_format: Optional[ResponseFormat] = None,
         metric: Optional[str] = None,
+        task_description: Optional[str] = None,
         retry_count: int = 0,
     ) -> Prompt:
         """
@@ -185,21 +185,23 @@ class InstructByScore(Proposer):
                         else str(response_format)
                     )
                 ),
+                human_tip=task_description,
             )
             
-            # print(f"New Instruction: {new_instruction_text}")
+            if "```prompt" not in new_instruction_text:
+                new_instruction_text = "```prompt\n" + new_instruction_text
             extracted_prompt = extract_prompt(new_instruction_text)
 
             # Create a new Prompt object with the generated instruction
             new_prompt = Prompt.load(extracted_prompt)
             if not new_prompt.messages:
                 raise ValueError("Generated prompt has no messages")
-            new_prompt.model = self.prompt_model
+            new_prompt.model = base_prompt.model
             new_prompt.response_format = response_format
             new_prompt.name = "InstructNew"
 
         except Exception as e:
-            print(f"Error generating new instruction (attempt {retry_count + 1}): {e}")
+            logger.error(f"Error generating new instruction (attempt {retry_count + 1}): {e}")
             if retry_count < 2:  # 최대 3번 시도 (0, 1, 2)
                 return await self.generate_new_instruction(
                     index=index,
@@ -211,7 +213,7 @@ class InstructByScore(Proposer):
                     retry_count=retry_count + 1,
                 )
             else:
-                print("Failed to generate new instruction after 3 attempts. Returning base prompt.")
+                logger.error("Failed to generate new instruction after 3 attempts. Returning base prompt.")
                 return base_prompt
 
         return new_prompt

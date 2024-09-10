@@ -4,6 +4,8 @@ from ape.types.dataset_item import DatasetItem
 from ape.types.response_format import ResponseFormat
 
 
+import json
+
 async def process_batch(
     trainset: Dataset,
     batch_start: int,
@@ -25,13 +27,26 @@ async def process_batch(
     descriptor = Prompt.from_filename("dataset-descriptor")
     descriptor.response_format = ResponseFormat(type="xml")
     descriptor.model = prompt_model
-    trainset = [
-        item.model_dump() if isinstance(item, DatasetItem) else item
-        for item in trainset[batch_start:batch_end]
-    ]
+    
+    # Format examples using a similar approach to format_fewshot
+    formatted_examples = ""
+    for idx, item in enumerate(trainset[batch_start:batch_end]):
+        formatted_examples += f"### Demo {idx+1} ###\n"
+        
+        if isinstance(item, DatasetItem):
+            inputs, outputs = item.inputs, item.outputs
+        else:
+            inputs, outputs = item.get("inputs", {}), item.get("outputs", {})
+        
+        formatted_examples += "**Inputs**\n"
+        for key, value in inputs.items():
+            formatted_examples += f"{key.capitalize()}:\n{value}\n"
+        
+        formatted_examples += f"**Outputs**\n{json.dumps(outputs, indent=2)}\n\n"
+    
     output = await descriptor(
         lm_config=dict(temperature=1.0),
-        examples=", ".join([sorted(item.keys()).__repr__() for item in trainset]),
+        examples=formatted_examples,
     )
     return output["observations"]
 

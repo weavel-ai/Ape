@@ -4,7 +4,7 @@ from .response_format import (
     ResponseFormat, 
     JsonSchema,
 )
-from .eval_result import EvaluationResult, MetricResult
+from .eval_result import EvaluationResult, MetricResult, GlobalMetricResult
 DataItem = Union[Dict[str, Any], DatasetItem]
 
 Dataset = Union[List[Dict[str, Any]], List[DatasetItem]]
@@ -22,4 +22,5 @@ __all__ = [
     "MetricResult",
     "ResponseFormat",
     "JsonSchema",
+    "GlobalMetricResult",
 ]

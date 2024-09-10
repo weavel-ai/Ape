@@ -1,5 +1,6 @@
 ---
 model: gpt-4o
+temperature: 0.0
 inputs: 
     basic_prompt: A basic prompt that we've used before
     instruction_improved_prompt: An improved prompt that was improved in instruction

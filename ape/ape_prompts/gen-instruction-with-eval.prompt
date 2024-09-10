@@ -1,5 +1,5 @@
 ---
-model: gpt-4o
+model: claude-3-5-sonnet-20240620
 inputs: 
     base_prompt: The base prompt to start from
     evaluation_result: The result of evaluating the base prompt
@@ -33,7 +33,7 @@ user prompt here
 
 Each message is wrapped in tags. Available tag names are system and user. There are no limits to the number of messages included in the prompt. As an expert prompt engineer, you might include few shot examples, chain of thought, etc. whichever way you like.
 
-A good way to structure the prompt is to add format/persona/instructions to the system prompt, and user inputs to the user prompt.
+A good way to structure the prompt is to add format/instructions to the system prompt, and user inputs to the user prompt.
 
 If you would like to use few shot examples, use the reserved variable {{_FEWSHOT_}} - just insert it into the prompt and a list of task demonstrations will be filled in afterwards. Your goal is to generate the proper and complete instructions that can be used without revision.
 
@@ -50,17 +50,19 @@ Key Considerations:
 2. Do not resemble the base prompt highly. Make it more concise.
 3. Integrate the provided tip in unique ways, if applicable.
 
-Strategies for Instruction:
-- Incorporate examples, scenarios, or contexts.
-- Consider multi-step reasoning that explores various aspects of the task.
-- Make it more concise.
+Strategies for using the tip:
+- Conciseness: Convey only essential instructions without unnecessary explanations.
+- Emphasis: Use words like "ANY", "ALL", "EVERY", "ONLY", "POTENTIALLY", "VERY", "any chance" to emphasize. You can highlight some important terms with capital letters.
+- Avoid technical terms: Don't use specialized terms like "recall", "precision", etc.
+- Commanding tone: Provide direct and clear instructions.
+- Repetitive emphasis: Reinforce important points by repeating them in different ways, 3~4 times with 3~4 sentences. Use various expressions to emphasize.
 
 Remember:
 - Address the tip strongly. It doesn't matter if you have to rewrite the whole instruction.
 - Maintain clarity and effectiveness while introducing content variety.
 - Avoid explicit mentions of metrics or evaluation scores in the new instruction.
 
-Your output should be a single, cohesive instruction ready to be used as the content for a system message in a new Prompt object. Aim for an instruction that not only improves upon the original but also introduces significant content variance and creative approaches to the task.
+Your output should be a single, cohesive instruction ready to be used as the content for messages in a new Prompt object.
 </system>
 <user>
 Generate a new, improved instruction based on the following information:
@@ -80,5 +82,11 @@ Tip for improvement:
 Response format:
 {response_format}
 
+Human tip:
+{human_tip}
+
 Provide your new, improved instruction below:
 </user>
+<assistant>
+```prompt
+</assistant>

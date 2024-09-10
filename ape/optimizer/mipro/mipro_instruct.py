@@ -52,7 +52,7 @@ class MIPROInstruct(MIPROBase):
         log_dir: Optional[str] = None,
         view_data_batch_size: int = 10,
         minibatch_size: int = 25,
-        update_prompt_after_full_eval: bool = True,
+        update_prompt_after_full_eval: bool = False,
         minibatch_full_eval_steps: int = 10
     ):
         """
@@ -227,11 +227,8 @@ class MIPROInstruct(MIPROBase):
                 prompt=student, response_format=response_format
             )
 
-        metric_str = await self.generate_metric_description(
-            metric=self.metric,
-            global_metric=self.global_metric,
-        )
-        print(f"Metric description: {metric_str}")
+        metric_str = await self.generate_metric_description()
+        
 
         evaluate: Evaluate = Evaluate(
             testset=testset,
@@ -247,7 +244,6 @@ class MIPROInstruct(MIPROBase):
             view_data_batch_size=self.view_data_batch_size,
         )
         
-        print("Proposer ready")
 
         logger.info(f"Generating {self.num_candidates} explore instruction candidates")
         
@@ -256,7 +252,6 @@ class MIPROInstruct(MIPROBase):
             base_prompt=student,
             N=self.num_candidates,
             T=self.init_temperature,
-            trial_logs={},
             evaluate=evaluate,
             metric=metric_str,
         )
@@ -290,6 +285,7 @@ class MIPROInstruct(MIPROBase):
         requires_permission_to_run: bool = True,
         response_format: Optional[ResponseFormat] = None,
         log_dir: str,
+        metric_threshold: Optional[float] = None,
     ) -> Optional[Prompt]:
         """
         Optimize the given prompt using MIPRO (Multi-prompt Instruction PRoposal Optimizer).
@@ -331,6 +327,8 @@ class MIPROInstruct(MIPROBase):
             testset=testset, metric=self.metric, global_metric=self.global_metric, **eval_kwargs
         )
         
+        logger.info("Start Find Best Fewshot")
+        
         # find best few-shot
         best_fewshot, best_score = await find_best_fewshot(
             student=student,
@@ -342,9 +340,13 @@ class MIPROInstruct(MIPROBase):
             teacher_settings=self.teacher_settings,
             seed=seed,
             evaluate=evaluate,
+            batch_size=self.minibatch_size,
+            metric_threshold=metric_threshold,
         )
         
-        print(f"best_fewshot: {best_fewshot}")
+        # print(f"best_fewshot: {best_fewshot}")
+        
+        logger.info("Start Propose Instruction Candidates from Evaluation Result")
 
         score_based_proposer = InstructByScore(
             prompt_model=self.prompt_model,
@@ -355,25 +357,18 @@ class MIPROInstruct(MIPROBase):
 
         logger.info(f"Generating {self.num_candidates} explore instruction candidates")
         
-        metric_str = await self.generate_metric_description(
-            metric=self.metric,
-            global_metric=self.global_metric,
-        )
-        
-        logger.info(f"Metric description: {metric_str}")
-        
+        metric_str = await self.generate_metric_description()
+                
         # Generate N candidates using InstructByScore.
         score_based_prompt_candidates = await score_based_proposer.propose_prompts(
             base_prompt=student,
             N=self.num_candidates,
             T=self.init_temperature,
-            trial_logs={},
             evaluate=evaluate,
             metric=metric_str,
+            task_description=task_description,
         )
-        
-        logger.info(f"finished generating score based prompt candidates")
-        
+                
         score_based_instruction_candidates: List[List[Dict[str, str]]] = [
             prompt.messages for prompt in score_based_prompt_candidates
         ]
@@ -384,6 +379,7 @@ class MIPROInstruct(MIPROBase):
             with open(os.path.join(log_dir, "score_based_instructions_to_save.pkl"), "wb") as file:
                 pickle.dump(score_based_prompt_candidates, file)
         
+        logger.info("Start Propose Instruction Candidates from Prompt Engineering Techniques")
         
         format_based_proposer: MIPROProposer = MIPROProposer(**self.model_dump())
         format_based_prompt_candidates: List[Prompt] = await format_based_proposer.generate_candidates(
@@ -392,7 +388,6 @@ class MIPROInstruct(MIPROBase):
             task_description=task_description,
             response_format=response_format,
         )
-        logger.info("finished generating format based prompt candidates")
         
         if log_dir:
             with open(os.path.join(log_dir, "format_based_instructions_to_save.pkl"), "wb") as file:
@@ -437,18 +432,32 @@ class MIPROInstruct(MIPROBase):
             score_based_candidate_prompt = score_based_instruction_candidates[score_based_instruction_idx]
             format_based_candidate_prompt = format_based_instruction_candidates[format_based_instruction_idx]
             
-            merged_candidate_prompt_text = self.merge_prompts(
-                score_based_candidate_prompt,
-                format_based_candidate_prompt,
-            )
+            max_retries = 3
+            retry_count = 0
             
-            merged_candidate_prompt = extract_prompt(merged_candidate_prompt_text)
-            merged_candidate_prompt = Prompt.load(merged_candidate_prompt)
-            
+            while retry_count < max_retries:
+                try:
+                    merged_candidate_prompt_text = run_async(
+                        self.merge_prompts(**{
+                            "basic_prompt": student.messages,
+                            "instruction_improved_prompt": score_based_candidate_prompt,
+                            "format_improved_prompt": format_based_candidate_prompt,
+                        })
+                    )
+                    
+                    merged_candidate_prompt = extract_prompt(merged_candidate_prompt_text)
+                    merged_candidate_prompt = Prompt.load(merged_candidate_prompt)
+                    break
+                except Exception as e:
+                    retry_count += 1
+                    if retry_count == max_retries:
+                        raise e
+                    logger.warning(f"Attempt {retry_count} failed. Retrying...")
+                    
             candidate_prompt.messages = merged_candidate_prompt.messages
             candidate_prompt.fewshot = best_fewshot
             
-            print(candidate_prompt)
+            # print(candidate_prompt)
 
             trial_logs[trial.number]["prompt_path"] = save_candidate_prompt(
                 candidate_prompt, log_dir, trial.number
@@ -524,6 +533,7 @@ class MIPROInstruct(MIPROBase):
                         best_prompt = highest_mean_prompt.deepcopy()
             else:
                 if score > best_score:
+                    print(f"Best Score Updated to Score-based : {score_based_instruction_idx}, Format-based : {format_based_instruction_idx}")
                     best_score = score
                     best_prompt = candidate_prompt.deepcopy()
 
@@ -532,14 +542,14 @@ class MIPROInstruct(MIPROBase):
 
             return score
         
-        logger.info("starting optuna study")
+        logger.info("Start Optuna Study to find best combination")
 
         study: optuna.Study = optuna.create_study(
             direction="maximize",
             sampler=optuna.samplers.TPESampler(seed=seed, multivariate=True),
         )
         study.optimize(objective, n_trials=max_steps)
-        logger.info("finished optuna study")
+
         if best_prompt is not None and self.track_stats:
             best_prompt.metadata["trial_logs"] = trial_logs
             best_prompt.metadata["score"] = best_score

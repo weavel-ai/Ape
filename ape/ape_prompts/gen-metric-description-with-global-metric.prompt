@@ -1,5 +1,6 @@
 ---
 model: gpt-4o
+temperature: 0.0
 inputs: 
     metric_sourcecode: The source code of the metric
     global_metric_sourcecode: The source code of the global metric
@@ -7,7 +8,7 @@ inputs:
 <system>
 For given source code of the Metric function, write a description of the metric.
 Global Metric Source Code is the source code of aggregate function for the metric function.
-It is usually used as a average, sum, or MICRO score calculation for the metric function. If there are some unique calculation logic, you must include it in the description.
+It is usually used as a average, sum, or MICRO score calculation for the metric function. If there are some unique logic for final score more than average, you must include it in the description.
 You MUST only output the description of the metric, and nothing else.
 
 Examples:

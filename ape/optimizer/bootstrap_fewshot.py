@@ -124,7 +124,7 @@ class BootstrapFewShot(Optimizer):
                 if example_idx not in bootstrapped:
                     tasks.append(self._bootstrap_one_example(example, round_idx))
                 
-                if len(tasks) == 50 or example_idx == len(self.trainset) - 1:
+                if len(tasks) == 25 or example_idx == len(self.trainset) - 1:
                     results = await asyncio.gather(*tasks)
                     for idx, success in enumerate(results):
                         if success:
@@ -188,9 +188,9 @@ class BootstrapFewShot(Optimizer):
             if self.metric is not None:
                 metric_val = await self.metric(inputs, outputs, prediction, None)
                 if self.metric_threshold:
-                    success = metric_val >= self.metric_threshold
+                    success = metric_val.score >= self.metric_threshold
                 else:
-                    success = metric_val
+                    success = metric_val.score
             else:
                 success = True
         except Exception as e:

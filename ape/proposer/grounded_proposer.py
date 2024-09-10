@@ -21,10 +21,9 @@ from ape.types import Dataset
 # MAX_INSTRUCT_IN_HISTORY = 5  # 10
 
 TIPS = {
-    "none": "",
     "creative": "Don't be afraid to be creative when creating the new instruction!",
     "simple": "Keep the instruction clear and concise.",
-    "description": "Make sure your instruction is very informative and descriptive.",
+    "description": "Make sure your instruction is very informative and descriptive. You can add some hand-crafted examples to help the LLM understand the task better.",
     "high_stakes": "The instruction should include a high stakes scenario in which the LM must solve the task!",
     "persona": 'Include a persona that is relevant to the task in the instruction (ie. "You are a ...")',
 }
@@ -42,7 +41,6 @@ class GroundedProposer(Proposer):
         use_dataset_summary (bool): Whether to use dataset summary in proposals.
         use_task_demos (bool): Whether to use task demonstrations in proposals.
         use_tip (bool): Whether to include tips in proposals.
-        set_tip_randomly (bool): Whether to randomly select tips.
         trainset (Dataset): The training dataset.
         prompt_model (str): The name of the prompt model to use.
         view_data_batch_size (int): The batch size for viewing data.
@@ -58,7 +56,6 @@ class GroundedProposer(Proposer):
         use_dataset_summary=True,
         use_task_demos=True,
         use_tip=True,
-        set_tip_randomly=True,
         view_data_batch_size=10,
     ):
         """
@@ -70,14 +67,12 @@ class GroundedProposer(Proposer):
             use_dataset_summary (bool, optional): Whether to use dataset summary. Defaults to True.
             use_task_demos (bool, optional): Whether to use task demonstrations. Defaults to True.
             use_tip (bool, optional): Whether to include tips. Defaults to True.
-            set_tip_randomly (bool, optional): Whether to randomly select tips. Defaults to True.
             view_data_batch_size (int, optional): The batch size for viewing data. Defaults to 10.
         """
         self.use_dataset_summary = use_dataset_summary
         self.use_task_demos = use_task_demos
         # self.use_instruct_history = use_instruct_history
         self.use_tip = use_tip
-        self.set_tip_randomly = set_tip_randomly
 
         self.trainset: Dataset = trainset
         self.prompt_model = prompt_model
@@ -119,7 +114,6 @@ class GroundedProposer(Proposer):
         inputs_desc: Optional[Dict[str, str]] = None,
         outputs_desc: Optional[Dict[str, str]] = None,
         response_format: Optional[ResponseFormat] = None,
-        tip=None,
     ) -> List[Prompt]:
         """
         Propose a set of new instructions for the task based on specified criteria.
@@ -134,7 +128,6 @@ class GroundedProposer(Proposer):
             inputs_desc (Optional[Dict[str, str]], optional): Description of inputs. Defaults to None.
             outputs_desc (Optional[Dict[str, str]], optional): Description of outputs. Defaults to None.
             response_format (Optional[ResponseFormat], optional): Format for the response. Defaults to None.
-            tip (optional): Tip for generation. Defaults to None.
 
         Returns:
             List[Prompt]: A list of proposed prompts.
@@ -151,18 +144,6 @@ class GroundedProposer(Proposer):
 
         proposed_instructions = []
 
-        if self.set_tip_randomly:
-            logger.info(
-                "Using a randomly generated configuration for our grounded proposer."
-            )
-            # Randomly select the tip
-            selected_tip_key = random.choice(list(TIPS.keys()))
-            selected_tip = TIPS[selected_tip_key]
-            self.use_tip = bool(
-                selected_tip,
-            )
-            logger.info(f"Selected tip: {selected_tip_key}")
-
         # if self.set_history_randomly:
         #     # Randomly select whether or not we're using instruction history
         #     use_history = random.random() < 0.5
@@ -171,6 +152,7 @@ class GroundedProposer(Proposer):
 
         _tasks = [
             self.propose_one(
+                index=i,
                 task_description=task_description,
                 base_prompt=base_prompt,
                 fewshot=fewshot_candidates[i],
@@ -179,7 +161,6 @@ class GroundedProposer(Proposer):
                 T=T,
                 inputs_desc=inputs_desc,
                 outputs_desc=outputs_desc,
-                tip=selected_tip,
                 response_format=response_format,
             )
             for i in range(len(fewshot_candidates))
@@ -193,6 +174,7 @@ class GroundedProposer(Proposer):
         self,
         # trial_logs: Dict[str, Any],
         T: float,
+        index: int,
         task_description: Optional[str] = None,
         prompt_desc: Optional[str] = None,
         base_prompt: Optional[Prompt] = None,
@@ -200,7 +182,6 @@ class GroundedProposer(Proposer):
         inputs_desc: Optional[Dict[str, str]] = None,
         outputs_desc: Optional[Dict[str, str]] = None,
         response_format: Optional[ResponseFormat] = None,
-        tip=None,
         retry_count: int = 0,
     ) -> Prompt:
         """
@@ -215,7 +196,6 @@ class GroundedProposer(Proposer):
             inputs_desc (Optional[Dict[str, str]], optional): Description of inputs. Defaults to None.
             outputs_desc (Optional[Dict[str, str]], optional): Description of outputs. Defaults to None.
             response_format (Optional[ResponseFormat], optional): Format for the response. Defaults to None.
-            tip (optional): Tip for generation. Defaults to None.
             retry_count (int, optional): Number of retry attempts. Defaults to 0.
 
         Returns:
@@ -228,6 +208,11 @@ class GroundedProposer(Proposer):
         #     MAX_INSTRUCT_IN_HISTORY,
         # )
         # logger.info(f"Create instruction history: {instruction_history}")
+        
+        if self.use_tip:
+            selected_tip = list(TIPS.values())[index % len(TIPS)]
+        else:
+            selected_tip = ""
 
         if self.use_task_demos and fewshot:
             logger.info("Formatting fewshot for generation")
@@ -271,7 +256,7 @@ class GroundedProposer(Proposer):
             # previous_prompts=instruction_history if self.use_instruct_history else "-",
             prompt_desc=prompt_desc if prompt_desc else "-",
             basic_prompt=base_prompt.dump(),
-            tip=tip if self.use_tip else "-",
+            tip=selected_tip if self.use_tip else "-",
             inputs_desc=inputs_desc if inputs_desc else "-",
             outputs_desc=outputs_desc if outputs_desc else "-",
             response_format_instructions=response_format_instructions,
@@ -287,7 +272,6 @@ class GroundedProposer(Proposer):
             new_prompt = Prompt.load(extracted_prompt)
             if not new_prompt.messages:
                 raise ValueError("Generated prompt has no messages")
-
             new_prompt.name = base_prompt.name
             new_prompt.model = self.prompt_model
             new_prompt.inputs_desc = inputs_desc
@@ -304,6 +288,7 @@ class GroundedProposer(Proposer):
                 logger.warning(f"Retry attempt {retry_count + 1} for propose_one")
                 return await self.propose_one(
                     # trial_logs=trial_logs,
+                    index=index,
                     T=T,
                     task_description=task_description,
                     prompt_desc=prompt_desc,
@@ -312,7 +297,6 @@ class GroundedProposer(Proposer):
                     inputs_desc=inputs_desc,
                     outputs_desc=outputs_desc,
                     response_format=response_format,
-                    tip=tip,
                     retry_count=retry_count + 1,
                 )
             else:

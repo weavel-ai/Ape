@@ -10,7 +10,7 @@ from ape.optimizer.bootstrap_fewshot import BootstrapFewShot
 from ape.optimizer.sampled_fewshot import SampledFewshot
 from ape.prompt.prompt_base import Prompt
 from ape.proposer.utils import extract_prompt
-from ape.types import Dataset
+from ape.types import Dataset, DatasetItem
 from ape.types.response_format import ResponseFormat
 from ape.utils import logger
 
@@ -149,11 +149,11 @@ async def create_n_fewshot_demo_sets(
     max_workers = min(3, num_candidate_sets)
     semaphore = asyncio.Semaphore(max_workers)
 
-    async def worker(task):
+    async def worker(task, i):
         async with semaphore:
             return await task
 
-    fewshot_candidates = await asyncio.gather(*[worker(task) for task in tasks])
+    fewshot_candidates = await asyncio.gather(*[worker(task, i) for i, task in enumerate(tasks)])
     
     return [prompt.fewshot for prompt in fewshot_candidates if prompt and hasattr(prompt, 'fewshot')]
 
@@ -271,8 +271,9 @@ async def find_best_fewshot(
     metric_threshold=None,
     teacher=None,
     include_non_bootstrapped=True,
+    batch_size=25,
     seed=0,
-) -> Tuple[Prompt, float]:
+) -> Tuple[List[DatasetItem], float]:
     # Generate candidate few-shot sets
     fewshot_candidates = await create_n_fewshot_demo_sets(
         student=student,
@@ -290,26 +291,25 @@ async def find_best_fewshot(
         include_non_bootstrapped=include_non_bootstrapped,
         seed=seed,
     )
+    
+    async def evaluate_candidate(fewshot, semaphore):
+        async with semaphore:
+            candidate_prompt = student.deepcopy()
+            candidate_prompt.fewshot = fewshot
+            score = await eval_candidate_prompt(
+                batch_size=min(batch_size, len(trainset)),  # Evaluate on minibatch
+                trainset=trainset,
+                candidate_prompt=candidate_prompt,
+                evaluate=evaluate,
+            )
+            return (score, candidate_prompt, fewshot)
 
-    # Evaluate each candidate
-    best_prompt = None
-    best_score = float('-inf')
-    best_fewshot = None
+    max_concurrent = 5  
+    semaphore = asyncio.Semaphore(max_concurrent)
 
-    for fewshot in fewshot_candidates:
-        candidate_prompt = student.deepcopy()
-        candidate_prompt.fewshot = fewshot
-        score = await eval_candidate_prompt(
-            batch_size=len(trainset),  # Evaluate on full trainset
-            trainset=trainset,
-            candidate_prompt=candidate_prompt,
-            evaluate=evaluate,
-        )
-
-        if score > best_score:
-            best_score = score
-            best_prompt = candidate_prompt
-            best_fewshot = fewshot
+    results = await asyncio.gather(*[evaluate_candidate(fewshot, semaphore) for fewshot in fewshot_candidates])
+    
+    best_score, best_prompt, best_fewshot = max(results, key=lambda x: x[0])
 
     return best_fewshot, best_score
 
