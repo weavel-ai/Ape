@@ -40,8 +40,6 @@ class MIPROInstruct(MIPROBase):
 
     def __init__(
         self,
-        prompt_model: str,
-        task_model: str,
         metric: BaseMetric,
         global_metric: Optional[GlobalMetric] = None,
         teacher_settings: Dict[str, Any] = {},
@@ -52,15 +50,12 @@ class MIPROInstruct(MIPROBase):
         log_dir: Optional[str] = None,
         view_data_batch_size: int = 10,
         minibatch_size: int = 25,
-        update_prompt_after_full_eval: bool = False,
         minibatch_full_eval_steps: int = 10
     ):
         """
         Initialize the MIPROInstruct optimizer.
 
         Args:
-            prompt_model (str): The model used for generating prompts.
-            task_model (str): The model used for executing the task.
             metric (BaseMetric): The metric object used for evaluation.
             global_metric (Optional[GlobalMetric]): The global metric object for overall evaluation.
             teacher_settings (Dict[str, Any]): Settings for the teacher model.
@@ -76,8 +71,6 @@ class MIPROInstruct(MIPROBase):
         """
         
         super().__init__(
-            prompt_model=prompt_model,
-            task_model=task_model,
             teacher_settings=teacher_settings,
             num_candidates=num_candidates,
             metric=metric,
@@ -88,7 +81,6 @@ class MIPROInstruct(MIPROBase):
             log_dir=log_dir,
             view_data_batch_size=view_data_batch_size,
             minibatch_size=minibatch_size,
-            update_prompt_after_full_eval=update_prompt_after_full_eval,
             minibatch_full_eval_steps=minibatch_full_eval_steps
         )
         
@@ -98,6 +90,7 @@ class MIPROInstruct(MIPROBase):
     def _display_warning_and_confirm(
         self,
         trainset: Dataset,
+        testset: Dataset,
         max_steps: int,
         minibatch: bool,
         requires_permission_to_run: bool,
@@ -120,17 +113,17 @@ class MIPROInstruct(MIPROBase):
 
         # TODO: Modify to match the actual number of LM calls in the program.
         if not minibatch:
-            estimated_task_model_calls = len(trainset) * max_steps
-            task_model_line = f"- Task Model: {len(trainset)} examples in train set * {max_steps} batches * # of LM calls in your program = ({estimated_task_model_calls} * # of LM calls in your program) task model calls"
+            estimated_task_model_calls = len(testset) * max_steps
+            task_model_line = f"- Task Model: {len(testset)} examples in test set * {max_steps} batches * # of LM calls in your program = ({estimated_task_model_calls} * # of LM calls in your program) task model calls"
         else:
-            if self.update_prompt_after_full_eval:
-                estimated_task_model_calls = self.minibatch_size * max_steps + (
-                    len(trainset) * (max_steps // self.minibatch_full_eval_steps)
-                )
-                task_model_line = f"- Task Model: {self.minibatch_size} examples in minibatch * {max_steps} batches + {len(trainset)} examples in train set * {max_steps // self.minibatch_full_eval_steps} full evals = {estimated_task_model_calls} task model calls"
-            else:
-                estimated_task_model_calls = self.minibatch_size * max_steps
-                task_model_line = f"- Task Model: {self.minibatch_size} examples in minibatch * {max_steps} batches = {estimated_task_model_calls} task model calls"
+            # if self.update_prompt_after_full_eval:
+            #     estimated_task_model_calls = self.minibatch_size * max_steps + (
+            #         len(trainset) * (max_steps // self.minibatch_full_eval_steps)
+            #     )
+            #     task_model_line = f"- Task Model: {self.minibatch_size} examples in minibatch * {max_steps} batches + {len(trainset)} examples in train set * {max_steps // self.minibatch_full_eval_steps} full evals = {estimated_task_model_calls} task model calls"
+            # else:
+            estimated_task_model_calls = self.minibatch_size * max_steps
+            task_model_line = f"- Task Model: {self.minibatch_size} examples in minibatch * {max_steps} batches = {estimated_task_model_calls} task model calls"
 
         warning_text = Text.from_markup(
             f"[bold yellow]WARNING: Projected Language Model (LM) Calls[/bold yellow]\n\n"
@@ -239,7 +232,6 @@ class MIPROInstruct(MIPROBase):
         
         # This is the proposer.
         proposer = InstructByScore(
-            prompt_model=self.prompt_model,
             trainset=trainset,
             view_data_batch_size=self.view_data_batch_size,
         )
@@ -298,14 +290,15 @@ class MIPROInstruct(MIPROBase):
         """
         eval_kwargs = eval_kwargs or {}
         if not self._display_warning_and_confirm(
-            trainset, max_steps, minibatch, requires_permission_to_run
+            trainset, testset, max_steps, minibatch, requires_permission_to_run
         ):
             logger.info("Optimization aborted by the user.")
             return None
 
         random.seed(seed)
         np.random.seed(seed)
-        testset = testset or trainset
+        if testset is None:
+            testset = trainset
 
         if response_format is not None:
             student = await reformat_prompt(
@@ -323,7 +316,11 @@ class MIPROInstruct(MIPROBase):
             else max_labeled_demos
         )
         
-        evaluate: Evaluate = Evaluate(
+        trainset_evaluate: Evaluate = Evaluate(
+            testset=trainset, metric=self.metric, global_metric=self.global_metric, **eval_kwargs
+        )
+        
+        testset_evaluate: Evaluate = Evaluate(
             testset=testset, metric=self.metric, global_metric=self.global_metric, **eval_kwargs
         )
         
@@ -339,17 +336,14 @@ class MIPROInstruct(MIPROBase):
             metric=self.metric,
             teacher_settings=self.teacher_settings,
             seed=seed,
-            evaluate=evaluate,
+            evaluate=testset_evaluate,
             batch_size=self.minibatch_size,
             metric_threshold=metric_threshold,
         )
-        
-        # print(f"best_fewshot: {best_fewshot}")
-        
+                
         logger.info("Start Propose Instruction Candidates from Evaluation Result")
 
         score_based_proposer = InstructByScore(
-            prompt_model=self.prompt_model,
             trainset=trainset,
             view_data_batch_size=self.view_data_batch_size,
             use_tip=True,
@@ -364,7 +358,7 @@ class MIPROInstruct(MIPROBase):
             base_prompt=student,
             N=self.num_candidates,
             T=self.init_temperature,
-            evaluate=evaluate,
+            evaluate=trainset_evaluate,
             metric=metric_str,
             task_description=task_description,
         )
@@ -463,9 +457,9 @@ class MIPROInstruct(MIPROBase):
                 candidate_prompt, log_dir, trial.number
             )
 
-            batch_size: int = self._get_batch_size(minibatch, trainset)
+            batch_size: int = self._get_batch_size(minibatch, testset)
             score: float = run_async(
-                eval_candidate_prompt(batch_size, trainset, candidate_prompt, evaluate)
+                eval_candidate_prompt(batch_size, testset, candidate_prompt, testset_evaluate)
             )
 
             categorical_key: str = ",".join(map(str, chosen_params))
@@ -474,7 +468,7 @@ class MIPROInstruct(MIPROBase):
             trial_logs[trial.number].update(
                 {
                     "num_eval_calls": batch_size,
-                    "full_eval": batch_size >= len(trainset),
+                    "full_eval": batch_size >= len(testset),
                     "score": score,
                     "pruned": False,
                     "total_eval_calls_so_far": total_eval_calls + batch_size,
@@ -482,60 +476,10 @@ class MIPROInstruct(MIPROBase):
             )
             total_eval_calls += batch_size
 
-            if self.update_prompt_after_full_eval:
-                if (
-                    score > best_score
-                    and trial_logs[trial.number]["full_eval"]
-                    and not minibatch
-                ):
-                    best_score = score
-                    best_prompt = candidate_prompt.deepcopy()
-
-                if minibatch and (
-                    trial.number % self.minibatch_full_eval_steps == 0
-                    or trial.number == max_steps - 1
-                ):
-                    trial_logs[trial.number]["mb_score"] = score
-                    trial_logs[trial.number]["mb_prompt_path"] = trial_logs[
-                        trial.number
-                    ]["prompt_path"]
-
-                    highest_mean_prompt, combo_key = get_prompt_with_highest_avg_score(
-                        param_score_dict, fully_evaled_param_combos
-                    )
-                    full_train_score: float = run_async(
-                        eval_candidate_prompt(
-                            len(trainset), trainset, highest_mean_prompt, evaluate
-                        )
-                    )
-
-                    fully_evaled_param_combos[combo_key] = {
-                        "program": highest_mean_prompt,
-                        "score": full_train_score,
-                    }
-                    total_eval_calls += len(trainset)
-                    trial_logs[trial.number].update(
-                        {
-                            "total_eval_calls_so_far": total_eval_calls,
-                            "full_eval": True,
-                            "prompt_path": save_candidate_prompt(
-                                prompt=highest_mean_prompt,
-                                log_dir=log_dir,
-                                trial_num=trial.number,
-                                note="full_eval",
-                            ),
-                            "score": full_train_score,
-                        }
-                    )
-
-                    if full_train_score > best_score:
-                        best_score = full_train_score
-                        best_prompt = highest_mean_prompt.deepcopy()
-            else:
-                if score > best_score:
-                    print(f"Best Score Updated to Score-based : {score_based_instruction_idx}, Format-based : {format_based_instruction_idx}")
-                    best_score = score
-                    best_prompt = candidate_prompt.deepcopy()
+            if score > best_score:
+                print(f"Best Score Updated to Score-based : {score_based_instruction_idx}, Format-based : {format_based_instruction_idx}")
+                best_score = score
+                best_prompt = candidate_prompt.deepcopy()
 
             if score >= goal_score:
                 trial.study.stop()

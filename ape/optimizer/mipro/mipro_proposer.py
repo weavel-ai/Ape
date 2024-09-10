@@ -42,7 +42,6 @@ class MIPROProposer(MIPROBase):
         logger.info("Initializing GroundedProposer")
         proposer = GroundedProposer(
             trainset=trainset,
-            prompt_model=self.prompt_model,
             view_data_batch_size=self.view_data_batch_size,
         )
 

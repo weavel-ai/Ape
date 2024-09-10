@@ -30,7 +30,6 @@ TIPS = {
 class InstructByScore(Proposer):
     def __init__(
         self,
-        prompt_model: str,
         trainset: Dataset,
         use_dataset_summary=True,
         use_task_demos=True,
@@ -41,7 +40,6 @@ class InstructByScore(Proposer):
         Initialize the GroundedProposer.
 
         Args:
-            prompt_model (str): The name of the prompt model to use.
             trainset (Dataset): The training dataset.
             use_dataset_summary (bool, optional): Whether to use dataset summary. Defaults to True.
             use_task_demos (bool, optional): Whether to use task demonstrations. Defaults to True.
@@ -50,15 +48,12 @@ class InstructByScore(Proposer):
         """
         self.use_dataset_summary = use_dataset_summary
         self.use_task_demos = use_task_demos
-        # self.use_instruct_history = use_instruct_history
         self.use_tip = use_tip
 
         self.trainset: Dataset = trainset
-        self.prompt_model = prompt_model
         self.view_data_batch_size = view_data_batch_size
         self.describe_prompt = Prompt.from_filename("describe-prompt")
         self.generate_instructions = Prompt.from_filename("gen-instruction-with-eval")
-        self.describe_prompt.model = prompt_model
         self.data_summary = None
 
     async def prepare_dataset_summary(
@@ -76,7 +71,6 @@ class InstructByScore(Proposer):
         self.data_summary = await create_dataset_summary(
             trainset=self.trainset,
             view_data_batch_size=self.view_data_batch_size,
-            prompt_model=self.prompt_model,
         )
         logger.info(f"DATA SUMMARY: {self.data_summary}")
 
