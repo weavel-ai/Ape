@@ -37,9 +37,9 @@ class SemanticF1Metric(BaseMetric):
             question_key (str): The key to access the question in the inputs dictionary.
         """
         self.inputs_question_key = question_key.lower().replace(" ", "_")
-        self.semantic_analysis = Prompt.from_filename("statement_analysis")
-        self.semantic_precision = Prompt.from_filename("semantic_precision")
-        self.semantic_recall = Prompt.from_filename("semantic_recall")
+        self.semantic_analysis = Prompt.from_filename("statement-analysis")
+        self.semantic_precision = Prompt.from_filename("semantic-precision")
+        self.semantic_recall = Prompt.from_filename("semantic-recall")
         self.segmenter = Segmenter(language="en", clean=False, char_span=True)
 
     async def compute(

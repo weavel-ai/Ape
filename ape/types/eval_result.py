@@ -10,3 +10,7 @@ class EvaluationResult(BaseModel):
 class MetricResult(BaseModel):
     score: float
     intermediate_values: Optional[Dict[str, Any]] = None
+    
+class GlobalMetricResult(BaseModel):
+    score: float
+    metadata: Optional[Dict[str, Any]] = None

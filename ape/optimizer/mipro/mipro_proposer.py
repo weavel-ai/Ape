@@ -42,16 +42,10 @@ class MIPROProposer(MIPROBase):
         logger.info("Initializing GroundedProposer")
         proposer = GroundedProposer(
             trainset=trainset,
-            prompt_model=self.prompt_model,
             view_data_batch_size=self.view_data_batch_size,
-            set_history_randomly=True,
-            set_tip_randomly=True,
         )
 
-        proposer.program_aware = True
         proposer.use_tip = True
-        proposer.use_instruct_history = False
-        proposer.set_history_randomly = False
 
         logger.info(f"Generating {self.num_candidates} instruction candidates")
         prompt_candidates = await proposer.propose_prompts(
@@ -61,7 +55,6 @@ class MIPROProposer(MIPROBase):
             N=self.num_candidates,
             T=self.init_temperature,
             task_description=task_description,
-            trial_logs={},
             inputs_desc=inputs_desc,
             outputs_desc=outputs_desc,
             response_format=response_format,

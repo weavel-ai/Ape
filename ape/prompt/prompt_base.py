@@ -48,8 +48,6 @@ class Prompt(pf.PromptConfig):
         _optimized (bool): A flag indicating whether the prompt has been optimized.
 
     """
-
-    temperature: float = 0.0
     _optimized = False
 
     model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True)
@@ -75,6 +73,7 @@ class Prompt(pf.PromptConfig):
         self.metadata.setdefault("fewshot", [])
         self.metadata.setdefault("inputs", {})
         self.metadata.setdefault("outputs", {})
+        self.metadata.setdefault("temperature", 0.0)
         # self.fewshot_config = None # TODO: implement fewshot config = {input_ignore_key: [], output_ignore_key: []} into input variables of Prompt Init
 
     def _restructure_models(self):
@@ -97,6 +96,16 @@ class Prompt(pf.PromptConfig):
     def name(self, value: Optional[str]):
         """Set the name of the prompt."""
         self.metadata["name"] = value
+        
+    @property
+    def temperature(self) -> Optional[float]:
+        """Get the temperature of the prompt."""
+        return self.metadata["temperature"]
+
+    @temperature.setter
+    def temperature(self, value: Optional[float]):
+        """Set the temperature of the prompt."""
+        self.metadata["temperature"] = value
 
     @property
     def response_format(self) -> Optional[ResponseFormat]:

@@ -5,7 +5,6 @@ inputs:
     task_description: A description of the task that the LLM will be asked to perform
     dataset_desc: A description of the dataset we are using
     task_fewshot: A list of few shot examples of the task
-    previous_prompts: A list of previous prompts we've attempted, along with their scores
     basic_prompt: A basic prompt that we've used before
     tip: A suggestion for how to go with writing the new prompt
 ---
@@ -60,9 +59,6 @@ Dataset summary (description of the dataset we are using):
 
 Task demos (example inputs/outputs of the task):
 {task_fewshot}
-
-Previous prompts (previous prompts we've attemped, along with their scores):
-{previous_prompts} 
 
 Basic prompt:
 {basic_prompt}

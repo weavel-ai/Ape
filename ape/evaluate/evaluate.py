@@ -5,7 +5,7 @@ import pandas as pd
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from ape.metric.metric_base import BaseMetric, EvaluationConfig, GlobalMetric, AverageGlobalMetric
-from ape.types import DataItem, Dataset, EvaluationResult, MetricResult
+from ape.types import DataItem, Dataset, EvaluationResult, GlobalMetricResult
 from ape.utils import logger
 from ape.prompt.prompt_base import Prompt
 
@@ -46,6 +46,7 @@ class Evaluate:
         display_table: Union[bool, int] = False,
         max_errors: int = 15,
         return_outputs: bool = False,
+        return_global_metric_metadata: Optional[bool] = False,
         batch_size: int = 50,
         **kwargs,
     ):
@@ -57,6 +58,7 @@ class Evaluate:
             display_table=display_table,
             max_errors=max_errors,
             return_outputs=return_outputs,
+            return_global_metric_metadata=return_global_metric_metadata,
             batch_size=batch_size,
             **kwargs,
         )
@@ -74,8 +76,8 @@ class Evaluate:
         config = self._update_config(metric, global_metric, testset, **kwargs)
         self.total_score = 0
         results: List[EvaluationResult] = await self._process_testset(prompt, config)
-        global_score = await self._compute_global_metric(results, config)
-        return self._prepare_output(results, global_score, config)
+        global_result = await self._compute_global_metric(results, config)
+        return self._prepare_output(results, global_result, config)
 
     def _update_config(
         self, 
@@ -160,23 +162,33 @@ class Evaluate:
 
     async def _compute_global_metric(
         self, results: List[EvaluationResult], config: EvaluationConfig
-    ) -> float:
+    ) -> GlobalMetricResult:
         return await config.global_metric(results)
 
     def _prepare_output(
-        self, results: List[EvaluationResult], global_score: float, config: EvaluationConfig
-    ) -> Union[float, Tuple[float, List[EvaluationResult]], Tuple[float, List[float]]]:
+        self, results: List[EvaluationResult], global_result: GlobalMetricResult, config: EvaluationConfig
+    ) -> Union[
+        Tuple[float, List[EvaluationResult], Optional[Dict[str, Any]]],
+        Tuple[float, Optional[Dict[str, Any]]],
+        Tuple[float, List[EvaluationResult]], 
+        Tuple[float, List[float]], 
+        float
+    ]:
         if config.display_table:
             self._display_results_table(results, config)
-
-        if config.return_outputs and config.return_all_scores:
-            return global_score, results, [r.score for r in results]
+            
+        if config.return_outputs and config.return_global_metric_metadata:
+            return global_result.score, results, global_result.metadata
+        elif config.return_global_metric_metadata:
+            return global_result.score, global_result.metadata
         elif config.return_outputs:
-            return global_score, results
+            return global_result.score, results
         elif config.return_all_scores:
-            return global_score, [r.score for r in results]
+            return global_result.score, [r.score for r in results]
+        # elif config.custom:
+        #     return global_result, config.calculate(results)
         else:
-            return global_score
+            return global_result.score
 
     def _display_results_table(
         self, results: List[EvaluationResult], config: EvaluationConfig

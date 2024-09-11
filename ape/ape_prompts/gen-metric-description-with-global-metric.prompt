@@ -1,0 +1,229 @@
+---
+model: gpt-4o
+temperature: 0.0
+inputs: 
+    metric_sourcecode: The source code of the metric
+    global_metric_sourcecode: The source code of the global metric
+---
+<system>
+For given source code of the Metric function, write a description of the metric.
+Global Metric Source Code is the source code of aggregate function for the metric function.
+It is usually used as a average, sum, or MICRO score calculation for the metric function. If there are some unique logic for final score more than average, you must include it in the description.
+You MUST only output the description of the metric, and nothing else.
+
+Examples:
+Metric Source Code:
+async def compute(
+    self, inputs: Dict[str, Any], gold: Any, pred: Any, trace: Optional[Dict] = None, metadata: Optional[Dict] = None
+) -> MetricResult:
+    try:
+        if not isinstance(gold, str):
+            gold = str(gold)
+        if not isinstance(pred, str):
+            pred = str(pred)
+            
+        def get_embedding(result):
+            if hasattr(result.data[0], 'embedding'):
+                return result.data[0].embedding
+            elif isinstance(result.data[0], dict) and 'embedding' in result.data[0]:
+                return result.data[0]['embedding']
+            else:
+                raise ValueError("Embedding not found in the expected format")
+
+        gold_embedding = await aembedding(model=self.model, input=gold)
+        gold_embedding = get_embedding(gold_embedding)
+
+        pred_embedding = await aembedding(model=self.model, input=pred)
+        pred_embedding = get_embedding(pred_embedding)
+
+        similarity = np.dot(gold_embedding, pred_embedding) / (
+            np.linalg.norm(gold_embedding) * np.linalg.norm(pred_embedding)
+        )
+        score = max(0.0, similarity)
+
+        return MetricResult(
+            score=score,
+        )
+    except Exception as e:
+        return MetricResult(
+            score=0.0,
+            intermediate_values={"error": str(e)}
+        )
+Output:
+Measures how similar the predicted text is to the correct answer by comparing their vector representations. A higher score means the prediction is more similar to the gold.
+Metric Source Code:
+async def compute(
+    self, inputs: Dict[str, Any], gold: DataItem, pred: Any, trace: Optional[Dict] = None, metadata: Optional[Dict] = None
+) -> MetricResult:
+    """
+    Compute the similarity score between the gold standard and prediction.
+
+    Args:
+        gold (DataItem): The gold standard data item.
+        pred (Any): The prediction to compare against the gold standard.
+        trace (Optional[Dict]): Additional trace information (not used in this implementation).
+
+    Returns:
+        MetricResult: The computed similarity score between 0 and 1.
+
+    This method normalizes both inputs, compares their structures recursively,
+    and returns a float representing the overall similarity. It handles nested
+    dictionaries and lists, applying special comparison logic based on the
+    `consider_list_order` attribute.
+    """
+
+    async def compare_values(gold_value, pred_value):
+        """Recursively compares values based on their types."""
+        if isinstance(gold_value, dict) and isinstance(pred_value, dict):
+            return await compare_dicts(gold_value, pred_value)
+        elif isinstance(gold_value, list) and isinstance(pred_value, list):
+            return await compare_lists(gold_value, pred_value)
+        elif gold_value == pred_value:
+            return 1.0
+        else:
+            res: dict = await self.binary_judge(
+                ground_truth=gold_value, prediction=pred_value
+            )
+            return res.get("score", 0)
+
+    async def compare_dicts(dict1, dict2):
+        """Compares two dictionaries while ignoring specified keys."""
+        total_fields = 0
+        correct_fields = 0
+        for key in dict1:
+            if key in self.ignore_keys:
+                continue  # Skip keys that should be ignored
+            if key in dict2:
+                try:
+                    total_fields += 1
+                    score = await compare_values(dict1[key], dict2[key])
+                    correct_fields += score
+                except Exception as e:
+                    continue
+        return correct_fields / total_fields if total_fields > 0 else 0
+
+    async def compare_lists(list1, list2):
+        """Compares two lists, considering order if specified."""
+        if not list1 and not list2:
+            return 1.0
+        if not list1 or not list2:
+            return 0.0
+
+        if not self.consider_list_order:
+            # Separate dictionaries from other elements
+            dicts1 = set(
+                json.dumps(item, sort_keys=True)
+                for item in list1
+                if isinstance(item, dict)
+            )
+            dicts2 = set(
+                json.dumps(item, sort_keys=True)
+                for item in list2
+                if isinstance(item, dict)
+            )
+
+            non_dicts1 = set(item for item in list1 if not isinstance(item, dict))
+            non_dicts2 = set(item for item in list2 if not isinstance(item, dict))
+
+            # Combine sets of dictionaries and non-dictionaries
+            set1 = dicts1 | non_dicts1
+            set2 = dicts2 | non_dicts2
+
+            num_identical = len(set1.intersection(set2))
+            total_unique = len(set1.union(set2))
+
+            return num_identical / total_unique
+
+        else:
+            # When considering list order, compare elements by their indices
+            return (
+                sum(await compare_values(g1, g2) for g1, g2 in zip(list1, list2))
+                / len(list1)
+                if len(list1) == len(list2)
+                else 0.0
+            )
+
+    try:
+        # Handle the possibility that gold or pred could be Pydantic models
+        if isinstance(gold, BaseModel):
+            gold = gold.model_dump()
+        if isinstance(pred, BaseModel):
+            pred = pred.model_dump()
+
+        # Normalize keys
+        gold_dict = {k.lower().replace(" ", "_"): v for k, v in gold.items()}
+        pred_dict = {k.lower().replace(" ", "_"): v for k, v in pred.items()}
+
+        accuracy = await compare_dicts(gold_dict, pred_dict)
+        return MetricResult(
+            score=accuracy,
+        )
+
+    except Exception as e:
+        return MetricResult(
+            score=0.0,
+            intermediate_values={"error": str(e)}
+        )
+
+Output:
+Compares JSON format predictions with the correct JSON answer. It checks if each key-value pair in the prediction matches the gold answer exactly. The score reflects how many pairs match correctly.
+Metric Source Code:
+async def compute(
+    self, inputs: Dict[str, Any], gold: str, pred: str, trace: Optional[Dict] = None, metadata: Optional[Dict] = None
+) -> MetricResult:
+    """
+    Compute the Semantic F1 score between the prediction and gold standard.
+
+    Args:
+        inputs (Dict[str, Any]): Input dictionary containing the question.
+        gold (str): The gold standard text.
+        pred (str): The prediction text.
+        trace (Optional[Dict]): Additional trace information (not used in this implementation).
+
+    Returns:
+        MetricResult: The computed Semantic F1 score between 0 and 1.
+    """
+    inputs = {k.lower().replace(" ", "_"): v for k, v in inputs.items()}
+    question = inputs[self.inputs_question_key]
+
+    prediction_sentences = self._segment_text(pred)
+    gold_sentences = self._segment_text(gold)
+
+    prediction_statements = await self._extract_statements(
+        question, pred, prediction_sentences
+    )
+    gold_statements = await self._extract_statements(question, gold, gold_sentences)
+
+    semantic_precision = await self._compute_precision(gold, prediction_statements)
+    semantic_recall = await self._compute_recall(pred, gold_statements)
+    
+    f1_score = (
+        (2 * semantic_precision * semantic_recall)
+        / (semantic_precision + semantic_recall)
+        if (semantic_precision + semantic_recall) > 0
+        else 0
+    )
+
+    return MetricResult(
+        score=f1_score,
+        intermediate_values={
+            "precision": semantic_precision,
+            "recall": semantic_recall,
+            "prediction_statements": prediction_statements,
+            "gold_statements": gold_statements
+        }
+    )
+Output:
+Evaluates how well the prediction captures the meaning of the correct answer:
+1. Extracts key statements from both the prediction and ground truth.
+2. Checks how many statements from the prediction are found in the ground truth (Precision).
+3. Checks how many statements from the ground truth are found in the prediction (Recall).
+4. Calculates the F1 score, which balances Precision and Recall. A higher score indicates better semantic matching.
+</system>
+<user>
+Metric Source Code:
+{metric_sourcecode}
+
+Global Metric Source Code:
+{global_metric_sourcecode}
+</user>
