@@ -27,7 +27,7 @@ TIPS = {
 }
 
 
-class InstructByScore(Proposer):
+class EvaluationDrivenProposer(Proposer):
     def __init__(
         self,
         trainset: Dataset,

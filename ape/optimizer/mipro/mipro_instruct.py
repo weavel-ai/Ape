@@ -17,7 +17,7 @@ from ape.metric import CosineSimilarityMetric, JsonMatchMetric, SemanticF1Metric
 from ape.optimizer.mipro.mipro_base import MIPROBase
 from ape.optimizer.mipro.mipro_proposer import MIPROProposer
 from ape.optimizer.utils import eval_candidate_prompt, find_best_fewshot, get_prompt_with_highest_avg_score, reformat_prompt, save_candidate_prompt
-from ape.proposer.instruct_by_score import InstructByScore
+from ape.proposer.evaluation_driven_proposer import EvaluationDrivenProposer
 from ape.proposer.utils import extract_prompt
 from ape.utils import logger, run_async
 from ape.prompt.prompt_base import Prompt
@@ -231,7 +231,7 @@ class MIPROInstruct(MIPROBase):
         )
         
         # This is the proposer.
-        proposer = InstructByScore(
+        proposer = EvaluationDrivenProposer(
             trainset=trainset,
             view_data_batch_size=self.view_data_batch_size,
         )
@@ -239,7 +239,7 @@ class MIPROInstruct(MIPROBase):
 
         logger.info(f"Generating {self.num_candidates} explore instruction candidates")
         
-        # Generate N candidates using InstructByScore.
+        # Generate N candidates using EvaluationDrivenProposer.
         explore_prompt_candidates = await proposer.propose_prompts(
             base_prompt=student,
             N=self.num_candidates,
@@ -343,7 +343,7 @@ class MIPROInstruct(MIPROBase):
                 
         logger.info("Start Propose Instruction Candidates from Evaluation Result")
 
-        score_based_proposer = InstructByScore(
+        score_based_proposer = EvaluationDrivenProposer(
             trainset=trainset,
             view_data_batch_size=self.view_data_batch_size,
             use_tip=True,
@@ -353,7 +353,7 @@ class MIPROInstruct(MIPROBase):
         
         metric_str = await self.generate_metric_description()
                 
-        # Generate N candidates using InstructByScore.
+        # Generate N candidates using EvaluationDrivenProposer.
         score_based_prompt_candidates = await score_based_proposer.propose_prompts(
             base_prompt=student,
             N=self.num_candidates,

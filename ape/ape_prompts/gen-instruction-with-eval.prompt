@@ -41,8 +41,6 @@ If you would like to use few shot examples, use the reserved variable {{_FEWSHOT
 
 > If the response format is specified as json_object, ensure the instruction includes the word "json".
 
-> Do not use backticks except for the CDATA section. 
-
 You are an expert prompt engineer tasked with enhancing a given prompt.
 
 Key Considerations:
