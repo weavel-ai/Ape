@@ -60,28 +60,56 @@ class JsonMatchMetric(BaseMetric):
         `consider_list_order` attribute.
         """
 
-        def compare_lists(list1, list2):
+        async def compare_lists(list1, list2):
             if not list1 and not list2:
                 return 1.0
             if not list1 or not list2:
                 return 0.0
 
             if self.consider_list_order:
-                # If list order should be considered, compare elements by their indices
-                return (
-                    sum(1.0 for a, b in zip(list1, list2) if a == b) / len(list1)
-                    if len(list1) == len(list2)
-                    else 0.0
-                )
+                if len(list1) != len(list2):
+                    return 0.0
+                total_score = 0.0
+                for a, b in zip(list1, list2):
+                    if isinstance(a, dict) and isinstance(b, dict):
+                        score = await compare_dicts(a, b)
+                    else:
+                        score = 1.0 if a == b else 0.0
+                    total_score += score
+                return total_score / len(list1)
             else:
-                # If list order should not be considered, compare as sets
-                set1 = set(list1)
-                set2 = set(list2)
+                # For unordered lists, handle dictionaries by matching each dict in list1 to the best match in list2
+                if any(isinstance(item, dict) for item in list1 + list2):
+                    matched_indices = set()
+                    total_score = 0.0
+                    for a in list1:
+                        best_score = 0.0
+                        best_idx = -1
+                        for idx, b in enumerate(list2):
+                            if idx in matched_indices:
+                                continue
+                            if isinstance(a, dict) and isinstance(b, dict):
+                                score = await compare_dicts(a, b)
+                            else:
+                                score = 1.0 if a == b else 0.0
+                            if score > best_score:
+                                best_score = score
+                                best_idx = idx
+                        if best_score > 0.0:
+                            matched_indices.add(best_idx)
+                        total_score += best_score
+                    total_score += (len(list2) - len(matched_indices)) * 0.0  # Unmatched items contribute 0
+                    total_items = max(len(list1), len(list2))
+                    return total_score / total_items if total_items > 0 else 0.0
+                else:
+                    # If no dictionaries, proceed with set comparison
+                    set1 = set(list1)
+                    set2 = set(list2)
 
-                num_identical = len(set1.intersection(set2))
-                total_unique = len(set1.union(set2))
+                    num_identical = len(set1.intersection(set2))
+                    total_unique = len(set1.union(set2))
 
-                return num_identical / total_unique
+                    return num_identical / total_unique
 
         async def compare_dicts(dict1, dict2):
             total_fields = 0
@@ -92,8 +120,10 @@ class JsonMatchMetric(BaseMetric):
                 if key in dict2:
                     try:
                         total_fields += 1
-                        if isinstance(dict1[key], list):
-                            score = compare_lists(dict1[key], dict2[key])
+                        if isinstance(dict1[key], list) and isinstance(dict2[key], list):
+                            score = await compare_lists(dict1[key], dict2[key])
+                        elif isinstance(dict1[key], dict) and isinstance(dict2[key], dict):
+                            score = await compare_dicts(dict1[key], dict2[key])
                         elif dict1[key] == dict2[key]:
                             score = 1.0
                         else:
