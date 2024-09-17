@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 from pydantic import BaseModel, ConfigDict
 
 
@@ -8,3 +8,8 @@ class DatasetItem(BaseModel):
     metadata: Optional[Dict[str, Any]] = None
 
     model_config = ConfigDict(extra="ignore")
+
+
+DataItem = Union[Dict[str, Any], DatasetItem]
+
+Dataset = Union[List[Dict[str, Any]], List[DatasetItem]]
