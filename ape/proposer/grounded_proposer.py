@@ -42,7 +42,6 @@ class GroundedProposer(Proposer):
         use_tip (bool): Whether to include tips in proposals.
         trainset (Dataset): The training dataset.
         view_data_batch_size (int): The batch size for viewing data.
-        describe_prompt (Prompt): The prompt for describing tasks.
         generate_instructions (Prompt): The prompt for generating instructions.
         data_summary (Optional[str]): The summary of the dataset.
     """
@@ -71,7 +70,6 @@ class GroundedProposer(Proposer):
 
         self.trainset: Dataset = trainset
         self.view_data_batch_size = view_data_batch_size
-        self.describe_prompt = Prompt.from_filename("describe-prompt")
         self.generate_instructions = Prompt.from_filename("gen-instructions")
         self.data_summary = None
 

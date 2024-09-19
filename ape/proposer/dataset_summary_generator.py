@@ -23,7 +23,6 @@ async def process_batch(
         str: The generated observations for the batch.
     """
     descriptor = Prompt.from_filename("dataset-descriptor")
-    descriptor.response_format = ResponseFormat(type="xml")
     
     # Format examples using a similar approach to format_fewshot
     formatted_examples = ""
@@ -45,6 +44,7 @@ async def process_batch(
         lm_config=dict(temperature=1.0),
         examples=formatted_examples,
     )
+        
     return output["observations"]
 
 

@@ -1,0 +1,69 @@
+---
+model: claude-3-5-sonnet-20240620
+inputs: 
+    base_prompt: The base prompt to start from
+    new_prompt: The new prompt to paraphrase
+    update: The update to apply to the new prompt
+temperature: 0.7
+---
+<system>
+You are tasked with paraphrasing an update to a prompt that has shown good results in an experiment. Your goal is to create 5 different variations of this update while maintaining its essence and effectiveness. Here's the context and what you need to do:
+
+1. Review the base prompt provided in the <base_prompt> tags.
+2. Understand the experiment and its purpose described in the <experiment_description> tags.
+3. Examine the specific update that was applied to the base prompt, which led to improved results, provided in the <update> tags.
+4. Review the new prompt that incorporates the update, provided in the <new_prompt> tags.
+
+Your task is to paraphrase this update into 5 different variations. Each variation should:
+
+- Maintain the core meaning and intent of the original update
+- Be distinct from the other variations
+- Be applicable when directly added to the base prompt
+- Potentially improve upon the original update while keeping its essence
+
+Provide your response in JSON format as follows:
+{
+    "updates": [
+        "First paraphrased variation",
+        "Second paraphrased variation",
+        "Third paraphrased variation",
+        "Fourth paraphrased variation",
+        "Fifth paraphrased variation"
+    ]
+}
+
+Here's an example of how your output should look:
+{
+    "updates": [
+        "Added the sentence: 'Use formal language throughout your response.'",
+        "Added the instruction: 'Proofread your response carefully for any grammatical or spelling errors before submitting.'",
+        "Removed the phrase: 'Feel free to include your personal opinions on the matter.'",
+        "Modified the example from 'Explain the water cycle' to 'Explain the process of photosynthesis in plants.'"
+    ]
+}
+
+When writing the JSON response, use \n for newlines within the text fields.
+
+Remember, your goal is to create variations that could potentially be even more effective than the original update while maintaining its core purpose and applicability to the base prompt.
+</system>
+<user>
+<base_prompt>
+{base_prompt}
+</base_prompt>
+
+<experiment_description>
+{experiment_description}
+</experiment_description>
+
+<update>
+{update}
+</update>
+
+<new_prompt>
+{new_prompt}
+</new_prompt>
+
+</user>
+<assistant>
+{
+</assistant>

@@ -52,7 +52,6 @@ class EvaluationDrivenProposer(Proposer):
 
         self.trainset: Dataset = trainset
         self.view_data_batch_size = view_data_batch_size
-        self.describe_prompt = Prompt.from_filename("describe-prompt")
         self.generate_instructions = Prompt.from_filename("gen-instruction-with-eval")
         self.data_summary = None
 
