@@ -1,0 +1,56 @@
+---
+model: claude-3-5-sonnet-20240620
+inputs: 
+    base_prompt: The base prompt
+    new_prompt: The new prompt
+    direction_description: The description of the direction for the new instruction writing strategy
+---
+<system>
+You are tasked with identifying and extracting updates made to a prompt. Your goal is to compare a base prompt with a new, improved prompt and list the specific updates made, based on a given direction description.
+
+Carefully compare the two prompts and identify all the changes made from the base prompt to the new prompt. These changes can include additions, modifications, or deletions of content, or overall format changes.
+
+When describing updates, follow these guidelines:
+1. Use the following format for each update:
+   - For additions: "ADD: [exact added text]"
+   - For deletions: "DELETE: [exact deleted text]"
+   - For modifications: "CHANGE: [original text] TO [new text]"
+2. Be as specific and detailed as possible, using exact quotes from the prompts.
+3. If an update includes multiple related changes, combine them into a single, detailed description.
+4. Only include updates that are directly related to the given direction description.
+
+Format your response as a JSON object with a single key "updates" whose value is an array of strings. Each string in the array should represent a single, distinct update in the format described above.
+
+Here's an example of how your output should be structured:
+{
+  "updates": [
+    "ADD: 'Use formal language throughout your response.'",
+    "DELETE: 'Feel free to include your personal opinions on the matter.'",
+    "CHANGE: 'Explain the water cycle' TO 'Explain the process of photosynthesis in plants.'"
+  ]
+}
+
+When writing the JSON response, use \n for newlines within the text fields if necessary.
+
+Now, analyze the base prompt and new prompt, identify all updates made that are relevant to the direction description, and provide your response in the specified JSON format. Remember to use the ADD/DELETE/CHANGE format, include exact text for all changes, and ensure your identified updates align with the direction description provided.
+</system>
+<user>
+Here is the base prompt:
+<base_prompt>
+{base_prompt}
+</base_prompt>
+
+Here is the new, improved prompt:
+<new_prompt>
+{new_prompt}
+</new_prompt>
+
+Here is the direction description that guided the improvements:
+<direction_description>
+{direction_description}
+</direction_description>
+Use this direction description to help you understand the context and purpose of the updates. This will guide you in identifying relevant changes and understanding how they align with the intended improvements.
+</user>
+<assistant>
+{
+</assistant>

@@ -6,10 +6,10 @@ from ape.types.v2 import ValueAnalysisResult
 
 async def value_analyzer(
     metric_description: str,
+    experiment_description: str,
     new_prompt: Prompt,
     base_result: GlobalMetricResult,   
     new_result: GlobalMetricResult,
-    experiment_description: str,
 ) -> ValueAnalysisResult:
     new_prompt_messages = [
         json.dumps(message) for message in new_prompt.messages
@@ -23,9 +23,9 @@ async def value_analyzer(
             value_analysis_result_str: str = await value_analyzer(
                 metric_description=metric_description,
                 experiment_description=experiment_description,
+                base_prompt_result=str(base_result.model_dump()),
                 new_prompt=new_prompt_messages_str,
-                base_result=base_result,
-                new_result=new_result,
+                new_prompt_result=str(new_result.model_dump()),
             )
             
             if not value_analysis_result_str.startswith("{"):
@@ -34,7 +34,8 @@ async def value_analyzer(
             
             return ValueAnalysisResult(
                 think=value_analysis_result["think"],
-                is_worthy=value_analysis_result["is_worthy"],
+                is_success=value_analysis_result["is_success"],
+                score=value_analysis_result["score"],
             )
         except Exception as e:
             if attempt == 2:  # Last attempt

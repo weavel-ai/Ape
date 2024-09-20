@@ -1,6 +1,6 @@
 import asyncio
 import json
-from typing import List
+from typing import List, Tuple
 from ape.prompt.prompt_base import Prompt
 from ape.proposer.utils import extract_prompt
 
@@ -8,8 +8,8 @@ async def paraphraser(
     experiment_description: str,
     base_prompt: Prompt,
     new_prompt: Prompt,
-    update: str,
-) -> List[str]:
+    previous_paraphrase_results: str,
+) -> Tuple[Prompt, str]:
     base_prompt_messages = [
         json.dumps(message) for message in base_prompt.messages
     ]
@@ -21,6 +21,7 @@ async def paraphraser(
     new_prompt_messages_str = "\n".join(new_prompt_messages)
     
     paraphraser = Prompt.from_filename("update-paraphraser")
+    extractor = Prompt.from_filename("update-extractor")
     
     for attempt in range(3):
         try:
@@ -28,16 +29,38 @@ async def paraphraser(
                 experiment_description=experiment_description,
                 base_prompt=base_prompt_messages_str,
                 new_prompt=new_prompt_messages_str,
-                update=update,
+                previous_paraphrase_results=previous_paraphrase_results,
             )
             
-            if not paraphrased_prompt_str.startswith("{"):
-                paraphrased_prompt_str = "{" + paraphrased_prompt_str
+            if not paraphrased_prompt_str.startswith('```prompt'):
+                paraphrased_prompt_str = '```prompt\n' + paraphrased_prompt_str
             
-            paraphrased_prompt = json.loads(paraphrased_prompt_str)
+            extracted_prompt = extract_prompt(paraphrased_prompt_str)
+            paraphrased_prompt = Prompt.load(extracted_prompt)
+            if not paraphrased_prompt.messages:
+                raise ValueError("Generated prompt has no messages")
+            paraphrased_prompt.model = base_prompt.model
+            paraphrased_prompt.response_format = base_prompt.response_format
+            paraphrased_prompt.name = "InstructNew"
             
-            new_updates = paraphrased_prompt.get("updates", [])
-            return new_updates
+            paraphrased_prompt_messages = [
+                json.dumps(message) for message in paraphrased_prompt.messages
+            ]
+            paraphrased_prompt_messages_str = "\n".join(paraphrased_prompt_messages)
+            
+            paraphrased_part = await extractor(
+                base_prompt=base_prompt_messages_str,
+                new_prompt=paraphrased_prompt_messages_str,
+                direction_description=experiment_description,
+            )
+            
+            if not paraphrased_part.startswith('{'):
+                paraphrased_part = '{' + paraphrased_part
+            
+            paraphrased_parts = json.loads(paraphrased_part)["updates"]
+            paraphrased_part = "\n".join(paraphrased_parts)
+            return paraphrased_prompt, paraphrased_part
+        
         except Exception as e:
             if attempt == 2:  # Last attempt
                 raise e

@@ -44,49 +44,42 @@ To analyze the experiment results:
 After your analysis, provide your response in the following JSON format:
 {
   "think": "Your detailed analysis and reasoning here",
-  "is_worthy": true/false
+  "is_success": true/false,
+  "score": 0-100
 }
 
 In the "think" field, provide a comprehensive explanation of your analysis, including key observations, comparisons, and reasoning behind your conclusion. Be sure to reference specific aspects of the input data to support your arguments.
 
-In the "is_worthy" field, provide a boolean value (true or false) indicating whether you believe the experiment is worthy based on your analysis.
+In the "is_success" field, provide a boolean value (true or false) indicating whether the experiment successfully achieved the goals outlined in the experiment description. If the experiment failed to meet its objectives, set this to false even if valuable insights were gained.
+
+In the "score" field, provide a numerical value between 0 and 100 representing your overall assessment of the experiment's worth and potential impact.
 
 When writing the JSON response, use \n for newlines within the text fields.
 
-Remember to consider the broader implications and potential learnings from the experiment, not just the final score improvement. Your goal is to provide a nuanced evaluation of the experiment's worth in the context of prompt engineering and AI development.
+Remember to consider the broader implications and potential learnings from the experiment, not just the final score improvement. Your goal is to provide a nuanced evaluation of the experiment's worth in the context of prompt engineering and AI development, while strictly adhering to the success goals defined in the experiment description.
 </system>
 <user>
+Here's the information you'll be working with:
 
 <metric_description>
 {metric_description}
 </metric_description>
 
-This describes the evaluation function used to assess the performance of the prompts.
-
 <base_prompt_result>
 {base_prompt_result}
 </base_prompt_result>
-
-This is the result of the base prompt, which serves as the starting point for the experiment.
 
 <experiment_description>
 {experiment_description}
 </experiment_description>
 
-This outlines the plan and goals for the experiment based on the base prompt results.
-
 <new_prompt>
 {new_prompt}
 </new_prompt>
 
-This is the improved prompt that was tested in the experiment.
-
 <new_prompt_result>
 {new_prompt_result}
 </new_prompt_result>
-
-This shows the results of the new prompt.
-
 </user>
 <assistant>
 {

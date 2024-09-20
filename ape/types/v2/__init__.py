@@ -7,7 +7,8 @@ class InstructionSuggestion(BaseModel):
     
 class ValueAnalysisResult(BaseModel):
     think: str
-    is_worthy: bool
+    is_success: bool
+    score: int
 
 class SplitAnalysisResult(BaseModel):
     think: str
@@ -15,4 +16,5 @@ class SplitAnalysisResult(BaseModel):
 
 class ParaphraseAnalysisResult(BaseModel):
     think: str
-    best_index: int
+    success_analysis: Optional[str]
+    failure_analysis: Optional[str]

@@ -3,22 +3,23 @@ import json
 from typing import List,Tuple
 from ape.prompt.prompt_base import Prompt
 from ape.types import GlobalMetricResult
-from ape.types.v2 import ParaphraseAnalysisResult
+from ape.types.v2 import ParaphraseAnalysisResult, ValueAnalysisResult
 
 async def paraphrase_analyzer(
     experiment_description: str,
-    paraphrase_results: List[Tuple[str, GlobalMetricResult]],
+    paraphrase_results: List[Tuple[str, GlobalMetricResult, ValueAnalysisResult]],
 ) -> ParaphraseAnalysisResult:
     
     paraphrase_analyzer = Prompt.from_filename("paraphrase-analyzer")
     
     paraphrase_results_str = ""
-    for i, (update, result) in enumerate(paraphrase_results):
+    for i, (update, result, value) in enumerate(paraphrase_results):
         paraphrase_results_str += f"--- {i+1}th Experiment Result ---\n"
         paraphrase_results_str += f"Prompt Update: {update}\n"
         paraphrase_results_str += "Result: "
         paraphrase_results_str += f"Score: {result.score}\n"
         paraphrase_results_str += f"Metadata: {json.dumps(result.metadata)}\n"
+        paraphrase_results_str += f"Experiment Success: {value.is_success}\n"
     
     for attempt in range(3):
         try:
