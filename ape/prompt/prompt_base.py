@@ -48,6 +48,7 @@ class Prompt(pf.PromptConfig):
         _optimized (bool): A flag indicating whether the prompt has been optimized.
 
     """
+
     _optimized = False
 
     model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True)
@@ -59,7 +60,11 @@ class Prompt(pf.PromptConfig):
         Args:
             **data: Keyword arguments to initialize the prompt configuration.
         """
-        super().__init__(**data)
+        super().__init__(
+            model=data.pop("model", None),
+            messages=data.pop("messages", []),
+            metadata={**data.pop("metadata", {}), **data},
+        )
         self._ensure_metadata()
         self._restructure_models()
 
@@ -74,13 +79,14 @@ class Prompt(pf.PromptConfig):
         self.metadata.setdefault("inputs", {})
         self.metadata.setdefault("outputs", {})
         self.metadata.setdefault("temperature", 0.0)
+        self.metadata.setdefault("name", None)
         # self.fewshot_config = None # TODO: implement fewshot config = {input_ignore_key: [], output_ignore_key: []} into input variables of Prompt Init
 
     def _restructure_models(self):
         """
         Restructure the response format and few-shot examples to appropriate types.
         """
-        if self.response_format:
+        if self.response_format and isinstance(self.response_format, dict):
             self.response_format = ResponseFormat(**self.response_format)
         if self.fewshot:
             self.fewshot = [
@@ -96,7 +102,7 @@ class Prompt(pf.PromptConfig):
     def name(self, value: Optional[str]):
         """Set the name of the prompt."""
         self.metadata["name"] = value
-        
+
     @property
     def temperature(self) -> Optional[float]:
         """Get the temperature of the prompt."""
@@ -177,10 +183,10 @@ class Prompt(pf.PromptConfig):
         """
         if lm_config is None:
             lm_config = {}
-            
+
         if "temperature" not in lm_config:
             lm_config["temperature"] = self.temperature
-        
+
         if self.inputs_desc:
             inputs = {k: v for k, v in kwargs.items() if k in self.inputs_desc}
             if len(inputs) != len(self.inputs_desc):
@@ -302,9 +308,9 @@ class Prompt(pf.PromptConfig):
             #     input_key_ignore = fewshot_config.get("input_key_ignore", None)
             #     output_key_ignore = fewshot_config.get("output_key_ignore", None)
             kwargs["_FEWSHOT_"] = format_fewshot(
-                fewshot=self.fewshot or [], 
-                response_format=self.response_format, 
-                # input_key_ignore=input_key_ignore, 
+                fewshot=self.fewshot or [],
+                response_format=self.response_format,
+                # input_key_ignore=input_key_ignore,
                 # output_key_ignore=output_key_ignore
             )
         return super().format(**kwargs)
