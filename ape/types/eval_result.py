@@ -5,8 +5,8 @@ from ape.types.dataset_item import DataItem
 
 
 class EvaluationResult(BaseModel):
-    example: DataItem
-    prediction: DataItem
+    example: Union[DataItem, str]
+    prediction: Union[DataItem, str]
     score: float
     intermediate_values: Optional[Dict[str, Any]] = None
 

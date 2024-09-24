@@ -50,7 +50,7 @@ async def reformat_prompt(prompt: Prompt, response_format: ResponseFormat) -> Pr
                 logger.error("Failed to reformat prompt after 3 retries")
                 logger.error("Generated prompt:" + res)
                 raise e
-            
+
     # new_prompt.fewshot_config = prompt.fewshot_config # TODO: fix this more pretty way
     return new_prompt
 
@@ -145,7 +145,7 @@ async def create_n_fewshot_demo_sets(
             include_non_bootstrapped=include_non_bootstrapped,
         )
         tasks.append(task)
-        
+
     max_workers = min(3, num_candidate_sets)
     semaphore = asyncio.Semaphore(max_workers)
 
@@ -153,9 +153,15 @@ async def create_n_fewshot_demo_sets(
         async with semaphore:
             return await task
 
-    fewshot_candidates = await asyncio.gather(*[worker(task, i) for i, task in enumerate(tasks)])
-    
-    return [prompt.fewshot for prompt in fewshot_candidates if prompt and hasattr(prompt, 'fewshot')]
+    fewshot_candidates = await asyncio.gather(
+        *[worker(task, i) for i, task in enumerate(tasks)]
+    )
+
+    return [
+        prompt.fewshot
+        for prompt in fewshot_candidates
+        if prompt and hasattr(prompt, "fewshot")
+    ]
 
 
 def create_minibatch(trainset, batch_size=50):
@@ -180,20 +186,24 @@ async def eval_candidate_prompt(
     evaluate: Evaluate,
 ):
     """Evaluate a candidate program on the trainset, using the specified batch size."""
-    # Evaluate on the full trainset
-    if batch_size >= len(trainset):
-        score = await evaluate(candidate_prompt, testset=trainset, display_table=0)
-    # Or evaluate on a minibatch
-    else:
-        score = await evaluate(
-            candidate_prompt,
-            testset=create_minibatch(trainset, batch_size),
-            display_table=0,
-        )
-    if isinstance(score, tuple):
-        score = score[0]
+    try:
+        # Evaluate on the full trainset
+        if batch_size >= len(trainset):
+            score = await evaluate(candidate_prompt, testset=trainset, display_table=0)
+        # Or evaluate on a minibatch
+        else:
+            score = await evaluate(
+                candidate_prompt,
+                testset=create_minibatch(trainset, batch_size),
+                display_table=0,
+            )
+        if isinstance(score, tuple):
+            score = score[0]
 
-    return score
+        return score
+    except Exception as exc:
+        logger.error(f"Error evaluating candidate prompt: {exc}")
+        return 0
 
 
 def save_candidate_prompt(
@@ -291,7 +301,7 @@ async def find_best_fewshot(
         include_non_bootstrapped=include_non_bootstrapped,
         seed=seed,
     )
-    
+
     async def evaluate_candidate(fewshot, semaphore):
         async with semaphore:
             candidate_prompt = student.deepcopy()
@@ -304,14 +314,17 @@ async def find_best_fewshot(
             )
             return (score, candidate_prompt, fewshot)
 
-    max_concurrent = 5  
+    max_concurrent = 5
     semaphore = asyncio.Semaphore(max_concurrent)
 
-    results = await asyncio.gather(*[evaluate_candidate(fewshot, semaphore) for fewshot in fewshot_candidates])
-    
+    results = await asyncio.gather(
+        *[evaluate_candidate(fewshot, semaphore) for fewshot in fewshot_candidates]
+    )
+
     best_score, best_prompt, best_fewshot = max(results, key=lambda x: x[0])
 
     return best_fewshot, best_score
+
 
 # Example usage:
 # best_prompt, best_score = await find_best_fewshot(
