@@ -1,0 +1,54 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ape-common"
+version = "0.1.0" 
+description = "Common utilities for Ape: your AI prompt engineer"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "weavel", email = "founders@weavel.ai"},
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "pydantic>=2.9.2",
+    "pandas>=2.2.3",
+    "litellm>=1.48.0",
+    "promptfile>=0.5.0",
+    "structlog>=23.1.0",
+    "rich>=13.0.1",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/weavel-ai/Ape/tree/main/libs/common"
+"Bug Tracker" = "https://github.com/weavel-ai/Ape/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["ape*"]
+namespaces = true
+
+[tool.setuptools.package-data]
+"*" = ["*.txt", "*.md"]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "black",
+]
+
+[tool.black]
+line-length = 100
+target-version = ['py310']
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
