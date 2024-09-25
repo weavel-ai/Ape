@@ -400,7 +400,7 @@ class MIPROInstruct(MIPROBase):
 
         def objective(trial: optuna.Trial) -> float:
             nonlocal best_prompt, best_score, trial_logs, total_eval_calls, param_score_dict, fully_evaled_param_combos
-
+            
             logger.info(f"Starting trial num: {trial.number}")
             trial_logs[trial.number] = {}
 
@@ -428,6 +428,20 @@ class MIPROInstruct(MIPROBase):
             
             max_retries = 3
             retry_count = 0
+            
+            if best_score == 1.0:
+                # update every logs for trial and return 0
+                trial_logs[trial.number].update(
+                    {
+                        "num_eval_calls": 0,
+                        "full_eval": False,
+                        "score": 0,
+                        "pruned": False,
+                        "total_eval_calls_so_far": 0,
+                    }
+                )
+                
+                return 0.0
             
             while retry_count < max_retries:
                 try:
