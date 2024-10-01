@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "ape" 
-version = "0.7.4"
+version = "0.8.0"
 description = "Ape: your AI prompt engineer"
 authors = ["weavel <founders@weavel.ai>"]
 packages = [
@@ -32,7 +32,7 @@ structlog = "^24.4.0"
 litellm = "^1.48.0"
 pandas = "^2.2.3"
 pysbd = "^0.3.4"
-promptfile = {path = "../promptfile", develop = true}  # Moved to the correct section
+promptfile = "^0.6.0"
 
 [build-system]
 requires = ["poetry-core"]
