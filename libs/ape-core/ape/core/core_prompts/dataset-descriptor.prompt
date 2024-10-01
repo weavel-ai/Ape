@@ -1,0 +1,48 @@
+---
+model: gpt-4o-2024-08-06
+description: Generate a summary of the dataset
+inputs:
+    examples: A list of examples from the dataset
+outputs:
+    observations: Something that holds true for most or all of the data you observed
+response_format:
+    type: json_schema
+    json_schema:
+        name: observations
+        description: Observations about the dataset
+        schema:
+            type: object
+            properties:
+                observations:
+                    type: array
+                    items:
+                        type: string
+            required:
+                - observations
+            additionalProperties: false
+        strict: true
+---
+# system prompt (persona)
+<system>
+    You are a data scientist working on a new dataset. Your task is to generate a observations about the dataset based on the examples provided.
+
+    Observations: Somethings that holds true for most or all of the data you observed.
+
+    You must follow the output format below, in JSON format.
+    {
+        "observations": [
+            "Something that holds true for most or all of the data you observed",
+            ...
+        ]
+    }
+</system>
+<user>
+    Given several examples from a dataset please write observations about trends that hold for most or all of the samples. 
+    Some areas you may consider in your observations: topics, content, syntax, conciceness, etc. 
+    It will be useful to make an educated guess as to the nature of the task this dataset will enable. Don't be afraid to be creative.
+
+    Examples:
+    {examples}
+
+    Now generate the observations in JSON format.
+</user>
