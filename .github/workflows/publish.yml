@@ -24,7 +24,7 @@ jobs:
         id: extract-package-dir
         run: |
           PACKAGE_DIR=$(echo '${{ github.event.release.name }}' | sed -n 's/^Release \(.*\) v[0-9].*$/\1/p')
-          echo "package_dir=$PACKAGE_DIR" >> $GITHUB_ENV
+          echo "package_dir=/libs/$PACKAGE_DIR" >> $GITHUB_ENV
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
