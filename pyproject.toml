@@ -1,0 +1,39 @@
+[tool.poetry]
+name = "ape" 
+version = "0.7.4"
+description = "Ape: your AI prompt engineer"
+authors = ["weavel <founders@weavel.ai>"]
+packages = [
+    { include = "ape", from = "libs/ape-common" },
+    { include = "ape", from = "libs/ape-core" },
+]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+pydantic = "^2.9.2"
+rich = "^13.8.1"
+numpy = "^2.1.1"
+
+[tool.poetry.group.core.dependencies]
+optuna = "^4.0.0"
+psycopg2-binary = "^2.9.9"
+sqlalchemy = "^2.0.35"
+nest_asyncio = "^1.6.0"
+ape-common = {path = "libs/ape-common", develop = true}
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.3"
+black = "^24.8.0"
+isort = "^5.13.2"
+mypy = "^1.11.2"
+
+[tool.poetry.group.common.dependencies]
+structlog = "^24.4.0"
+litellm = "^1.48.0"
+pandas = "^2.2.3"
+pysbd = "^0.3.4"
+promptfile = {path = "../promptfile", develop = true}  # Moved to the correct section
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

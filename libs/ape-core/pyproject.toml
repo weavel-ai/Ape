@@ -1,0 +1,58 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ape-core"
+version = "0.7.4"
+description = "Ape: your AI prompt engineer"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "weavel", email = "founders@weavel.ai"},
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "ape-common>=0.1.0,<0.2.0",
+    "optuna>=4.0.0,<5.0.0",
+    "psycopg2-binary>=2.9.9,<3.0.0",
+    "sqlalchemy>=2.0.35,<3.0.0",
+    "nest_asyncio>=1.6.0,<2.0.0",
+]
+keywords = [
+    "prompt",
+    "prompt engineering",
+    "AI prompt engineer",
+    "llm",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/weavel-ai/Ape/tree/main/libs/core"
+"Bug Tracker" = "https://github.com/weavel-ai/Ape/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["ape*"]
+namespaces = true
+
+[tool.setuptools.package-data]
+"*" = ["*.txt", "*.md"]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "black",
+]
+
+[tool.black]
+line-length = 100
+target-version = ['py310']
+
+[tool.isort]
+profile = "black"
+line_length = 100
