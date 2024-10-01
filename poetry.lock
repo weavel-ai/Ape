@@ -211,7 +211,7 @@ dev = ["black", "pytest"]
 
 [package.source]
 type = "directory"
-url = "libs/common"
+url = "libs/ape-common"
 
 [[package]]
 name = "async-timeout"
@@ -1546,20 +1546,18 @@ testing = ["pytest", "pytest-benchmark"]
 
 [[package]]
 name = "promptfile"
-version = "0.5.0"
+version = "0.6.0"
 description = "promptfile: language support for .prompt files"
 optional = false
 python-versions = ">=3.8.10"
-files = []
-develop = true
+files = [
+    {file = "promptfile-0.6.0-py3-none-any.whl", hash = "sha256:9fb5dc7c3ab3e623df430a2c2789cf29a3d5f42be47027bc9f1d6ede434d2fff"},
+    {file = "promptfile-0.6.0.tar.gz", hash = "sha256:0d8a860a389a59e6a8cadf39f4f2107af7150d5d46c4bdfaf90afa37774f697c"},
+]
 
 [package.dependencies]
 pydantic = "*"
 pyyaml = "*"
-
-[package.source]
-type = "directory"
-url = "../promptfile"
 
 [[package]]
 name = "psycopg2-binary"
@@ -2674,4 +2672,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "bf0c7ef2542030a794b6181e66823c9ec27bab1e9c8951ebdb419243db9b47be"
+content-hash = "1789036b2787b4c708be5ab191f416627903ff2a3a0b4d1db62c474a1d955f13"

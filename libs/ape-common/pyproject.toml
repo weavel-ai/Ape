@@ -21,7 +21,7 @@ dependencies = [
     "pydantic>=2.9.2",
     "pandas>=2.2.3",
     "litellm>=1.48.0",
-    "promptfile>=0.5.0",
+    "promptfile>=0.6.0",
     "structlog>=23.1.0",
     "rich>=13.0.1",
 ]
