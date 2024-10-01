@@ -31,7 +31,7 @@ jobs:
           pip install build
       - name: Build package
         run: |
-          cd ${{ env.package_dir }}
+          cd ${{ github.workspace }}${{ env.package_dir }}
           python -m build
       - name: Publish package
         uses: pypa/gh-action-pypi-publish@release/v1
