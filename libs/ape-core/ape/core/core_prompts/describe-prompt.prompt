@@ -4,6 +4,8 @@ inputs:
     prompt: A prompt to describe
 outputs:
     description: A one-two sentence description of the prompt's task
+response_format:
+    type: xml
 ---
 <system>
     You are an expert prompt engineer. Given a prompt, you will generate a one-two sentence description of the task the prompt is solving. Describe the task in a way that is clear and concise.
