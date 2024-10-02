@@ -12,70 +12,7 @@ console = Console(width=200, theme=Theme({"logging.level": "bold"}))
 
 LOGGER_NAME = "ape"
 
-
-class TypedBoundLogger(structlog.stdlib.BoundLogger):
-    def msg(self, event: str, *args: t.Any, **kwargs: t.Any) -> None:
-        """Log a message.
-
-        Args:
-            event (str): The main log message or event description.
-            *args: Additional positional arguments to be logged.
-            **kwargs: Additional keyword arguments to be logged.
-        """
-        self._proxy_to_logger("msg", event, *args, **kwargs)
-
-    def debug(self, event: str, *args: t.Any, **kwargs: t.Any) -> None:
-        """Log a debug message.
-
-        Args:
-            event (str): The main log message or event description.
-            *args: Additional positional arguments to be logged.
-            **kwargs: Additional keyword arguments to be logged.
-        """
-        self._proxy_to_logger("debug", event, *args, **kwargs)
-
-    def info(self, event: str, *args: t.Any, **kwargs: t.Any) -> None:
-        """Log an info message.
-
-        Args:
-            event (str): The main log message or event description.
-            *args: Additional positional arguments to be logged.
-            **kwargs: Additional keyword arguments to be logged.
-        """
-        self._proxy_to_logger("info", event, *args, **kwargs)
-
-    def warning(self, event: str, *args: t.Any, **kwargs: t.Any) -> None:
-        """Log a warning message.
-
-        Args:
-            event (str): The main log message or event description.
-            *args: Additional positional arguments to be logged.
-            **kwargs: Additional keyword arguments to be logged.
-        """
-        self._proxy_to_logger("warning", event, *args, **kwargs)
-
-    def error(self, event: str, *args: t.Any, **kwargs: t.Any) -> None:
-        """Log an error message.
-
-        Args:
-            event (str): The main log message or event description.
-            *args: Additional positional arguments to be logged.
-            **kwargs: Additional keyword arguments to be logged.
-        """
-        self._proxy_to_logger("error", event, *args, **kwargs)
-
-    def critical(self, event: str, *args: t.Any, **kwargs: t.Any) -> None:
-        """Log a critical message.
-
-        Args:
-            event (str): The main log message or event description.
-            *args: Additional positional arguments to be logged.
-            **kwargs: Additional keyword arguments to be logged.
-        """
-        self._proxy_to_logger("critical", event, *args, **kwargs)
-
-
-logger: TypedBoundLogger = structlog.get_logger(LOGGER_NAME)
+logger: structlog.stdlib.BoundLogger = structlog.get_logger(LOGGER_NAME)
 
 
 class LogSettings:
@@ -103,7 +40,7 @@ class LogSettings:
                 renderer,
             ],
             logger_factory=structlog.stdlib.LoggerFactory(),
-            wrapper_class=TypedBoundLogger,
+            wrapper_class=structlog.stdlib.BoundLogger,
             cache_logger_on_first_use=True,
         )
 
