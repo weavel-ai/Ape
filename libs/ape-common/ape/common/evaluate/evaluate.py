@@ -121,7 +121,7 @@ class Evaluate:
                 return result
             except Exception as e:
                 self._handle_error(e, config)
-                return EvaluationResult(example=outputs, prediction={}, score=0.0)
+                return EvaluationResult(example=example, prediction={}, score=0.0)
 
         with tqdm.tqdm(
             total=len(config.testset),
