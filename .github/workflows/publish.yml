@@ -36,4 +36,4 @@ jobs:
       - name: Publish package
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          package_directory: ${{ github.workspace }}${{ env.package_dir }}/dist
+          packages-dir: ${{ github.workspace }}${{ env.package_dir }}/dist
