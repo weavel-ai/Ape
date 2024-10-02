@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ape-common"
-version = "0.1.0" 
+version = "0.1.1" 
 description = "Common utilities for Ape: your AI prompt engineer"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -36,7 +36,7 @@ include = ["ape*"]
 namespaces = true
 
 [tool.setuptools.package-data]
-"*" = ["*.txt", "*.md"]
+"*" = ["*.txt", "*.md", "*.prompt"]
 
 [project.optional-dependencies]
 dev = [

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "ape" 
-version = "0.8.0"
+version = "0.8.1"
 description = "Ape: your AI prompt engineer"
 authors = ["weavel <founders@weavel.ai>"]
 packages = [
