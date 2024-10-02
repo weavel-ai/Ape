@@ -4,8 +4,7 @@ import random
 import numpy as np
 from typing import Any, Dict, List, Literal, Optional, Tuple
 from ape.common.prompt.prompt_base import Prompt
-from ape.common.types.dataset_item import DatasetItem
-from ape.common.types.eval_result import GlobalMetricResult, MetricResult
+from ape.common.types import GlobalMetricResult, MetricResult, DatasetItem
 from ape.common.generate import BaseGenerate
 from ape.common.global_metric import BaseGlobalMetric
 from ape.common.metric import BaseMetric
@@ -95,7 +94,7 @@ class FewShotTrainer(BaseTrainer):
             bootstrapped_indices = random.sample(success_indices, min(max_bootstrapped_demos, len(success_indices)))
             bootstrapped_samples = [
                 DatasetItem(
-                    inputs=trainset[i].inputs,
+                    inputs=trainset[i]["inputs"],
                     outputs=predictions[i]
                 ) for i in bootstrapped_indices
             ]
@@ -117,8 +116,8 @@ class FewShotTrainer(BaseTrainer):
             
             labeled_samples = [
                 DatasetItem(
-                    inputs=trainset[i].inputs,
-                    outputs=trainset[i].outputs
+                    inputs=trainset[i]["inputs"],
+                    outputs=trainset[i]["outputs"]
                 ) for i in labeled_indices
             ]
         

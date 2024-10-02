@@ -4,7 +4,7 @@ from .evaluate import Evaluate
 from .generate import BaseGenerate, Generate
 from .metric import BaseMetric
 from .global_metric import BaseGlobalMetric
-from .types import EvaluationResult, MetricResult, GlobalMetricResult, DatasetItem
+from .types import MetricResult, GlobalMetricResult, DatasetItem
 from .types.dataset_item import DatasetItem
 
 
@@ -16,7 +16,6 @@ __all__ = [
     "BaseGenerate",
     "BaseMetric",
     "BaseGlobalMetric",
-    "EvaluationResult",
     "MetricResult",
     "GlobalMetricResult",
     "DatasetItem",

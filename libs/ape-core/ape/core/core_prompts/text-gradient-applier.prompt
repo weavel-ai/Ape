@@ -23,7 +23,7 @@ outputs:
 ---
 <system>
 system prompt here.
-You can insert input variables anywhere, wrapped in brackets {{var_1}}
+You can insert input variables anywhere, wrapped in brackets {var_1}
 </system>
 <user>
 user prompt here
@@ -32,7 +32,7 @@ user prompt here
 ]]>
 The outputs section in the YAML header defines output variables with their names as keys and descriptions as values. This structure facilitates parsing of formatted outputs.
 Enclose each message in appropriate tags. Valid tag names are 'system' and 'user'.
-Use double curly braces {{}} exclusively for input variables. Employ square brackets [] for placeholders instead. Do not alter input variable names.
+Use double curly braces {} exclusively for input variables. Employ square brackets [] for placeholders instead. Do not alter input variable names.
 If the base prompt contains any specific response format instructions, preserve those instructions in your improved prompt. Do not modify or remove existing response format specifications.
 
 1. Address the concerns raised in the feedback while preserving positive aspects.

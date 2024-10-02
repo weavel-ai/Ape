@@ -3,12 +3,12 @@ import json
 import random
 from typing import Any, Dict, List, Literal, Optional, Tuple
 from ape.common.prompt.prompt_base import Prompt
-from ape.common.proposer.utils import extract_prompt
-from ape.common.types.dataset_item import DatasetItem
-from ape.common.types.eval_result import MetricResult
+from ape.common.types import GlobalMetricResult, MetricResult, DatasetItem
 from ape.common.generate import BaseGenerate
 from ape.common.global_metric import BaseGlobalMetric
 from ape.common.metric import BaseMetric
+from ape.core.core_prompts import ApeCorePrompts
+from ape.core.proposer.utils import extract_prompt
 from ape.core.v2.paraphraser.base import BaseParaphraser
 from ape.core.v2.trainer.base import BaseTrainer
 from ape.core.v2.types.report import ExpelTrainerReport
@@ -31,9 +31,9 @@ class ExpelTrainer(BaseTrainer):
         self.random_seed = random_seed
         self.max_proposals_per_step = max_proposals_per_step
         self.target_subgroup = target_subgroup
-        self.success_feedback_generator = Prompt.from_filename("expel-success-feedback-generator")
-        self.failure_feedback_generator = Prompt.from_filename("expel-failure-feedback-generator")
-        self.feedback_applier = Prompt.from_filename("expel-feedback-applier")
+        self.success_feedback_generator = ApeCorePrompts.get("expel-success-feedback-generator")
+        self.failure_feedback_generator = ApeCorePrompts.get("expel-failure-feedback-generator")
+        self.feedback_applier = ApeCorePrompts.get("expel-feedback-applier")
         
         random.seed(random_seed)
         
@@ -110,6 +110,7 @@ class ExpelTrainer(BaseTrainer):
                 
                 score_report = {}
                 while retry_count < self.max_proposals_per_step:
+                    retry_count += 1
                     feedback = await self.generate_feedback(
                         prompt=best_prompt,
                         data_indices=group,
@@ -119,20 +120,12 @@ class ExpelTrainer(BaseTrainer):
                         type="success",
                         feedback_history=feedback_history
                     )
-                    print("\033[91mFeedback : ", feedback, "\033[0m")
-                    retry_count += 1
                     new_prompt = await self.apply_feedback(
                         prompt=best_prompt,
                         feedback=feedback,
                         prompt_history=prompt_history
                     )
                     
-                    new_prompt_messages = [
-                        json.dumps(message) for message in new_prompt.messages
-                    ]
-                    new_prompt_messages_str = "\n".join(new_prompt_messages)
-                    print("\033[94m", new_prompt_messages_str, "\033[0m")
-                    # validate on trainset batch
                     group_trainset = [success_dataset[i] for i in group]
                     _, _, trainset_score = await self._evaluate_dataset(group_trainset, new_prompt)
                     if trainset_score.score != 1.0:
@@ -211,7 +204,6 @@ class ExpelTrainer(BaseTrainer):
                         type="failure",
                         feedback_history=feedback_history
                     )
-                    print("\033[91mFeedback : ", feedback, "\033[0m")
 
                     retry_count += 1
                     new_prompt = await self.apply_feedback(
@@ -219,12 +211,10 @@ class ExpelTrainer(BaseTrainer):
                         feedback=feedback,
                         prompt_history=prompt_history
                     )
-                    # print new prompt as blue
                     new_prompt_messages = [
                         json.dumps(message) for message in new_prompt.messages
                     ]
                     new_prompt_messages_str = "\n".join(new_prompt_messages)
-                    print("\033[94m", new_prompt_messages_str, "\033[0m")
                     
                     # validate on trainset batch
                     group_trainset = [failure_dataset[i] for i in group]
@@ -385,9 +375,9 @@ class ExpelTrainer(BaseTrainer):
             data = trainset[index]
             pred = predictions[index]
             eval_result = eval_results[index]
-            report += f"Input : {str(data.inputs)}\n"
+            report += f"Input : {str(data['inputs'])}\n"
             if type != "success":
-                report += f"Ground Truth : {str(data.outputs)}\n"
+                report += f"Ground Truth : {str(data['outputs'])}\n"
             report += f"Generator Prediction: {str(pred)}\n"
             report += f"Metric Result: {str(eval_result)}\n"
 
@@ -444,10 +434,9 @@ class ExpelTrainer(BaseTrainer):
                     new_prompt_str = "```prompt\n" + new_prompt_str
                 
                 extracted_prompt = extract_prompt(new_prompt_str)
-                new_prompt = Prompt.load(extracted_prompt)
-                new_prompt.name = prompt.name
-                new_prompt.response_format = prompt.response_format
-                new_prompt.model = prompt.model
+                new_prompt_message = Prompt.load(extracted_prompt)
+                new_prompt = prompt.deepcopy()
+                new_prompt.messages = new_prompt_message.messages
                 
                 messages = [
                     json.dumps(message) for message in new_prompt.messages
@@ -455,7 +444,7 @@ class ExpelTrainer(BaseTrainer):
                 messages_str = "\n".join(messages)
                 if (
                     new_prompt.response_format is not None 
-                    and new_prompt.response_format.type == "json_object" 
+                    and new_prompt.response_format["type"] == "json_object" 
                     and "json" not in messages_str
                 ):
                     # add "json" to the messages
@@ -463,6 +452,7 @@ class ExpelTrainer(BaseTrainer):
                     
                 return new_prompt
             except Exception as e:
+                print(e)
                 retry_count += 1
                 
         raise Exception("Failed to apply feedback")
@@ -477,7 +467,7 @@ class ExpelTrainer(BaseTrainer):
         groups = [full_list[i:i+group_size] for i in range(0, list_length, group_size)]
         
         # Remove the last group if its size is 1
-        if len(groups[-1]) == 1:
+        if len(groups) > 0 and len(groups[-1]) == 1:
             groups.pop()
         
         return groups

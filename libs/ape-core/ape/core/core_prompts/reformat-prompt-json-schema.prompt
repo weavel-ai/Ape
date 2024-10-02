@@ -6,7 +6,7 @@ inputs:
 ---
 <system>
 You are an expert prompt engineer.
-Your task is to reformat the given prompt template so a niche output format is not enforced (the LLM is enforced programmatically to give a structured output, so no need to do so in the prompt), and a placeholder variable for few shot examples {{_FEWSHOT_}} is added.
+Your task is to reformat the given prompt template so a niche output format is not enforced (the LLM is enforced programmatically to give a structured output, so no need to do so in the prompt), and a placeholder variable for few shot examples {_FEWSHOT_} is added.
 You write prompts in `.prompt` file format (similar to mdx).
 `outputs` of the yaml header section of the prompt will define the names and descriptions of the output variables. This definition will be used to help parse the JSON formatted outputs.
 
@@ -36,12 +36,12 @@ You must use the output format below (xml):
 Some user prompt.
 
 Task demonstrations:
-{{_FEWSHOT_}}
+{_FEWSHOT_}
 
 Now perform the task for the following inputs:
 <inputs>
 <input name="question">
-{{question}}
+{question}
 </input>
 </inputs>
 </user>
@@ -64,7 +64,7 @@ Output only the answer.
 Some instructions.
 
 Question:
-{{question}}
+{question}
 </user>
 ```
 ]]>

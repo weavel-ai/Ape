@@ -4,14 +4,14 @@ import json
 import random
 from collections import deque
 from tqdm import tqdm
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Literal, Optional, Tuple
 from ape.common.prompt.prompt_base import Prompt
-from ape.common.proposer.utils import extract_prompt
-from ape.common.types.dataset_item import DatasetItem
-from ape.common.types.metric import GlobalMetricResult, MetricResult
+from ape.common.types import GlobalMetricResult, MetricResult, DatasetItem
 from ape.common.generate import BaseGenerate
 from ape.common.global_metric import BaseGlobalMetric
 from ape.common.metric import BaseMetric
+from ape.core.proposer.utils import extract_prompt
+from ape.core.core_prompts import ApeCorePrompts
 from ape.core.v2.paraphraser.base import BaseParaphraser
 from ape.core.v2.trainer.base import BaseTrainer
 from ape.core.v2.types.report import TextGradientTrainerReport
@@ -28,6 +28,7 @@ class TextGradientTrainer(BaseTrainer):
         early_stopping_rounds: int = 10,
         random_seed: int = 42,
         max_proposals_per_step: int = 5,
+        validation_type: Literal["trainset", "valset", "all"] = "trainset",
         **kwargs,
     ):
         super().__init__(generator, metric, global_metric, **kwargs)
@@ -37,9 +38,10 @@ class TextGradientTrainer(BaseTrainer):
         self.paraphraser = paraphraser  
         self.random_seed = random_seed
         self.max_proposals_per_step = max_proposals_per_step
+        self.validation_type = validation_type
         
-        self.text_gradient_generator_prompt = Prompt.from_filename("text-gradient-generator")
-        self.text_gradient_applier_prompt = Prompt.from_filename("text-gradient-applier")
+        self.text_gradient_generator_prompt = ApeCorePrompts.get("text-gradient-generator")
+        self.text_gradient_applier_prompt = ApeCorePrompts.get("text-gradient-applier")
         
         self.buffer_trainset = deque(maxlen=20)
         random.seed(random_seed)
@@ -77,38 +79,25 @@ class TextGradientTrainer(BaseTrainer):
 
         ## Step 8: Compute valset_score
         # valset_score = await self._evaluate_dataset(valset, best_prompt)
+        
+        _, best_evalset_results, best_evalset_score = await self._evaluate_validation_set(best_prompt, trainset, valset)
 
         # Iterate over the shuffled training set in batches
         for batch_start in tqdm(range(0, len(shuffled_trainset), self.batch_size), desc="Training Batches"):
             batch = shuffled_trainset[batch_start:batch_start + self.batch_size]
 
             # Step 3: Run generator in parallel for the current batch
-            best_batch_preds = await asyncio.gather(*[
-                self.generator.generate(
-                    messages=best_prompt.format(**item.inputs).messages,
-                    model=best_prompt.model
-                ) for item in batch
-            ])
-
-            # Step 5: Run metric in parallel for the generated predictions
-            best_batch_eval_results: List[MetricResult] = await asyncio.gather(*[
-                self.metric.compute(
-                    inputs=item.inputs,
-                    pred=pred,
-                    gold=item.outputs
-                ) for item, pred in zip(batch, best_batch_preds)
-            ])
+            best_batch_preds, best_batch_eval_results, best_batch_score = await self._evaluate_dataset(batch, best_prompt)
             
-            best_batch_score: GlobalMetricResult = await self.global_metric.compute(best_batch_eval_results)
-
-            # Step 6: Store (output, eval_result) in buffer_trainset_result
+            # Step 6: Store (output, eval_result) in evalset_result
             best_batch_results: List[Tuple[DatasetItem, Any, MetricResult]] = []
             for item, pred, eval_result in zip(batch, best_batch_preds, best_batch_eval_results):
                 best_batch_results.append((item, pred, eval_result))
             
-            # Compute buffer_trainset_score using global_metric
-            best_buffer_trainset_results = [er for (_, _, er) in self.buffer_trainset]
-            best_buffer_trainset_score = await self.global_metric.compute(best_buffer_trainset_results + best_batch_eval_results)
+            # Compute evalset_score using global_metric
+            if self.validation_type == "buffer_trainset":
+                best_evalset_results = [er for (_, _, er) in self.buffer_trainset]
+                best_evalset_score = await self.global_metric(best_evalset_results + best_batch_eval_results)
             
             # Initialize retry mechanism
             retry_count = 0
@@ -119,8 +108,8 @@ class TextGradientTrainer(BaseTrainer):
                 text_gradients = await asyncio.gather(*[
                     self._text_gradient_generator(
                         prompt=best_prompt,
-                        inputs=item.inputs,
-                        outputs=item.outputs,
+                        inputs=item["inputs"],
+                        outputs=item["outputs"],
                         generator_output=pred,
                         metric_result=eval_result,
                         # text_gradient_momentum=list(text_gradient_result_queue)
@@ -135,7 +124,7 @@ class TextGradientTrainer(BaseTrainer):
 
                 # Step 10: Apply text gradients in batches
                 if self.paraphraser is not None:
-                    best_prompt, best_batch_results, best_buffer_trainset_results = await self.paraphraser(
+                    best_prompt, best_batch_results, best_evalset_results = await self.paraphraser(
                         prompt=best_prompt,
                         trainset=trainset,
                         valset=valset,
@@ -152,82 +141,42 @@ class TextGradientTrainer(BaseTrainer):
                     )
                     
                     # Evaluate new_prompt on the current batch
-                    new_batch_preds = await asyncio.gather(*[
-                        self.generator.generate(
-                            messages=new_prompt.format(**item.inputs).messages,
-                            model=new_prompt.model
-                        ) for item in batch
-                    ])
-
-                    new_batch_eval_results = await asyncio.gather(*[
-                        self.metric.compute(
-                            inputs=item.inputs,
-                            pred=pred,
-                            gold=item.outputs
-                        ) for item, pred in zip(batch, new_batch_preds)
-                    ])
+                    new_batch_preds, new_batch_eval_results, new_batch_score = await self._evaluate_dataset(batch, new_prompt)
                     
                     new_batch_results = []
                     for item, pred, eval_result in zip(batch, new_batch_preds, new_batch_eval_results):
                         new_batch_results.append((item, pred, eval_result))
-
-                    # Compute new global metric score for the batch
-                    new_batch_score = await self.global_metric.compute(new_batch_eval_results)
                     
                     if new_batch_score.score > best_batch_score.score:
-                        
                         # Step 11: Evaluate new_prompt on buffer_trainset
-                        new_buffer_trainset_preds = await asyncio.gather(*[
-                            self.generator.generate(
-                                messages=new_prompt.format(**item.inputs).messages,
-                                model=new_prompt.model
-                            ) for (item, _, _) in self.buffer_trainset
-                        ])
+                        new_evalset_preds, new_evalset_eval_results, new_evalset_score = await self._evaluate_validation_set(new_prompt, trainset, valset)
 
-                        new_buffer_trainset_eval_results = await asyncio.gather(*[
-                            self.metric.compute(
-                                inputs=item.inputs,
-                                pred=pred,
-                                gold=item.outputs
-                            ) for ((item, _, _), pred) in zip(self.buffer_trainset, new_buffer_trainset_preds)
-                        ])
-
-                        # Compute new global metric score
-                        new_buffer_trainset_score = await self.global_metric.compute(
-                            new_buffer_trainset_eval_results + new_batch_eval_results
-                        )
-                        
-                        # text_gradient_result_queue.append(
-                        #     {
-                        #         "text_gradient": "\n".join(text_gradients),
-                        #         "score": new_buffer_trainset_score.score
-                        #     }
-                        # )
                         prompt_history_queue.append(
                             {
                                 "prompt": new_prompt,
-                                "score": new_buffer_trainset_score.score
+                                "score": new_evalset_score.score
                             }
                         )
 
                         # Step 12: Compare new score with the current best score
-                        if new_buffer_trainset_score.score > best_buffer_trainset_score.score:
-                            print(f"Trial {retry_count + 1}: Score Improved: {best_buffer_trainset_score.score} -> {new_buffer_trainset_score.score}")
+                        if new_evalset_score.score > best_evalset_score.score:
+                            print(f"Trial {retry_count + 1}: Score Improved: {best_evalset_score.score} -> {new_evalset_score.score}")
                             # Update buffers with new predictions and metric results
                             best_prompt = new_prompt
-                            best_buffer_trainset_score = new_buffer_trainset_score
+                            best_evalset_score = new_evalset_score
                             best_batch_results = new_batch_results
 
                             # Clear existing buffer and repopulate with new predictions
-                            for i, (item, _, _) in enumerate(self.buffer_trainset):
-                                self.buffer_trainset[i] = (item, new_buffer_trainset_preds[i], new_buffer_trainset_eval_results[i])
+                            if self.validation_type == "buffer_trainset":
+                                for i, (item, _, _) in enumerate(self.buffer_trainset):
+                                    self.buffer_trainset[i] = (item, new_evalset_preds[i], new_evalset_eval_results[i])
                             
                             # Update report with text_gradients
                             report.text_gradients.extend(text_gradients)
                             success = True  # Mark as successful update
                             step_failed_count = 0
                         else:
-                            print(f"Trial {retry_count + 1}: Score Not Improved: {best_buffer_trainset_score.score} -> {new_buffer_trainset_score.score}")
+                            print(f"Trial {retry_count + 1}: Score Not Improved: {best_evalset_score.score} -> {new_evalset_score.score}")
                             # Step 13: Increment retry_count
                             retry_count += 1
 
@@ -264,18 +213,23 @@ class TextGradientTrainer(BaseTrainer):
                             print("Retrying with a new proposal...")                            
 
             # add new samples to the buffer
-            self._manage_buffer(best_batch_results)
-            print(f"Buffer Trainset Updated: {len(self.buffer_trainset)}")
+            if self.validation_type == "buffer_trainset":
+                self._manage_buffer(best_batch_results)
+                print(f"Buffer Trainset Updated: {len(self.buffer_trainset)}")
             
             # Update report with new score
             report.scores.append({
                 "step": len(report.scores),
-                "score": best_buffer_trainset_score.score
+                "score": best_evalset_score.score
             })
-            if best_buffer_trainset_score.score == 1.0:
-                # test valset and early stop if the score is 1.0
-                _, _, valset_score = await self._evaluate_dataset(valset, best_prompt)
-                if valset_score.score == 1.0:
+            if best_evalset_score.score == 1.0:
+                if self.validation_type == "trainset":
+                    _, _, valset_score = await self._evaluate_dataset(valset, best_prompt)
+                    if valset_score.score == 1.0:
+                        print("Validation Set Score reached 1.0")
+                        return best_prompt, report
+                else:
+                    print("Validation Set Score reached 1.0")
                     return best_prompt, report
 
         # Step 14: All data processed, return the best_prompt found and the report
@@ -408,10 +362,9 @@ class TextGradientTrainer(BaseTrainer):
                     new_prompt_str = "```prompt\n" + new_prompt_str
                 
                 extracted_prompt = extract_prompt(new_prompt_str)
-                new_prompt = Prompt.load(extracted_prompt)
-                new_prompt.name = prompt.name
-                new_prompt.response_format = prompt.response_format
-                new_prompt.model = prompt.model
+                new_prompt_message = Prompt.load(extracted_prompt)
+                new_prompt = prompt.deepcopy()
+                new_prompt.messages = new_prompt_message.messages
                 
                 # add "json" if response_format is not None & response_format.type is "json_object" & "json" not in messages
                 messages = [
@@ -420,23 +373,44 @@ class TextGradientTrainer(BaseTrainer):
                 messages_str = "\n".join(messages)
                 if (
                     new_prompt.response_format is not None 
-                    and new_prompt.response_format.type == "json_object" 
+                    and new_prompt.response_format["type"] == "json_object" 
                     and "json" not in messages_str
                 ):
                     # add "json" to the messages
                     new_prompt = await reformat_prompt(new_prompt, new_prompt.response_format)
                 
-                # Print text gradient in blue
-                print("\033[94m" + text_gradient + "\033[0m")
-                
-                # Print new prompt's system message content in red
-                for message in new_prompt.messages:
-                    if message['role'] == 'system':
-                        print("\033[91m" + message['content'] + "\033[0m")
-                        break
-                
                 return new_prompt
             except Exception as e:
                 print(f"Error: {e}")
-                retry_count += 1
-                
+                retry_count += 1                
+
+    def _get_validation_dataset(self, trainset: List[DatasetItem], valset: List[DatasetItem]) -> List[DatasetItem]:
+        """
+        Get the validation dataset based on the validation_type.
+
+        Returns:
+            List[DatasetItem]: The dataset to use for validation.
+        """
+        if self.validation_type == "trainset":
+            return trainset
+        elif self.validation_type == "valset":
+            return valset
+        elif self.validation_type == "all":
+            return trainset + valset
+        elif self.validation_type == "buffer_trainset":
+            return [item for (item, _, _) in self.buffer_trainset]
+        else:
+            raise ValueError(f"Invalid validation_type: {self.validation_type}")
+
+    async def _evaluate_validation_set(self, prompt: Prompt, trainset: List[DatasetItem], valset: List[DatasetItem]) -> Tuple[List[Any], List[MetricResult], GlobalMetricResult]:
+        """
+        Evaluate the selected validation dataset using the prompt.
+
+        Args:
+            prompt (Prompt): The prompt to evaluate.
+
+        Returns:
+            Tuple[List[Any], List[MetricResult], GlobalMetricResult]: Predictions, metric results, and global score.
+        """
+        validation_dataset = self._get_validation_dataset(trainset, valset)
+        return await self._evaluate_dataset(validation_dataset, prompt)

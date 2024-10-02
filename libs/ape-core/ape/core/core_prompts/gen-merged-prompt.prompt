@@ -1,5 +1,5 @@
 ---
-model: gpt-4o
+model: claude-3-5-sonnet-20240620
 temperature: 0.0
 inputs: 
     basic_prompt: A basic prompt that we've used before
@@ -21,7 +21,7 @@ outputs:
 ---
 <system>
 system prompt here.
-You can insert input variables anywhere, wrapped in brackets {{var_1}}
+You can insert input variables anywhere, wrapped in brackets {var_1}
 </system>
 <user>
 user prompt here
@@ -39,7 +39,7 @@ Finally, write a new prompt that combines the 2 improved prompts, instruction-im
 
 Your goal is to generate the proper and complete instructions that can be used without revision.
 
-> Use brackets {{}} ONLY for input variables and the reserved few shot variable. Use [] instead for placeholders.
+> Use brackets {} ONLY for input variables and the reserved few shot variable. Use [] instead for placeholders.
 Wrap the prompt section in ```prompt
 ``` tags.
 </system>
@@ -56,3 +56,6 @@ Format-improved prompt:
 Think step by step. Wrap the prompt section in ```prompt
 ``` tags. You should NEVER include bracket variables other than the input variables for the task.
 </user>
+<assistant>
+```prompt
+</assistant>

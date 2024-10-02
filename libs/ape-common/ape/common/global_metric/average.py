@@ -1,16 +1,16 @@
 from typing import List
 
-from ape.common.types import EvaluationResult, GlobalMetricResult
+from ape.common.types import MetricResult, GlobalMetricResult
 from .global_metric_base import BaseGlobalMetric
 
 
 class AverageGlobalMetric(BaseGlobalMetric):
-    async def compute(self, results: List[EvaluationResult]) -> GlobalMetricResult:
+    async def compute(self, results: List[MetricResult]) -> GlobalMetricResult:
         """
         Compute the average of local scores as the global metric.
 
         Args:
-            results (List[EvaluationResult]): The results from BaseMetric evaluations.
+            results (List[MetricResult]): The results from BaseMetric evaluations.
 
         Returns:
             GlobalMetricResult: The average score.

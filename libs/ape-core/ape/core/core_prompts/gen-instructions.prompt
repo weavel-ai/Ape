@@ -23,7 +23,7 @@ outputs:
 ---
 <system>
 system prompt here.
-You can insert input variables anywhere, wrapped in brackets {{var_1}}
+You can insert input variables anywhere, wrapped in brackets {var_1}
 </system>
 <user>
 user prompt here
@@ -36,9 +36,9 @@ Each message is wrapped in tags. Available tag names are system and user. There 
 
 A good way to structure the prompt is to add format/persona/instructions to the system prompt, and user inputs to the user prompt.
 
-If you would like to use few shot examples, use the reserved variable {{_FEWSHOT_}} - just insert it into the prompt and a list of task demonstrations will be filled in afterwards. Your goal is to generate the proper and complete instructions that can be used without revision.
+If you would like to use few shot examples, use the reserved variable {_FEWSHOT_} - just insert it into the prompt and a list of task demonstrations will be filled in afterwards. Your goal is to generate the proper and complete instructions that can be used without revision.
 
-> Use brackets {{}} ONLY for input variables and the reserved few shot variable. Use [] instead for placeholders.
+> Use brackets {} ONLY for input variables and the reserved few shot variable. Use [] instead for placeholders.
 
 {response_format_instructions}
 </system>

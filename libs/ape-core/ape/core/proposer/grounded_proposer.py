@@ -215,15 +215,12 @@ class GroundedProposer(Proposer):
 
         try:
             extracted_prompt = extract_prompt(output)
-            new_prompt = Prompt.load(extracted_prompt)
-            if not new_prompt.messages:
+            new_prompt_message = Prompt.load(extracted_prompt)
+            if not new_prompt_message.messages:
                 raise ValueError("Generated prompt has no messages")
-            new_prompt.model = base_prompt.model
-            new_prompt.name = base_prompt.name
-            new_prompt.inputs_desc = inputs_desc
-            new_prompt.outputs_desc = outputs_desc
-            new_prompt.response_format = response_format
-
+            new_prompt = base_prompt.deepcopy()
+            new_prompt.messages = new_prompt_message.messages
+            
             return new_prompt
 
         except Exception as e:

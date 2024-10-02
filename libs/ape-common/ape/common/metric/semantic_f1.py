@@ -3,7 +3,7 @@ from pysbd import Segmenter
 from pysbd.utils import TextSpan
 
 from ape.common.metric import BaseMetric
-from ape.common.types import MetricResult
+from ape.common.types import MetricResult, DatasetItem
 from ape.common.metric_prompts import ApeMetricPrompts
 
 
@@ -45,11 +45,8 @@ class SemanticF1Metric(BaseMetric):
 
     async def compute(
         self,
-        inputs: Dict[str, Any],
-        gold: str,
-        pred: str,
-        trace: Optional[Dict] = None,
-        metadata: Optional[Dict] = None,
+        dataset_item: DatasetItem,
+        pred: str
     ) -> MetricResult:
         """
         Compute the Semantic F1 score between the prediction and gold standard.
@@ -63,6 +60,8 @@ class SemanticF1Metric(BaseMetric):
         Returns:
             MetricResult: The computed Semantic F1 score between 0 and 1.
         """
+        inputs = dataset_item["inputs"]
+        gold = dataset_item["outputs"]
         inputs = {k.lower().replace(" ", "_"): v for k, v in inputs.items()}
         question = inputs[self.inputs_question_key]
 
@@ -83,7 +82,7 @@ class SemanticF1Metric(BaseMetric):
 
         return MetricResult(
             score=f1_score,
-            intermediate_values={
+            metadata={
                 "precision": semantic_precision,
                 "recall": semantic_recall,
                 "prediction_statements": prediction_statements,

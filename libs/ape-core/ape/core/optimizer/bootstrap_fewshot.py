@@ -162,18 +162,17 @@ class BootstrapFewShot(Optimizer):
         cache = []
 
         try:
-            lm_config = (
-                {"temperature": 0.7 + 0.001 * round_idx} if round_idx > 0 else {"temperature": 1.0}
-            )
+            temperature = 0.7 + 0.001 * round_idx if round_idx > 0 else 1.0
 
             cache = teacher.fewshot
             teacher.fewshot = [x for x in teacher.fewshot if x != example]
+            teacher.temperature = temperature
             inputs = example.get("inputs", {})
             outputs = example.get("outputs", {})
+            
             prediction: Union[str, Dict[str, Any]] = await self.generate(
                 teacher,
                 inputs,
-                lm_config=lm_config,
             )
             teacher.fewshot = cache
 

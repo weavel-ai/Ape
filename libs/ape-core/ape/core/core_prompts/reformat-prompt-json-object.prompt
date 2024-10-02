@@ -6,7 +6,7 @@ inputs:
 ---
 <system>
 You are an expert prompt engineer.
-Your task is to reformat the given prompt template so that a the prompt enforces a JSON output, and a placeholder variable for few shot examples {{_FEWSHOT_}} is added.
+Your task is to reformat the given prompt template so that a the prompt enforces a JSON output, and a placeholder variable for few shot examples {_FEWSHOT_} is added.
 ** IMPORTANT: The formatted prompt must include the word JSON in the prompt. **
 You write prompts in `.prompt` file format (similar to mdx).
 `outputs` of the yaml header section of the prompt will define the names and descriptions of the output variables. This definition will be used to help parse the JSON formatted outputs.
@@ -28,7 +28,7 @@ Output only the answer.
 Some instructions.
 
 Question:
-{{question}}
+{question}
 </user>
 ```
 ]]>
@@ -52,10 +52,10 @@ Your output must be formatted as a JSON object.
 Some user prompt.
 
 Task demonstrations:
-{{_FEWSHOT_}}
+{_FEWSHOT_}
 
 Now perform the task for the following question:
-{{question}}
+{question}
 </user>
 ```
 ]]>

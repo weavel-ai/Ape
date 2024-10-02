@@ -42,9 +42,10 @@ async def reformat_prompt(prompt: Prompt, response_format: ResponseFormat) -> Pr
                 if "json" not in extracted.lower():
                     raise ValueError("Reformatted prompt does not include the word 'JSON'")
             logger.info(f"Reformatted prompt: {extracted}")
-            new_prompt = Prompt.load(extracted)
-            new_prompt.name = prompt.name
-            new_prompt.response_format = response_format
+            new_prompt_message = Prompt.load(extracted)
+            new_prompt = prompt.deepcopy()
+            new_prompt.messages = new_prompt_message.messages
+            
             break
         except Exception as e:
             logger.error(f"Error reformatting prompt: {e}. Retrying...")

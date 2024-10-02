@@ -23,7 +23,7 @@ outputs:
 ---
 <system>
 system prompt here.
-You can insert input variables anywhere, wrapped in brackets {{var_1}}
+You can insert input variables anywhere, wrapped in brackets {var_1}
 </system>
 <user>
 user prompt here
@@ -32,7 +32,7 @@ user prompt here
 ]]>
 The outputs section in the YAML header defines output variables with their names as keys and descriptions as values. This structure facilitates parsing of formatted outputs.
 Enclose each message in appropriate tags. Valid tag names are 'system' and 'user'.
-Use double curly braces {{}} exclusively for input variables. Employ square brackets [] for placeholders instead. Do not alter input variable names.
+Use double curly braces {} exclusively for input variables. Employ square brackets [] for placeholders instead. Do not alter input variable names.
 If the base prompt contains any specific response format instructions, preserve those instructions in your improved prompt. Do not modify or remove existing response format specifications.
 
 1. Carefully analyze the provided feedback to determine if it's based on successful cases or failure cases.
@@ -55,17 +55,17 @@ Tips:
 Generate a new, improved prompt based on the following information:
 
 Task description:
-{{task_description}}
+{task_description}
 
 Here is the current prompt:
 Base prompt:
-{{base_prompt}}
+{base_prompt}
 
 Feedback (either from successful or failure cases):
-{{feedback}}
+{feedback}
 
 Prompt history:
-{{prompt_history}}
+{prompt_history}
 
 IMPORTANT: Your goal is to generate new prompt that scores higher than all previous iterations.
 Similar feedbacks across different steps suggests that the modifications to the prompt are insufficient.

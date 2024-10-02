@@ -6,11 +6,11 @@ import random
 from typing import Dict, Any, List, Optional, Tuple
 
 from ape.common.prompt.prompt_base import Prompt
-from ape.common.types.dataset_item import DatasetItem
-from ape.common.types.eval_result import GlobalMetricResult, MetricResult
+from ape.common.types import GlobalMetricResult, MetricResult, DatasetItem
 from ape.common.generate import BaseGenerate
 from ape.common.global_metric import BaseGlobalMetric
 from ape.common.metric import BaseMetric
+from ape.core.core_prompts import ApeCorePrompts
 from ape.core.v2.types.report import BaseReport
 
 class BaseTrainer(ABC):
@@ -70,24 +70,23 @@ class BaseTrainer(ABC):
         """
         # Asynchronously generate predictions and compute metrics for each item
         generate_tasks = [
-            self.generator.generate(
-                messages=prompt.format(**item.inputs).messages,
-                model=prompt.model
+            self.generator(
+                prompt=prompt,
+                inputs=item["inputs"],
             ) for item in dataset
         ]
         preds = await asyncio.gather(*generate_tasks)
 
         metric_tasks = [
-            self.metric.compute(
-                inputs=item.inputs,
+            self.metric(
+                dataset_item=item,
                 pred=pred,
-                gold=item.outputs
             ) for item, pred in zip(dataset, preds)
         ]
         eval_results = await asyncio.gather(*metric_tasks)
 
         # Compute the global metric
-        global_score = await self.global_metric.compute(eval_results)
+        global_score = await self.global_metric(eval_results)
         return preds, eval_results, global_score
     
     async def _generate_task_description(
@@ -95,7 +94,7 @@ class BaseTrainer(ABC):
         prompt: Prompt,
         trainset: List[DatasetItem],
     ) -> str:
-        describe_prompt = Prompt.from_filename("describe-prompt")
+        describe_prompt = ApeCorePrompts.get("describe-prompt")
         
         base_prompt_messages = [
             json.dumps(message) for message in prompt.messages
@@ -131,18 +130,16 @@ class BaseTrainer(ABC):
     
     async def _generate_metric_description(
         self,
-        metric: BaseMetric,
-        global_metric: Optional[BaseGlobalMetric] = None,
     ) -> str:
         
-        gen_metric_description: Prompt = Prompt.from_filename("gen-metric-description")
-        gen_metric_description_with_global_metric: Prompt = Prompt.from_filename("gen-metric-description-with-global-metric")
+        gen_metric_description: Prompt = ApeCorePrompts.get("gen-metric-description")
+        gen_metric_description_with_global_metric: Prompt = ApeCorePrompts.get("gen-metric-description-with-global-metric")
     
-        compute_function = getattr(metric, "compute", None)
+        compute_function = getattr(self.metric, "compute", None)
         compute_function_source_code = inspect.getsource(compute_function)
         
-        if global_metric:
-            global_metric_compute_function = getattr(global_metric, "compute", None)
+        if self.global_metric:
+            global_metric_compute_function = getattr(self.global_metric, "compute", None)
             global_metric_compute_function_source_code = inspect.getsource(global_metric_compute_function)
             
             # get Prompt gen-metric-description-with-global-metric.prompt
@@ -168,7 +165,7 @@ class BaseTrainer(ABC):
     ) -> str:
         upper_lim = min(len(trainset), view_data_batch_size)
         
-        descriptor = Prompt.from_filename("dataset-descriptor")
+        descriptor = ApeCorePrompts.get("dataset-descriptor")
         temperature = 0.7
         
         for attempt in range(3):
@@ -197,10 +194,7 @@ class BaseTrainer(ABC):
         for idx, item in enumerate(random_samples):
             formatted_examples += f"### Demo {idx+1} ###\n"
             
-            if isinstance(item, DatasetItem):
-                inputs, outputs = item.inputs, item.outputs
-            else:
-                inputs, outputs = item.get("inputs", {}), item.get("outputs", {})
+            inputs, outputs = item["inputs"], item["outputs"]
             
             formatted_examples += "**Inputs**\n"
             for key, value in inputs.items():
