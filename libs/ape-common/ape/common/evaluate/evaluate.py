@@ -78,7 +78,9 @@ class Evaluate:
     ) -> Union[float, Tuple[float, List[MetricResult]], Tuple[float, List[float]]]:
         config = self._update_config(metric, global_metric, testset, **kwargs)
         self.total_score = 0
-        results: List[Tuple[Union[str, Dict[str, Any]], MetricResult]] = await self._process_testset(prompt, config)
+        results: List[Tuple[Union[str, Dict[str, Any]], MetricResult]] = (
+            await self._process_testset(prompt, config)
+        )
         predictions = [result[0] for result in results]
         eval_results = [result[1] for result in results]
         global_result = await self._compute_global_metric(eval_results, config)
@@ -103,7 +105,9 @@ class Evaluate:
     async def _process_testset(
         self, prompt: Prompt, config: EvaluationConfig
     ) -> List[Tuple[Union[str, Dict[str, Any]], MetricResult]]:
-        async def process_item(example: DatasetItem) -> Tuple[Union[str, Dict[str, Any]], MetricResult]:
+        async def process_item(
+            example: DatasetItem,
+        ) -> Tuple[Union[str, Dict[str, Any]], MetricResult]:
             try:
                 inputs = example["inputs"]
                 outputs = example["outputs"]
@@ -130,7 +134,9 @@ class Evaluate:
                 self._bounded_process_item(process_item, item, pbar, config)
                 for item in config.testset
             ]
-            results: List[Tuple[Union[str, Dict[str, Any]], MetricResult]] = await asyncio.gather(*tasks)
+            results: List[Tuple[Union[str, Dict[str, Any]], MetricResult]] = await asyncio.gather(
+                *tasks
+            )
             return results
 
     async def _bounded_process_item(self, process_func, item, pbar, config):
@@ -174,9 +180,9 @@ class Evaluate:
             self._display_results_table(predictions, results, config)
 
         if config.return_outputs and config.return_global_metric_metadata:
-            return global_result.score, results, global_result.metadata
+            return global_result.score, results, global_result.trace
         elif config.return_global_metric_metadata:
-            return global_result.score, global_result.metadata
+            return global_result.score, global_result.trace
         elif config.return_outputs:
             return global_result.score, results
         elif config.return_all_scores:
@@ -186,7 +192,12 @@ class Evaluate:
         else:
             return global_result.score
 
-    def _display_results_table(self, predictions: List[Union[str, Dict[str, Any]]], results: List[MetricResult], config: EvaluationConfig):
+    def _display_results_table(
+        self,
+        predictions: List[Union[str, Dict[str, Any]]],
+        results: List[MetricResult],
+        config: EvaluationConfig,
+    ):
         df = pd.DataFrame(
             [
                 merge_dicts(

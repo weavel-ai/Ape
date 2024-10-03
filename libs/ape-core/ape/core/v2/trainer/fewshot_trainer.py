@@ -12,6 +12,7 @@ from ape.core.v2.paraphraser.base import BaseParaphraser
 from ape.core.v2.trainer.base import BaseTrainer
 from ape.core.v2.types.report import FewShotTrainerReport
 
+
 class FewShotTrainer(BaseTrainer):
     def __init__(
         self,
@@ -27,40 +28,44 @@ class FewShotTrainer(BaseTrainer):
     ):
         super().__init__(generator, metric, global_metric, **kwargs)
         self.paraphraser = paraphraser
-        self.paraphraser = paraphraser  
+        self.paraphraser = paraphraser
         self.random_seed = random_seed
         self.max_bootstrapped_demos = max_bootstrapped_demos
         self.max_labeled_demos = max_labeled_demos
         self.score_threshold = score_threshold
         random.seed(random_seed)
-        
-    async def fit(
+
+    async def train(
         self,
         prompt: Prompt,
         trainset: List[DatasetItem],
         valset: List[DatasetItem],
     ) -> Tuple[Prompt, FewShotTrainerReport]:
         report = FewShotTrainerReport(scores=[], choices=[], best_params={})
-        best_score = float('-inf')
+        best_score = float("-inf")
         best_fewshot = []
-        
+
         preds, eval_results, global_result = await self._evaluate_dataset(trainset, prompt)
 
         async def run_iteration(step: int, preds, eval_results):
             max_bootstrapped = random.randint(1, self.max_bootstrapped_demos)
             max_labeled = random.randint(1, self.max_labeled_demos)
-            
-            samples, indices = await self.sample(trainset, preds, eval_results, max_bootstrapped, max_labeled)            # Exclude sampled examples from validation
+
+            samples, indices = await self.sample(
+                trainset, preds, eval_results, max_bootstrapped, max_labeled
+            )  # Exclude sampled examples from validation
             validation_set = [item for i, item in enumerate(trainset) if i not in indices]
-            
+
             temp_prompt = copy.deepcopy(prompt)
             temp_prompt.fewshot = samples
-            
-            _, eval_results, global_score = await self._evaluate_dataset(validation_set, temp_prompt)
-            
+
+            _, eval_results, global_score = await self._evaluate_dataset(
+                validation_set, temp_prompt
+            )
+
             report.scores.append({"step": step, "score": global_score.score})
             report.choices.append({"step": step, "indices": indices})
-            
+
             print(f"Step {step} completed. Score: {global_score.score}")
             return global_score.score, samples
 
@@ -86,41 +91,43 @@ class FewShotTrainer(BaseTrainer):
         labeled_samples = []
         bootstrapped_indices = []
         labeled_indices = []
-        
+
         # Sample bootstrapped demos
-        success_indices = [i for i, result in enumerate(eval_results) if result.score >= self.score_threshold]
-        
+        success_indices = [
+            i for i, result in enumerate(eval_results) if result.score >= self.score_threshold
+        ]
+
         if len(success_indices) > 0:
-            bootstrapped_indices = random.sample(success_indices, min(max_bootstrapped_demos, len(success_indices)))
+            bootstrapped_indices = random.sample(
+                success_indices, min(max_bootstrapped_demos, len(success_indices))
+            )
             bootstrapped_samples = [
-                DatasetItem(
-                    inputs=trainset[i]["inputs"],
-                    outputs=predictions[i]
-                ) for i in bootstrapped_indices
+                DatasetItem(inputs=trainset[i]["inputs"], outputs=predictions[i])
+                for i in bootstrapped_indices
             ]
-        
+
         # Sample labeled demos
-        failed_indices = [i for i, result in enumerate(eval_results) if result.score < self.score_threshold]
-        
+        failed_indices = [
+            i for i, result in enumerate(eval_results) if result.score < self.score_threshold
+        ]
+
         if len(failed_indices) > 0:
             # Calculate weights based on (1 - score)
             weights = [1 - eval_results[i].score for i in failed_indices]
-            
+
             # Use random_sample function with weights
             labeled_indices = self.random_sample(
                 failed_indices,
                 num_shots=min(max_labeled_demos, len(failed_indices)),
                 replace=False,
-                weights=weights
+                weights=weights,
             )
-            
+
             labeled_samples = [
-                DatasetItem(
-                    inputs=trainset[i]["inputs"],
-                    outputs=trainset[i]["outputs"]
-                ) for i in labeled_indices
+                DatasetItem(inputs=trainset[i]["inputs"], outputs=trainset[i]["outputs"])
+                for i in labeled_indices
             ]
-        
+
         return bootstrapped_samples + labeled_samples, bootstrapped_indices + labeled_indices
 
     def random_sample(

@@ -65,13 +65,13 @@ class OptunaTrainer(BaseTrainer):
 
         random.seed(self.random_seed)
         np.random.seed(self.random_seed)
-        
+
         # Load prompts for generating metric descriptions and merging
         self.merge_prompts: Prompt = ApeCorePrompts.get("gen-merged-prompt")
         self.generate_instructions_by_eval: Prompt = ApeCorePrompts.get("gen-instruction-with-eval")
         self.generate_instructions_by_prompting: Prompt = ApeCorePrompts.get("gen-instructions")
 
-    async def fit(
+    async def train(
         self,
         prompt: Prompt,
         trainset: List[DatasetItem],
@@ -89,68 +89,84 @@ class OptunaTrainer(BaseTrainer):
             Tuple[Prompt, OptunaTrainerReport]: The best performing prompt and the optimization report.
         """
         report = OptunaTrainerReport(scores=[], trial_logs={}, best_score=0.0)
-        
+
         # Generate metric description1
         if self.metric_description is None:
             self.metric_description = await self._generate_metric_description()
         if self.task_description is None:
-            self.task_description = await self._generate_task_description(prompt=prompt, trainset=trainset)
-        
+            self.task_description = await self._generate_task_description(
+                prompt=prompt, trainset=trainset
+            )
+
         # Initialize evaluation on validation set
         preds, eval_results, initial_score = await self._evaluate_dataset(valset, prompt)
         report.best_score = initial_score
         report.trial_logs = []
-        
+
         # Generate candidate prompts
         eval_based_candidates = await self.generate_prompt_candidates_by_eval_result(
             base_prompt=prompt,
             evaluation_result=(preds, eval_results, initial_score),
         )
 
-        prompt_engineering_based_candidates = await self.generate_prompt_candidates_by_prompt_engineering(
-            base_prompt=prompt,
-            trainset=trainset,
-            num_candidates=self.num_candidates,
+        prompt_engineering_based_candidates = (
+            await self.generate_prompt_candidates_by_prompt_engineering(
+                base_prompt=prompt,
+                trainset=trainset,
+                num_candidates=self.num_candidates,
+            )
         )
-        
+
         best_score = initial_score.score
         best_prompt = prompt.deepcopy()
-        
+
         # Initialize trial_logs and total_eval_calls
         trial_logs: Dict[int, Dict[str, Any]] = {}
-        
+
         def objective(trial: optuna.Trial) -> float:
             nonlocal best_prompt, best_score, trial_logs, eval_based_candidates, prompt_engineering_based_candidates
-            
+
             trial_logs[trial.number] = {}
-            
+
             # Suggest index for instruction candidate
             eval_based_candidate_idx = trial.suggest_categorical(
                 "eval_based_candidate_idx", range(len(eval_based_candidates))
             )
             trial_logs[trial.number]["eval_based_candidate_idx"] = eval_based_candidate_idx
-            
+
             # Select the candidate prompt
             selected_eval_based_candidate = eval_based_candidates[eval_based_candidate_idx]
-            
+
             prompt_engineering_candidate_idx = trial.suggest_categorical(
                 "prompt_engineering_candidate_idx", range(len(prompt_engineering_based_candidates))
             )
-            trial_logs[trial.number]["prompt_engineering_candidate_idx"] = prompt_engineering_candidate_idx
-            
-            selected_prompt_engineering_candidate = prompt_engineering_based_candidates[prompt_engineering_candidate_idx]
-            
+            trial_logs[trial.number][
+                "prompt_engineering_candidate_idx"
+            ] = prompt_engineering_candidate_idx
+
+            selected_prompt_engineering_candidate = prompt_engineering_based_candidates[
+                prompt_engineering_candidate_idx
+            ]
+
             # Merge the selected candidate with the base prompt
             max_retries = 3
             retry_count = 0
-            
+
             basic_prompt_messages = [json.dumps(message) for message in prompt.messages]
             basic_prompt_messages_str = "\n".join(basic_prompt_messages)
-            selected_eval_based_candidate_messages = [json.dumps(message) for message in selected_eval_based_candidate.messages]
-            selected_eval_based_candidate_messages_str = "\n".join(selected_eval_based_candidate_messages)
-            selected_prompt_engineering_candidate_messages = [json.dumps(message) for message in selected_prompt_engineering_candidate.messages]
-            selected_prompt_engineering_candidate_messages_str = "\n".join(selected_prompt_engineering_candidate_messages)
-            
+            selected_eval_based_candidate_messages = [
+                json.dumps(message) for message in selected_eval_based_candidate.messages
+            ]
+            selected_eval_based_candidate_messages_str = "\n".join(
+                selected_eval_based_candidate_messages
+            )
+            selected_prompt_engineering_candidate_messages = [
+                json.dumps(message) for message in selected_prompt_engineering_candidate.messages
+            ]
+            selected_prompt_engineering_candidate_messages_str = "\n".join(
+                selected_prompt_engineering_candidate_messages
+            )
+
             while retry_count < max_retries:
                 try:
                     merged_prompt_text = run_async(
@@ -160,42 +176,47 @@ class OptunaTrainer(BaseTrainer):
                             format_improved_prompt=selected_prompt_engineering_candidate_messages_str,
                         )
                     )
-                    if not merged_prompt_text.startswith("```prompt"):  
+                    if not merged_prompt_text.startswith("```prompt"):
                         merged_prompt_text = "```prompt\n" + merged_prompt_text
-                    
+
                     merged_prompt_message = extract_prompt(merged_prompt_text)
                     merged_prompt_message = Prompt.load(merged_prompt_message)
-                    
+
                     merged_prompt = prompt.deepcopy()
                     merged_prompt.messages = merged_prompt_message.messages
-                    
+
                     break
                 except Exception as e:
                     retry_count += 1
                     if retry_count == max_retries:
                         raise e
-            
+
             # Update the candidate prompt
             candidate_prompt: Prompt = prompt.deepcopy()
             candidate_prompt.messages = merged_prompt.messages
-            
+
             # Evaluate the candidate prompt on the validation set
             try:
                 preds, eval_results, score = run_async(
-                    self._evaluate_dataset(random.sample(valset, min(self.minibatch_size, len(valset))), candidate_prompt)
+                    self._evaluate_dataset(
+                        random.sample(valset, min(self.minibatch_size, len(valset))),
+                        candidate_prompt,
+                    )
                 )
                 score = score.score
             except Exception as e:
                 # If evaluation fails, assign a very low score
                 trial_logs[trial.number]["evaluation_error"] = str(e)
                 return float("-inf")
-            
+
             # Update trial logs
-            trial_logs[trial.number].update({
-                "score": score,
-                "num_eval_calls": min(self.minibatch_size, len(valset)),
-            })
-            
+            trial_logs[trial.number].update(
+                {
+                    "score": score,
+                    "num_eval_calls": min(self.minibatch_size, len(valset)),
+                }
+            )
+
             # Update best prompt if necessary
             if score > best_score:
                 best_score = score
@@ -203,7 +224,7 @@ class OptunaTrainer(BaseTrainer):
                 trial_logs[trial.number]["best_score_update"] = True
             else:
                 trial_logs[trial.number]["best_score_update"] = False
-            
+
             # Update report
             report.trial_logs = trial_logs
             report.scores.append(
@@ -212,22 +233,22 @@ class OptunaTrainer(BaseTrainer):
                     "score": score,
                 }
             )
-            
+
             # If score meets or exceeds the goal, stop the study
-            if score >= 1.0:  
+            if score >= 1.0:
                 trial.study.stop()
-            
+
             return score
-        
+
         # Initialize Optuna study
         study = optuna.create_study(
             direction="maximize",
             sampler=optuna.samplers.TPESampler(seed=self.random_seed, multivariate=True),
         )
-        
+
         # Optimize the study
         study.optimize(objective, n_trials=self.max_steps)
-        
+
         return best_prompt, report
 
     async def generate_prompt_candidates_by_eval_result(
@@ -239,7 +260,9 @@ class OptunaTrainer(BaseTrainer):
         Generate a set of new prompt candidates based on the base prompt and its evaluation.
         """
         preds, eval_results, global_result = evaluation_result
-        evaluation_result_str = f"final score : {global_result.score}\nmetadata : {global_result.metadata}"
+        evaluation_result_str = (
+            f"final score : {global_result.score}\nmetadata : {global_result.trace}"
+        )
 
         TIPS = {
             "none": "Make it better",
@@ -300,9 +323,13 @@ class OptunaTrainer(BaseTrainer):
             selected_tip = list(TIPS.values())[index % len(TIPS)]
 
             fewshot = random.sample(trainset, min(len(trainset), 3))
-            task_fewshot = format_fewshot(fewshot=fewshot, response_format=base_prompt.response_format)
+            task_fewshot = format_fewshot(
+                fewshot=fewshot, response_format=base_prompt.response_format
+            )
 
-            response_format_instructions = get_response_format_instructions(base_prompt.response_format)
+            response_format_instructions = get_response_format_instructions(
+                base_prompt.response_format
+            )
 
             output = await self.generate_instructions_by_prompting(
                 task_description="",
@@ -325,7 +352,7 @@ class OptunaTrainer(BaseTrainer):
                 new_prompt.messages = new_prompt_message.messages
 
                 return new_prompt
-            
+
             except Exception as e:
                 self.logger.error(f"Error in propose_one: {e}")
                 self.logger.error(f"Output: {output}")

@@ -14,6 +14,7 @@ from ape.core.v2.trainer.base import BaseTrainer
 from ape.core.v2.types.report import ExpelTrainerReport
 from ape.core.optimizer.utils import reformat_prompt
 
+
 class ExpelTrainer(BaseTrainer):
     def __init__(
         self,
@@ -34,19 +35,16 @@ class ExpelTrainer(BaseTrainer):
         self.success_feedback_generator = ApeCorePrompts.get("expel-success-feedback-generator")
         self.failure_feedback_generator = ApeCorePrompts.get("expel-failure-feedback-generator")
         self.feedback_applier = ApeCorePrompts.get("expel-feedback-applier")
-        
+
         random.seed(random_seed)
-        
-    async def fit(
+
+    async def train(
         self,
         prompt: Prompt,
         trainset: List[DatasetItem],
         valset: List[DatasetItem],
     ) -> Tuple[Prompt, ExpelTrainerReport]:
-        report = ExpelTrainerReport(
-            scores=[],
-            feedbacks=[]
-        )
+        report = ExpelTrainerReport(scores=[], feedbacks=[])
         # embedding_map = await self.create_embedding_map(trainset)
 
         success_dataset = []
@@ -55,10 +53,7 @@ class ExpelTrainer(BaseTrainer):
         failure_predictions = []
         success_eval_results = []
         failure_eval_results = []
-        predictions, eval_results, _ = await self._evaluate_dataset(
-            dataset=trainset,
-            prompt=prompt
-        )
+        predictions, eval_results, _ = await self._evaluate_dataset(dataset=trainset, prompt=prompt)
         for data, pred, eval_result in zip(trainset, predictions, eval_results):
             if eval_result.score == 1.0:
                 success_dataset.append(data)
@@ -68,10 +63,10 @@ class ExpelTrainer(BaseTrainer):
                 failure_dataset.append(data)
                 failure_predictions.append(pred)
                 failure_eval_results.append(eval_result)
-        
+
         success_batch_groups = self.divide_list(len(success_dataset), 4)
         failure_batch_groups = self.divide_list(len(failure_dataset), 4)
-        
+
         # if self.target_subgroup in ["success", "all"]:
         #     success_groups = self.create_embedding_groups(success_dataset, embedding_map)
         #     print(success_groups)
@@ -91,15 +86,15 @@ class ExpelTrainer(BaseTrainer):
         #         else:
         #             for i in range(0, len(group), 4):
         #                 failure_batch_groups.append(group[i:i+4])
-                        
+
         print(f"Success Batch Groups : {len(success_batch_groups)}")
         print(f"Failure Batch Groups : {len(failure_batch_groups)}")
-        
+
         best_prompt = prompt
         global_step = 0
         _, _, valset_best_score = await self._evaluate_dataset(valset, best_prompt)
         valset_best_score = valset_best_score.score
-        
+
         if self.target_subgroup in ["success", "all"]:
             for group in success_batch_groups:
                 feedback_history = []
@@ -107,7 +102,7 @@ class ExpelTrainer(BaseTrainer):
                 print(f"Step : {global_step}")
                 retry_count = 0
                 global_step += 1
-                
+
                 score_report = {}
                 while retry_count < self.max_proposals_per_step:
                     retry_count += 1
@@ -118,72 +113,48 @@ class ExpelTrainer(BaseTrainer):
                         predictions=success_predictions,
                         eval_results=success_eval_results,
                         type="success",
-                        feedback_history=feedback_history
+                        feedback_history=feedback_history,
                     )
                     new_prompt = await self.apply_feedback(
-                        prompt=best_prompt,
-                        feedback=feedback,
-                        prompt_history=prompt_history
+                        prompt=best_prompt, feedback=feedback, prompt_history=prompt_history
                     )
-                    
+
                     group_trainset = [success_dataset[i] for i in group]
                     _, _, trainset_score = await self._evaluate_dataset(group_trainset, new_prompt)
                     if trainset_score.score != 1.0:
-                        print(f"Trial {retry_count} failed in batch : 1.0 -> {trainset_score.score}")
-                        score_report = {
-                            "step": global_step,
-                            "score": 0.0
-                        }
-                        feedback_history.append({
-                            "feedback": feedback,
-                            "score": 0.0
-                        })
-                        prompt_history.append({
-                            "prompt": new_prompt,
-                            "score": 0.0
-                        })
+                        print(
+                            f"Trial {retry_count} failed in batch : 1.0 -> {trainset_score.score}"
+                        )
+                        score_report = {"step": global_step, "score": 0.0}
+                        feedback_history.append({"feedback": feedback, "score": 0.0})
+                        prompt_history.append({"prompt": new_prompt, "score": 0.0})
                         continue
                     # validate on valset
                     _, _, valset_score = await self._evaluate_dataset(valset, new_prompt)
                     if valset_score.score == 1.0:
                         print(f"Trial {retry_count} succeeded in batch, 1.0")
-                        score_report = {
-                            "step": global_step,
-                            "score": valset_score.score
-                        }
-                        report.feedbacks.append({
-                            "type": "success group",
-                            "feedback": feedback
-                        })
+                        score_report = {"step": global_step, "score": valset_score.score}
+                        report.feedbacks.append({"type": "success group", "feedback": feedback})
                         report.scores.append(score_report)
                         return new_prompt, report
-                    
-                    score_report = {
-                        "step": global_step,
-                        "score": valset_score.score
-                    }
+
+                    score_report = {"step": global_step, "score": valset_score.score}
                     if valset_score.score > valset_best_score:
-                        print(f"Trial {retry_count} success, {valset_best_score} -> {valset_score.score}")
+                        print(
+                            f"Trial {retry_count} success, {valset_best_score} -> {valset_score.score}"
+                        )
                         best_prompt = new_prompt
                         valset_best_score = valset_score.score
                         break
-                    print(f"Trial {retry_count} failed, {valset_best_score} -> {valset_score.score}")
-                    
-                    feedback_history.append({
-                        "feedback": feedback,
-                        "score": valset_score.score
-                    })
-                    prompt_history.append({
-                        "prompt": new_prompt,
-                        "score": valset_score.score
-                    })
-                    
+                    print(
+                        f"Trial {retry_count} failed, {valset_best_score} -> {valset_score.score}"
+                    )
+
+                    feedback_history.append({"feedback": feedback, "score": valset_score.score})
+                    prompt_history.append({"prompt": new_prompt, "score": valset_score.score})
+
                 report.scores.append(score_report)
-                report.feedbacks.append({
-                    "type": "success group",
-                    "feedback": feedback
-                })
-                
+                report.feedbacks.append({"type": "success group", "feedback": feedback})
 
         if self.target_subgroup in ["failure", "all"]:
             for group in failure_batch_groups:
@@ -193,7 +164,7 @@ class ExpelTrainer(BaseTrainer):
                 score_report = {}
                 feedback_history = []
                 prompt_history = []
-                        
+
                 while retry_count < self.max_proposals_per_step:
                     feedback = await self.generate_feedback(
                         prompt=best_prompt,
@@ -202,79 +173,52 @@ class ExpelTrainer(BaseTrainer):
                         predictions=failure_predictions,
                         eval_results=failure_eval_results,
                         type="failure",
-                        feedback_history=feedback_history
+                        feedback_history=feedback_history,
                     )
 
                     retry_count += 1
                     new_prompt = await self.apply_feedback(
-                        prompt=best_prompt,
-                        feedback=feedback,
-                        prompt_history=prompt_history
+                        prompt=best_prompt, feedback=feedback, prompt_history=prompt_history
                     )
-                    new_prompt_messages = [
-                        json.dumps(message) for message in new_prompt.messages
-                    ]
+                    new_prompt_messages = [json.dumps(message) for message in new_prompt.messages]
                     new_prompt_messages_str = "\n".join(new_prompt_messages)
-                    
+
                     # validate on trainset batch
                     group_trainset = [failure_dataset[i] for i in group]
                     _, _, trainset_score = await self._evaluate_dataset(group_trainset, new_prompt)
                     if trainset_score.score == 0.0:
-                        score_report = {
-                            "step": global_step,
-                            "score": 0.0
-                        }
+                        score_report = {"step": global_step, "score": 0.0}
                         print(f"Trial {retry_count} failed in batch : 0.0 -> 0.0")
-                        feedback_history.append({
-                            "feedback": feedback,
-                            "score": 0.0
-                        })
-                        prompt_history.append({
-                            "prompt": new_prompt,
-                            "score": 0.0
-                        })
+                        feedback_history.append({"feedback": feedback, "score": 0.0})
+                        prompt_history.append({"prompt": new_prompt, "score": 0.0})
                         continue
                     # validate on valset
                     _, _, valset_score = await self._evaluate_dataset(valset, new_prompt)
                     if valset_score.score == 1.0:
                         print(f"Trial {retry_count} succeeded in batch, 1.0")
-                        score_report = {
-                            "step": global_step,
-                            "score": valset_score.score
-                        }
-                        report.feedbacks.append({
-                            "type": "failure group",
-                            "feedback": feedback
-                        })
+                        score_report = {"step": global_step, "score": valset_score.score}
+                        report.feedbacks.append({"type": "failure group", "feedback": feedback})
                         report.scores.append(score_report)
                         return new_prompt, report
-                    
-                    score_report = {
-                        "step": global_step,
-                        "score": valset_score.score
-                    }
+
+                    score_report = {"step": global_step, "score": valset_score.score}
                     if valset_score.score > valset_best_score:
-                        print(f"Trial {retry_count} success, {valset_best_score} -> {valset_score.score}")
+                        print(
+                            f"Trial {retry_count} success, {valset_best_score} -> {valset_score.score}"
+                        )
                         best_prompt = new_prompt
                         valset_best_score = valset_score.score
                         break
-                    
-                    print(f"Trial {retry_count} failed, {valset_best_score} -> {valset_score.score}")
-                    
-                    feedback_history.append({
-                        "feedback": feedback,
-                        "score": valset_score.score
-                    })
-                    prompt_history.append({
-                        "prompt": new_prompt,
-                        "score": valset_score.score
-                    })
-                    
+
+                    print(
+                        f"Trial {retry_count} failed, {valset_best_score} -> {valset_score.score}"
+                    )
+
+                    feedback_history.append({"feedback": feedback, "score": valset_score.score})
+                    prompt_history.append({"prompt": new_prompt, "score": valset_score.score})
+
                 report.scores.append(score_report)
-                report.feedbacks.append({
-                    "type": "failure group",
-                    "feedback": feedback
-                })
+                report.feedbacks.append({"type": "failure group", "feedback": feedback})
         return best_prompt, report
 
     # async def create_embedding_map(self, dataset: List[DatasetItem]) -> List[Dict[str, List[float]]]:
@@ -296,7 +240,7 @@ class ExpelTrainer(BaseTrainer):
     #     groups = []
     #     for key in dataset[0].inputs.keys():
     #         groups.append(self.group_by_similarity(dataset, embedding_map, key))
-    #     # make group as list 
+    #     # make group as list
     #     # Remove duplicates while preserving order
     #     # delete length 0 list
     #     groups = [group for group in groups if len(group) > 0]
@@ -307,8 +251,8 @@ class ExpelTrainer(BaseTrainer):
     #     return unique_groups
 
     # def group_by_similarity(
-    #     self, 
-    #     dataset: List[DatasetItem], 
+    #     self,
+    #     dataset: List[DatasetItem],
     #     embedding_map: List[Dict[str, List[float]]],
     #     key: str
     # ):
@@ -335,7 +279,7 @@ class ExpelTrainer(BaseTrainer):
     #         # Find connected components
     #         groups = [list(component) for component in nx.connected_components(G)]
     #         groups = [group for group in groups if len(group) > 1]
-            
+
     #         if len(groups) > 0:
     #             print("Find groups with threshold : ", similarity_threshold)
     #             return groups
@@ -344,7 +288,7 @@ class ExpelTrainer(BaseTrainer):
     #         similarity_threshold -= 0.05
 
     #     return []
-    
+
     async def generate_feedback(
         self,
         prompt: Prompt,
@@ -353,23 +297,21 @@ class ExpelTrainer(BaseTrainer):
         predictions: List[Any],
         eval_results: List[MetricResult],
         feedback_history: List[Dict[str, Any]],
-        type: Literal["success", "failure"]
+        type: Literal["success", "failure"],
     ) -> str:
         if type == "success":
             feedback_generator = self.success_feedback_generator
         else:
             feedback_generator = self.failure_feedback_generator
-            
-        prompt_messages = [
-            json.dumps(message) for message in prompt.messages
-        ]
+
+        prompt_messages = [json.dumps(message) for message in prompt.messages]
         prompt_messages_str = "\n".join(prompt_messages)
-        
+
         feedback_history_str = ""
         for history in feedback_history:
             feedback_history_str += f"Feedback : {history['feedback']}\n"
             feedback_history_str += f"Score : {history['score']}\n"
-        
+
         report = ""
         for index in data_indices:
             data = trainset[index]
@@ -389,12 +331,12 @@ class ExpelTrainer(BaseTrainer):
                     metric_description=self.metric_description,
                     base_prompt=prompt_messages_str,
                     report=report,
-                    feedback_history=feedback_history_str
+                    feedback_history=feedback_history_str,
                 )
-                
+
                 if not response.strip().startswith("{"):
                     response = "{" + response
-                
+
                 response_json = json.loads(response)
                 if response_json.get("feedback", None) is not None:
                     return response_json["feedback"]
@@ -402,26 +344,21 @@ class ExpelTrainer(BaseTrainer):
                     retry_count += 1
             except Exception as e:
                 retry_count += 1
-                
+
         raise Exception("Failed to generate feedback")
-    
+
     async def apply_feedback(
-        self,
-        prompt: Prompt,
-        feedback: str,
-        prompt_history: List[Dict[str, Any]]
-    ): 
+        self, prompt: Prompt, feedback: str, prompt_history: List[Dict[str, Any]]
+    ):
         retry_count = 0
-        prompt_messages = [
-            json.dumps(message) for message in prompt.messages
-        ]
+        prompt_messages = [json.dumps(message) for message in prompt.messages]
         prompt_messages_str = "\n".join(prompt_messages)
-        
+
         prompt_history_str = ""
         for history in prompt_history:
             prompt_history_str += f"Prompt : {json.dumps(history['prompt'].messages)}\n"
             prompt_history_str += f"Score : {history['score']}\n"
-        
+
         while retry_count < 3:
             try:
                 new_prompt_str = await self.feedback_applier(
@@ -432,42 +369,40 @@ class ExpelTrainer(BaseTrainer):
                 )
                 if not new_prompt_str.strip().startswith("```prompt"):
                     new_prompt_str = "```prompt\n" + new_prompt_str
-                
+
                 extracted_prompt = extract_prompt(new_prompt_str)
                 new_prompt_message = Prompt.load(extracted_prompt)
                 new_prompt = prompt.deepcopy()
                 new_prompt.messages = new_prompt_message.messages
-                
-                messages = [
-                    json.dumps(message) for message in new_prompt.messages
-                ]
+
+                messages = [json.dumps(message) for message in new_prompt.messages]
                 messages_str = "\n".join(messages)
                 if (
-                    new_prompt.response_format is not None 
-                    and new_prompt.response_format["type"] == "json_object" 
+                    new_prompt.response_format is not None
+                    and new_prompt.response_format["type"] == "json_object"
                     and "json" not in messages_str
                 ):
                     # add "json" to the messages
                     new_prompt = await reformat_prompt(new_prompt, new_prompt.response_format)
-                    
+
                 return new_prompt
             except Exception as e:
                 print(e)
                 retry_count += 1
-                
+
         raise Exception("Failed to apply feedback")
-    
+
     def divide_list(self, list_length: int, group_size: int) -> List[List[int]]:
         # Create a list of integers from 0 to list_length - 1
         full_list = list(range(list_length))
         # Shuffle the list randomly
         random.shuffle(full_list)
-        
+
         # Divide the list into groups of size 'group_size'
-        groups = [full_list[i:i+group_size] for i in range(0, list_length, group_size)]
-        
+        groups = [full_list[i : i + group_size] for i in range(0, list_length, group_size)]
+
         # Remove the last group if its size is 1
         if len(groups) > 0 and len(groups[-1]) == 1:
             groups.pop()
-        
+
         return groups

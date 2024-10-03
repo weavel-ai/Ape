@@ -43,11 +43,7 @@ class SemanticF1Metric(BaseMetric):
         self.semantic_recall = ApeMetricPrompts.get("semantic-recall")
         self.segmenter = Segmenter(language="en", clean=False, char_span=True)
 
-    async def compute(
-        self,
-        dataset_item: DatasetItem,
-        pred: str
-    ) -> MetricResult:
+    async def compute(self, dataset_item: DatasetItem, pred: str) -> MetricResult:
         """
         Compute the Semantic F1 score between the prediction and gold standard.
 
@@ -82,7 +78,7 @@ class SemanticF1Metric(BaseMetric):
 
         return MetricResult(
             score=f1_score,
-            metadata={
+            trace={
                 "precision": semantic_precision,
                 "recall": semantic_recall,
                 "prediction_statements": prediction_statements,

@@ -31,14 +31,14 @@ class BaseTrainer(ABC):
         self.dataset_summary = None
         
     @abstractmethod
-    async def fit(
+    async def train(
         self,
         prompt: Prompt,
         trainset: List[DatasetItem],
         valset: List[DatasetItem],
     ) -> Tuple[Prompt, BaseReport]:
         """
-        Train model
+        Train the prompt
 
         Args:
             prompt (Prompt): Prompt
@@ -51,7 +51,7 @@ class BaseTrainer(ABC):
         pass
 
     async def __call__(self, prompt: Prompt, trainset: List[DatasetItem], valset: List[DatasetItem]) -> Tuple[Prompt, BaseReport]:
-        return await self.train(prompt, trainset, valset)
+        return await self.train(prompt=prompt, trainset=trainset, valset=valset)
     
     async def _evaluate_dataset(
         self,
