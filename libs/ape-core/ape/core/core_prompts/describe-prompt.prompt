@@ -4,20 +4,32 @@ inputs:
     prompt: A prompt to describe
 outputs:
     description: A one-two sentence description of the prompt's task
+response_format:
+    type: json_schema
+    json_schema:
+        name: description
+        description: Description of the prompt's task
+        schema:
+            type: object
+            properties:
+                description:
+                    type: string
+            required:
+                - description
+            additionalProperties: false
+        strict: true
 ---
 <system>
-    You are an expert prompt engineer. Given a prompt, you will generate a one-two sentence description of the task the prompt is solving. Describe the task in a way that is clear and concise.
+You are an expert prompt engineer. Given a prompt, you will generate a one-two sentence description of the task the prompt is solving. Describe the task in a way that is clear and concise.
 
-    You must use the output format below (xml):
-    <outputs>
-        <output name="description">
-        [description]
-        </output>
-    </outputs>
+You must use the output format below in JSON format.
+{
+    "description": "A one-two sentence description of the prompt's task"
+}
 </system>
 <user>
-    Here is the prompt.
-    ```prompt
-    {prompt}
-    ```
+Here is the prompt.
+```prompt
+{prompt}
+```
 </user>

@@ -11,19 +11,27 @@ from ape.common.types import MetricResult
 
 class BaseGenerate(ABC):
     @abstractmethod
-    def generate(
+    async def generate(
         self,
         prompt: Prompt,
         inputs: Dict[str, Any] = {},
-        lm_config: Dict[str, Any] = {},
     ) -> Union[str, Dict[str, Any], Awaitable[Union[str, Dict[str, Any]]]]:
+        """
+        Generate a response from the model. This method can be implemented as either synchronous or asynchronous.
+
+        Args:
+            prompt (Prompt): The prompt to generate a response for.
+            inputs (Dict[str, Any], optional): The inputs to the prompt. Defaults to {}.
+
+        Returns:
+            Union[str, Dict[str, Any], Awaitable[Union[str, Dict[str, Any]]]]: The generated response.
+        """
         pass
 
     async def __call__(
         self,
         prompt: Prompt,
         inputs: Dict[str, Any] = {},
-        lm_config: Dict[str, Any] = {},
     ) -> Union[str, Dict[str, Any], Awaitable[Union[str, Dict[str, Any]]]]:
         """
         Unified method to compute the metric, handling both sync and async implementations.

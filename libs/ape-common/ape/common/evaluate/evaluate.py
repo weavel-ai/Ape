@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 from ape.common.metric import BaseMetric
 from ape.common.global_metric import BaseGlobalMetric, AverageGlobalMetric
-from ape.common.types import EvaluationResult, GlobalMetricResult
+from ape.common.types import MetricResult, GlobalMetricResult
 from ape.common.types.dataset_item import DatasetItem
 from ape.common.utils import logger
 from ape.common.prompt import Prompt
@@ -75,12 +75,16 @@ class Evaluate:
         global_metric: Optional[BaseGlobalMetric] = None,
         testset: Optional[List[DatasetItem]] = None,
         **kwargs,
-    ) -> Union[float, Tuple[float, List[EvaluationResult]], Tuple[float, List[float]]]:
+    ) -> Union[float, Tuple[float, List[MetricResult]], Tuple[float, List[float]]]:
         config = self._update_config(metric, global_metric, testset, **kwargs)
         self.total_score = 0
-        results: List[EvaluationResult] = await self._process_testset(prompt, config)
-        global_result = await self._compute_global_metric(results, config)
-        return self._prepare_output(results, global_result, config)
+        results: List[Tuple[Union[str, Dict[str, Any]], MetricResult]] = (
+            await self._process_testset(prompt, config)
+        )
+        predictions = [result[0] for result in results]
+        eval_results = [result[1] for result in results]
+        global_result = await self._compute_global_metric(eval_results, config)
+        return self._prepare_output(predictions, eval_results, global_result, config)
 
     def _update_config(
         self,
@@ -100,28 +104,23 @@ class Evaluate:
 
     async def _process_testset(
         self, prompt: Prompt, config: EvaluationConfig
-    ) -> List[EvaluationResult]:
-        async def process_item(example: DatasetItem) -> EvaluationResult:
+    ) -> List[Tuple[Union[str, Dict[str, Any]], MetricResult]]:
+        async def process_item(
+            example: DatasetItem,
+        ) -> Tuple[Union[str, Dict[str, Any]], MetricResult]:
             try:
-                inputs = example.get("inputs", {})
-                outputs = example.get("outputs", {})
+                inputs = example["inputs"]
 
                 prediction = await prompt(**inputs)
                 if not prediction:
                     raise ValueError("Prediction is None")
                 result = await config.metric(
-                    inputs=inputs, gold=outputs, pred=prediction, trace=None
+                    dataset_item=example, pred=prediction
                 )
-                result = EvaluationResult(
-                    example=example,
-                    prediction=prediction,
-                    score=result.score,
-                    intermediate_values=result.intermediate_values,
-                )
-                return result
+                return prediction, result
             except Exception as e:
                 self._handle_error(e, config)
-                return EvaluationResult(example=example, prediction={}, score=0.0)
+                return "", MetricResult(score=0.0)
 
         with tqdm.tqdm(
             total=len(config.testset),
@@ -134,13 +133,15 @@ class Evaluate:
                 self._bounded_process_item(process_item, item, pbar, config)
                 for item in config.testset
             ]
-            results: List[EvaluationResult] = await asyncio.gather(*tasks)
+            results: List[Tuple[Union[str, Dict[str, Any]], MetricResult]] = await asyncio.gather(
+                *tasks
+            )
             return results
 
     async def _bounded_process_item(self, process_func, item, pbar, config):
         async with asyncio.Semaphore(config.batch_size):
             result = await process_func(item)
-            self._update_progress(pbar, result.score)
+            self._update_progress(pbar, result[1].score)
             return result
 
     def _update_progress(self, pbar, score: float):
@@ -157,29 +158,30 @@ class Evaluate:
         logger.error(f"Error processing example: {error}")
 
     async def _compute_global_metric(
-        self, results: List[EvaluationResult], config: EvaluationConfig
+        self, results: List[MetricResult], config: EvaluationConfig
     ) -> GlobalMetricResult:
         return await config.global_metric(results)
 
     def _prepare_output(
         self,
-        results: List[EvaluationResult],
+        predictions: List[Union[str, Dict[str, Any]]],
+        results: List[MetricResult],
         global_result: GlobalMetricResult,
         config: EvaluationConfig,
     ) -> Union[
-        Tuple[float, List[EvaluationResult], Optional[Dict[str, Any]]],
+        Tuple[float, List[MetricResult], Optional[Dict[str, Any]]],
         Tuple[float, Optional[Dict[str, Any]]],
-        Tuple[float, List[EvaluationResult]],
+        Tuple[float, List[MetricResult]],
         Tuple[float, List[float]],
         float,
     ]:
         if config.display_table:
-            self._display_results_table(results, config)
+            self._display_results_table(predictions, results, config)
 
         if config.return_outputs and config.return_global_metric_metadata:
-            return global_result.score, results, global_result.metadata
+            return global_result.score, results, global_result.trace
         elif config.return_global_metric_metadata:
-            return global_result.score, global_result.metadata
+            return global_result.score, global_result.trace
         elif config.return_outputs:
             return global_result.score, results
         elif config.return_all_scores:
@@ -189,15 +191,20 @@ class Evaluate:
         else:
             return global_result.score
 
-    def _display_results_table(self, results: List[EvaluationResult], config: EvaluationConfig):
+    def _display_results_table(
+        self,
+        predictions: List[Union[str, Dict[str, Any]]],
+        results: List[MetricResult],
+        config: EvaluationConfig,
+    ):
         df = pd.DataFrame(
             [
                 merge_dicts(
-                    r.example if isinstance(r.example, dict) else {"example": r.example},
-                    {"prediction": r.prediction, "correct": r.score}
-                    | (r.prediction if isinstance(r.prediction, dict) else {}),
+                    {"example": dataset_item},
+                    {"prediction": pred, "correct": result.score}
+                    | (pred if isinstance(result.prediction, dict) else {}),
                 )
-                for r in results
+                for dataset_item, pred, result in zip(config.testset, predictions, results)
             ]
         )
         df = df.map(truncate_cell) if hasattr(df, "map") else df.applymap(truncate_cell)

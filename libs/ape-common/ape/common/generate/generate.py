@@ -7,6 +7,6 @@ from ape.common.prompt.prompt_base import Prompt
 
 class Generate(BaseGenerate):
     async def generate(
-        self, prompt: Prompt, inputs: Dict[str, Any] = {}, lm_config: Dict[str, Any] = {}
+        self, prompt: Prompt, inputs: Dict[str, Any] = {}
     ) -> Union[str, Dict[str, Any], Type[BaseModel]]:
-        return await prompt(**inputs, lm_config=lm_config)
+        return await prompt(**inputs)

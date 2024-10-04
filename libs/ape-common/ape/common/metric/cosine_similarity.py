@@ -2,7 +2,7 @@ from typing import Any, Dict, Optional
 import numpy as np
 from litellm import aembedding
 from ape.common.metric import BaseMetric
-from ape.common.types import MetricResult
+from ape.common.types import MetricResult, DatasetItem
 
 
 class CosineSimilarityMetric(BaseMetric):
@@ -11,13 +11,11 @@ class CosineSimilarityMetric(BaseMetric):
 
     async def compute(
         self,
-        inputs: Dict[str, Any],
-        gold: Any,
+        dataset_item: DatasetItem,
         pred: Any,
-        trace: Optional[Dict] = None,
-        metadata: Optional[Dict] = None,
     ) -> MetricResult:
         try:
+            gold = dataset_item["outputs"]
             if not isinstance(gold, str):
                 gold = str(gold)
             if not isinstance(pred, str):
@@ -46,4 +44,4 @@ class CosineSimilarityMetric(BaseMetric):
                 score=score,
             )
         except Exception as e:
-            return MetricResult(score=0.0, intermediate_values={"error": str(e)})
+            return MetricResult(score=0.0)

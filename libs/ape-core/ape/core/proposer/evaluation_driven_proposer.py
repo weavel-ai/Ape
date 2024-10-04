@@ -9,7 +9,7 @@ from ape.common.prompt import Prompt
 from ape.common.types import (
     ResponseFormat,
     DatasetItem,
-    EvaluationResult,
+    MetricResult,
 )
 from ape.common.utils import logger
 
@@ -136,7 +136,7 @@ class EvaluationDrivenProposer(Proposer):
         index: int,
         base_prompt: Prompt,
         # evaluation_score: str,
-        evaluation_result: List[EvaluationResult],
+        evaluation_result: str,
         T: float,
         response_format: Optional[ResponseFormat] = None,
         metric: Optional[str] = None,
@@ -149,7 +149,7 @@ class EvaluationDrivenProposer(Proposer):
         Args:
             base_prompt (Prompt): The base prompt.
             evaluation_score (str): The score of the base prompt.
-            evaluation_result (List[EvaluationResult]): The result of evaluating the base prompt.
+            evaluation_result (str): The result of evaluating the base prompt.
             T (float): Temperature for generation.
             response_format (Optional[ResponseFormat], optional): Format for the response.
             metric (Optional[str], optional): Metric used for evaluation.
@@ -192,16 +192,15 @@ class EvaluationDrivenProposer(Proposer):
             extracted_prompt = extract_prompt(new_instruction_text)
 
             # Create a new Prompt object with the generated instruction
-            new_prompt = Prompt.load(extracted_prompt)
-            if not new_prompt.messages:
+            new_prompt_message = Prompt.load(extracted_prompt)
+            if not new_prompt_message.messages:
                 raise ValueError("Generated prompt has no messages")
-            new_prompt.model = base_prompt.model
-            new_prompt.response_format = response_format
-            new_prompt.name = "InstructNew"
+            new_prompt = base_prompt.deepcopy()
+            new_prompt.messages = new_prompt_message.messages
 
         except Exception as e:
             logger.error(f"Error generating new instruction (attempt {retry_count + 1}): {e}")
-            if retry_count < 2:  # 최대 3번 시도 (0, 1, 2)
+            if retry_count < 2:
                 return await self.generate_new_instruction(
                     index=index,
                     base_prompt=base_prompt,

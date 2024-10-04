@@ -113,7 +113,7 @@ class MIPRO(MIPROBase):
         max_steps: int = 30,
         max_bootstrapped_demos: int = 5,
         max_labeled_demos: int = 2,
-        goal_score: float = 100,
+        goal_score: float = 1.0,
         eval_kwargs: Optional[Dict[str, Any]] = None,
         seed: int = 9,
         minibatch: bool = True,

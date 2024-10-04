@@ -1,4 +1,5 @@
 from collections import defaultdict
+import json
 import os
 import pickle
 import random
@@ -445,21 +446,33 @@ class MIPROInstruct(MIPROBase):
 
             max_retries = 3
             retry_count = 0
+            
+            student_prompt_messages = [json.dumps(message) for message in student.messages]
+            student_prompt_messages_str = "\n".join(student_prompt_messages)
+            score_based_candidate_prompt_messages = [json.dumps(message) for message in score_based_candidate_prompt]
+            score_based_candidate_prompt_messages_str = "\n".join(score_based_candidate_prompt_messages)
+            format_based_candidate_prompt_messages = [json.dumps(message) for message in format_based_candidate_prompt]
+            format_based_candidate_prompt_messages_str = "\n".join(format_based_candidate_prompt_messages)
 
             while retry_count < max_retries:
                 try:
                     merged_candidate_prompt_text = run_async(
                         self.merge_prompts(
                             **{
-                                "basic_prompt": student.messages,
-                                "instruction_improved_prompt": score_based_candidate_prompt,
-                                "format_improved_prompt": format_based_candidate_prompt,
+                                "basic_prompt": student_prompt_messages_str,
+                                "instruction_improved_prompt": score_based_candidate_prompt_messages_str,
+                                "format_improved_prompt": format_based_candidate_prompt_messages_str,
                             }
                         )
                     )
+                    if not merged_candidate_prompt_text.startswith("```prompt"):
+                        merged_candidate_prompt_text = "```prompt\n" + merged_candidate_prompt_text
 
-                    merged_candidate_prompt = extract_prompt(merged_candidate_prompt_text)
-                    merged_candidate_prompt = Prompt.load(merged_candidate_prompt)
+                    merged_candidate_prompt_message = extract_prompt(merged_candidate_prompt_text)
+                    merged_candidate_prompt_message = Prompt.load(merged_candidate_prompt_message)
+                    merged_candidate_prompt = student.deepcopy()
+                    merged_candidate_prompt.messages = merged_candidate_prompt_message.messages
+                    
                     break
                 except Exception as e:
                     retry_count += 1
