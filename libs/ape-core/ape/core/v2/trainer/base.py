@@ -53,7 +53,7 @@ class BaseTrainer(ABC):
     async def __call__(self, prompt: Prompt, trainset: List[DatasetItem], valset: List[DatasetItem]) -> Tuple[Prompt, BaseReport]:
         return await self.train(prompt=prompt, trainset=trainset, valset=valset)
     
-    async def _evaluate_dataset(
+    async def _evaluate(
         self,
         dataset: List[DatasetItem],
         prompt: Prompt

@@ -200,7 +200,7 @@ class EvaluationDrivenProposer(Proposer):
 
         except Exception as e:
             logger.error(f"Error generating new instruction (attempt {retry_count + 1}): {e}")
-            if retry_count < 2:  # 최대 3번 시도 (0, 1, 2)
+            if retry_count < 2:
                 return await self.generate_new_instruction(
                     index=index,
                     base_prompt=base_prompt,

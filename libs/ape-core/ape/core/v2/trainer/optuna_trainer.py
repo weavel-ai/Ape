@@ -99,7 +99,7 @@ class OptunaTrainer(BaseTrainer):
             )
 
         # Initialize evaluation on validation set
-        preds, eval_results, initial_score = await self._evaluate_dataset(valset, prompt)
+        preds, eval_results, initial_score = await self._evaluate(valset, prompt)
         report.best_score = initial_score
         report.trial_logs = []
 
@@ -198,7 +198,7 @@ class OptunaTrainer(BaseTrainer):
             # Evaluate the candidate prompt on the validation set
             try:
                 preds, eval_results, score = run_async(
-                    self._evaluate_dataset(
+                    self._evaluate(
                         random.sample(valset, min(self.minibatch_size, len(valset))),
                         candidate_prompt,
                     )

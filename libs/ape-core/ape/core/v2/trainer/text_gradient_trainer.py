@@ -79,7 +79,7 @@ class TextGradientTrainer(BaseTrainer):
         prompt_history_queue = deque(maxlen=4)
 
         ## Step 8: Compute valset_score
-        # valset_score = await self._evaluate_dataset(valset, best_prompt)
+        # valset_score = await self._evaluate(valset, best_prompt)
 
         _, best_evalset_results, best_evalset_score = await self._evaluate_validation_set(
             best_prompt, trainset, valset
@@ -93,7 +93,7 @@ class TextGradientTrainer(BaseTrainer):
 
             # Step 3: Run generator in parallel for the current batch
             best_batch_preds, best_batch_eval_results, best_batch_score = (
-                await self._evaluate_dataset(batch, best_prompt)
+                await self._evaluate(batch, best_prompt)
             )
 
             # Step 6: Store (output, eval_result) in evalset_result
@@ -155,7 +155,7 @@ class TextGradientTrainer(BaseTrainer):
 
                     # Evaluate new_prompt on the current batch
                     new_batch_preds, new_batch_eval_results, new_batch_score = (
-                        await self._evaluate_dataset(batch, new_prompt)
+                        await self._evaluate(batch, new_prompt)
                     )
 
                     new_batch_results = []
@@ -246,7 +246,7 @@ class TextGradientTrainer(BaseTrainer):
             report.scores.append({"step": len(report.scores), "score": best_evalset_score.score})
             if best_evalset_score.score == 1.0:
                 if self.validation_type == "trainset":
-                    _, _, valset_score = await self._evaluate_dataset(valset, best_prompt)
+                    _, _, valset_score = await self._evaluate(valset, best_prompt)
                     if valset_score.score == 1.0:
                         print("Validation Set Score reached 1.0")
                         return best_prompt, report
@@ -427,4 +427,4 @@ class TextGradientTrainer(BaseTrainer):
             Tuple[List[Any], List[MetricResult], GlobalMetricResult]: Predictions, metric results, and global score.
         """
         validation_dataset = self._get_validation_dataset(trainset, valset)
-        return await self._evaluate_dataset(validation_dataset, prompt)
+        return await self._evaluate(validation_dataset, prompt)

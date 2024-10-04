@@ -45,7 +45,7 @@ class FewShotTrainer(BaseTrainer):
         best_score = float("-inf")
         best_fewshot = []
 
-        preds, eval_results, global_result = await self._evaluate_dataset(trainset, prompt)
+        preds, eval_results, global_result = await self._evaluate(trainset, prompt)
 
         async def run_iteration(step: int, preds, eval_results):
             max_bootstrapped = random.randint(1, self.max_bootstrapped_demos)
@@ -59,7 +59,7 @@ class FewShotTrainer(BaseTrainer):
             temp_prompt = copy.deepcopy(prompt)
             temp_prompt.fewshot = samples
 
-            _, eval_results, global_score = await self._evaluate_dataset(
+            _, eval_results, global_score = await self._evaluate(
                 validation_set, temp_prompt
             )
 

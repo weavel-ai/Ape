@@ -53,7 +53,7 @@ class ExpelTrainer(BaseTrainer):
         failure_predictions = []
         success_eval_results = []
         failure_eval_results = []
-        predictions, eval_results, _ = await self._evaluate_dataset(dataset=trainset, prompt=prompt)
+        predictions, eval_results, _ = await self._evaluate(dataset=trainset, prompt=prompt)
         for data, pred, eval_result in zip(trainset, predictions, eval_results):
             if eval_result.score == 1.0:
                 success_dataset.append(data)
@@ -92,7 +92,7 @@ class ExpelTrainer(BaseTrainer):
 
         best_prompt = prompt
         global_step = 0
-        _, _, valset_best_score = await self._evaluate_dataset(valset, best_prompt)
+        _, _, valset_best_score = await self._evaluate(valset, best_prompt)
         valset_best_score = valset_best_score.score
 
         if self.target_subgroup in ["success", "all"]:
@@ -120,7 +120,7 @@ class ExpelTrainer(BaseTrainer):
                     )
 
                     group_trainset = [success_dataset[i] for i in group]
-                    _, _, trainset_score = await self._evaluate_dataset(group_trainset, new_prompt)
+                    _, _, trainset_score = await self._evaluate(group_trainset, new_prompt)
                     if trainset_score.score != 1.0:
                         print(
                             f"Trial {retry_count} failed in batch : 1.0 -> {trainset_score.score}"
@@ -130,7 +130,7 @@ class ExpelTrainer(BaseTrainer):
                         prompt_history.append({"prompt": new_prompt, "score": 0.0})
                         continue
                     # validate on valset
-                    _, _, valset_score = await self._evaluate_dataset(valset, new_prompt)
+                    _, _, valset_score = await self._evaluate(valset, new_prompt)
                     if valset_score.score == 1.0:
                         print(f"Trial {retry_count} succeeded in batch, 1.0")
                         score_report = {"step": global_step, "score": valset_score.score}
@@ -185,7 +185,7 @@ class ExpelTrainer(BaseTrainer):
 
                     # validate on trainset batch
                     group_trainset = [failure_dataset[i] for i in group]
-                    _, _, trainset_score = await self._evaluate_dataset(group_trainset, new_prompt)
+                    _, _, trainset_score = await self._evaluate(group_trainset, new_prompt)
                     if trainset_score.score == 0.0:
                         score_report = {"step": global_step, "score": 0.0}
                         print(f"Trial {retry_count} failed in batch : 0.0 -> 0.0")
@@ -193,7 +193,7 @@ class ExpelTrainer(BaseTrainer):
                         prompt_history.append({"prompt": new_prompt, "score": 0.0})
                         continue
                     # validate on valset
-                    _, _, valset_score = await self._evaluate_dataset(valset, new_prompt)
+                    _, _, valset_score = await self._evaluate(valset, new_prompt)
                     if valset_score.score == 1.0:
                         print(f"Trial {retry_count} succeeded in batch, 1.0")
                         score_report = {"step": global_step, "score": valset_score.score}
