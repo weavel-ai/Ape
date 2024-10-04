@@ -104,15 +104,15 @@ class EvaluationDrivenProposer(Proposer):
             await self.prepare_dataset_summary()
 
         # This is the part where we evaluate the base prompt.
-        base_evaluation_score, base_evaluation_result, global_metric_metadata = await evaluate(
-            base_prompt, return_outputs=True, return_global_metric_metadata=True
+        preds, eval_results, global_result = await evaluate(
+            base_prompt, return_only_score=False
         )
 
         evaluation_result = (
             "final score : "
-            + str(base_evaluation_score)
+            + str(global_result.score)
             + "\nmetadata : "
-            + str(global_metric_metadata)
+            + str(global_result.trace)
         )
         _tasks = [
             self.generate_new_instruction(

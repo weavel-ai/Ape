@@ -92,8 +92,8 @@ class ExpelTrainer(BaseTrainer):
 
         best_prompt = prompt
         global_step = 0
-        _, _, valset_best_score = await self._evaluate(valset, best_prompt)
-        valset_best_score = valset_best_score.score
+        _, _, valset_global_result = await self._evaluate(valset, best_prompt)
+        valset_best_score = valset_global_result.score
 
         if self.target_subgroup in ["success", "all"]:
             for group in success_batch_groups:
@@ -120,38 +120,38 @@ class ExpelTrainer(BaseTrainer):
                     )
 
                     group_trainset = [success_dataset[i] for i in group]
-                    _, _, trainset_score = await self._evaluate(group_trainset, new_prompt)
-                    if trainset_score.score != 1.0:
+                    _, _, trainset_global_result = await self._evaluate(group_trainset, new_prompt)
+                    if trainset_global_result.score != 1.0:
                         print(
-                            f"Trial {retry_count} failed in batch : 1.0 -> {trainset_score.score}"
+                            f"Trial {retry_count} failed in batch : 1.0 -> {trainset_global_result.score}"
                         )
                         score_report = {"step": global_step, "score": 0.0}
                         feedback_history.append({"feedback": feedback, "score": 0.0})
                         prompt_history.append({"prompt": new_prompt, "score": 0.0})
                         continue
                     # validate on valset
-                    _, _, valset_score = await self._evaluate(valset, new_prompt)
-                    if valset_score.score == 1.0:
+                    _, _, valset_global_result = await self._evaluate(valset, new_prompt)
+                    if valset_global_result.score == 1.0:
                         print(f"Trial {retry_count} succeeded in batch, 1.0")
-                        score_report = {"step": global_step, "score": valset_score.score}
+                        score_report = {"step": global_step, "score": valset_global_result.score}
                         report.feedbacks.append({"type": "success group", "feedback": feedback})
                         report.scores.append(score_report)
                         return new_prompt, report
 
-                    score_report = {"step": global_step, "score": valset_score.score}
-                    if valset_score.score > valset_best_score:
+                    score_report = {"step": global_step, "score": valset_global_result.score}
+                    if valset_global_result.score > valset_best_score:
                         print(
-                            f"Trial {retry_count} success, {valset_best_score} -> {valset_score.score}"
+                            f"Trial {retry_count} success, {valset_best_score} -> {valset_global_result.score}"
                         )
                         best_prompt = new_prompt
-                        valset_best_score = valset_score.score
+                        valset_best_score = valset_global_result.score
                         break
                     print(
-                        f"Trial {retry_count} failed, {valset_best_score} -> {valset_score.score}"
+                        f"Trial {retry_count} failed, {valset_best_score} -> {valset_global_result.score}"
                     )
 
-                    feedback_history.append({"feedback": feedback, "score": valset_score.score})
-                    prompt_history.append({"prompt": new_prompt, "score": valset_score.score})
+                    feedback_history.append({"feedback": feedback, "score": valset_global_result.score})
+                    prompt_history.append({"prompt": new_prompt, "score": valset_global_result.score})
 
                 report.scores.append(score_report)
                 report.feedbacks.append({"type": "success group", "feedback": feedback})
@@ -185,37 +185,37 @@ class ExpelTrainer(BaseTrainer):
 
                     # validate on trainset batch
                     group_trainset = [failure_dataset[i] for i in group]
-                    _, _, trainset_score = await self._evaluate(group_trainset, new_prompt)
-                    if trainset_score.score == 0.0:
+                    _, _, trainset_global_result = await self._evaluate(group_trainset, new_prompt)
+                    if trainset_global_result.score == 0.0:
                         score_report = {"step": global_step, "score": 0.0}
                         print(f"Trial {retry_count} failed in batch : 0.0 -> 0.0")
                         feedback_history.append({"feedback": feedback, "score": 0.0})
                         prompt_history.append({"prompt": new_prompt, "score": 0.0})
-                        continue
+                        continue        
                     # validate on valset
-                    _, _, valset_score = await self._evaluate(valset, new_prompt)
-                    if valset_score.score == 1.0:
+                    _, _, valset_global_result = await self._evaluate(valset, new_prompt)
+                    if valset_global_result.score == 1.0:
                         print(f"Trial {retry_count} succeeded in batch, 1.0")
-                        score_report = {"step": global_step, "score": valset_score.score}
+                        score_report = {"step": global_step, "score": valset_global_result.score}
                         report.feedbacks.append({"type": "failure group", "feedback": feedback})
                         report.scores.append(score_report)
                         return new_prompt, report
 
-                    score_report = {"step": global_step, "score": valset_score.score}
-                    if valset_score.score > valset_best_score:
+                    score_report = {"step": global_step, "score": valset_global_result.score}
+                    if valset_global_result.score > valset_best_score:
                         print(
-                            f"Trial {retry_count} success, {valset_best_score} -> {valset_score.score}"
+                            f"Trial {retry_count} success, {valset_best_score} -> {valset_global_result.score}"
                         )
                         best_prompt = new_prompt
-                        valset_best_score = valset_score.score
+                        valset_best_score = valset_global_result.score
                         break
 
                     print(
-                        f"Trial {retry_count} failed, {valset_best_score} -> {valset_score.score}"
+                        f"Trial {retry_count} failed, {valset_best_score} -> {valset_global_result.score}"
                     )
 
-                    feedback_history.append({"feedback": feedback, "score": valset_score.score})
-                    prompt_history.append({"prompt": new_prompt, "score": valset_score.score})
+                    feedback_history.append({"feedback": feedback, "score": valset_global_result.score})
+                    prompt_history.append({"prompt": new_prompt, "score": valset_global_result.score})
 
                 report.scores.append(score_report)
                 report.feedbacks.append({"type": "failure group", "feedback": feedback})

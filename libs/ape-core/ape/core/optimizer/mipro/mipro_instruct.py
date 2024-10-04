@@ -240,6 +240,7 @@ class MIPROInstruct(MIPROBase):
 
         evaluate: Evaluate = Evaluate(
             testset=testset,
+            generate=self.generate,
             metric=self.metric,
             global_metric=self.global_metric,
             **eval_kwargs,
@@ -329,11 +330,19 @@ class MIPROInstruct(MIPROBase):
         )
 
         trainset_evaluate: Evaluate = Evaluate(
-            testset=trainset, metric=self.metric, global_metric=self.global_metric, **eval_kwargs
+            testset=trainset,
+            generate=self.generate,
+            metric=self.metric, 
+            global_metric=self.global_metric, 
+            **eval_kwargs
         )
 
         testset_evaluate: Evaluate = Evaluate(
-            testset=testset, metric=self.metric, global_metric=self.global_metric, **eval_kwargs
+            testset=testset, 
+            generate=self.generate, 
+            metric=self.metric, 
+            global_metric=self.global_metric, 
+            **eval_kwargs
         )
 
         logger.info("Start Find Best Fewshot")
