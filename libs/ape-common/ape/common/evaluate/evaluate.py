@@ -110,13 +110,12 @@ class Evaluate:
         ) -> Tuple[Union[str, Dict[str, Any]], MetricResult]:
             try:
                 inputs = example["inputs"]
-                outputs = example["outputs"]
 
                 prediction = await prompt(**inputs)
                 if not prediction:
                     raise ValueError("Prediction is None")
                 result = await config.metric(
-                    inputs=inputs, gold=outputs, pred=prediction, trace=None
+                    dataset_item=example, pred=prediction
                 )
                 return prediction, result
             except Exception as e:
@@ -142,7 +141,7 @@ class Evaluate:
     async def _bounded_process_item(self, process_func, item, pbar, config):
         async with asyncio.Semaphore(config.batch_size):
             result = await process_func(item)
-            self._update_progress(pbar, result.score)
+            self._update_progress(pbar, result[1].score)
             return result
 
     def _update_progress(self, pbar, score: float):

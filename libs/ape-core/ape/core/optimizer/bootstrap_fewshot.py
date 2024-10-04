@@ -168,7 +168,6 @@ class BootstrapFewShot(Optimizer):
             teacher.fewshot = [x for x in teacher.fewshot if x != example]
             teacher.temperature = temperature
             inputs = example.get("inputs", {})
-            outputs = example.get("outputs", {})
             
             prediction: Union[str, Dict[str, Any]] = await self.generate(
                 teacher,
@@ -177,7 +176,7 @@ class BootstrapFewShot(Optimizer):
             teacher.fewshot = cache
 
             if self.metric is not None:
-                metric_val = await self.metric(inputs=inputs, gold=outputs, pred=prediction)
+                metric_val = await self.metric(dataset_item=example, pred=prediction)
                 if self.metric_threshold:
                     success = metric_val.score >= self.metric_threshold
                 else:
