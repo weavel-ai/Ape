@@ -99,14 +99,14 @@ class OptunaTrainer(BaseTrainer):
             )
 
         # Initialize evaluation on validation set
-        preds, eval_results, initial_score = await self._evaluate(valset, prompt)
-        report.best_score = initial_score
+        preds, eval_results, global_result = await self._evaluate(valset, prompt)
+        report.best_score = global_result
         report.trial_logs = []
 
         # Generate candidate prompts
         eval_based_candidates = await self.generate_prompt_candidates_by_eval_result(
             base_prompt=prompt,
-            evaluation_result=(preds, eval_results, initial_score),
+            evaluation_result=(preds, eval_results, global_result),
         )
 
         prompt_engineering_based_candidates = (
@@ -117,7 +117,7 @@ class OptunaTrainer(BaseTrainer):
             )
         )
 
-        best_score = initial_score.score
+        best_score = global_result.score
         best_prompt = prompt.deepcopy()
 
         # Initialize trial_logs and total_eval_calls
@@ -197,13 +197,13 @@ class OptunaTrainer(BaseTrainer):
 
             # Evaluate the candidate prompt on the validation set
             try:
-                preds, eval_results, score = run_async(
+                preds, eval_results, global_result = run_async(
                     self._evaluate(
                         random.sample(valset, min(self.minibatch_size, len(valset))),
                         candidate_prompt,
                     )
                 )
-                score = score.score
+                score = global_result.score
             except Exception as e:
                 # If evaluation fails, assign a very low score
                 trial_logs[trial.number]["evaluation_error"] = str(e)

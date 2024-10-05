@@ -147,7 +147,11 @@ class MIPRO(MIPROBase):
         response_format = student.response_format
 
         evaluate: Evaluate = self.evaluate or Evaluate(
-            testset=testset, metric=self.metric, global_metric=self.global_metric, **eval_kwargs
+            testset=testset, 
+            generate=self.generate,
+            metric=self.metric, 
+            global_metric=self.global_metric, 
+            **eval_kwargs
         )
 
         max_bootstrapped_demos_for_candidate_gen: int = (

@@ -236,16 +236,16 @@ async def eval_candidate_prompt(
     try:
         # Evaluate on the full trainset
         if batch_size >= len(trainset):
-            score = await evaluate(candidate_prompt, testset=trainset, display_table=0)
+            score = await evaluate(
+                candidate_prompt,
+                testset=trainset,
+            )
         # Or evaluate on a minibatch
         else:
             score = await evaluate(
                 candidate_prompt,
                 testset=create_minibatch(trainset, batch_size),
-                display_table=0,
             )
-        if isinstance(score, tuple):
-            score = score[0]
 
         return score
     except Exception as exc:

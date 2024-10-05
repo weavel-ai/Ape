@@ -59,15 +59,15 @@ class FewShotTrainer(BaseTrainer):
             temp_prompt = copy.deepcopy(prompt)
             temp_prompt.fewshot = samples
 
-            _, eval_results, global_score = await self._evaluate(
+            _, _, global_result = await self._evaluate(
                 validation_set, temp_prompt
             )
 
-            report.scores.append({"step": step, "score": global_score.score})
+            report.scores.append({"step": step, "score": global_result.score})
             report.choices.append({"step": step, "indices": indices})
 
-            print(f"Step {step} completed. Score: {global_score.score}")
-            return global_score.score, samples
+            print(f"Step {step} completed. Score: {global_result.score}")
+            return global_result.score, samples
 
         results = await asyncio.gather(*[run_iteration(i, preds, eval_results) for i in range(10)])
 

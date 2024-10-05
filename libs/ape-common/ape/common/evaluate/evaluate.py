@@ -4,13 +4,13 @@ import asyncio
 import pandas as pd
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+from ape.common.generate import BaseGenerate, Generate
 from ape.common.metric import BaseMetric
 from ape.common.global_metric import BaseGlobalMetric, AverageGlobalMetric
 from ape.common.types import MetricResult, GlobalMetricResult
 from ape.common.types.dataset_item import DatasetItem
 from ape.common.utils import logger
 from ape.common.prompt import Prompt
-from .eval_config import EvaluationConfig
 
 try:
     from IPython.display import HTML
@@ -27,83 +27,81 @@ from concurrent.futures import ThreadPoolExecutor
 
 # TODO: Counting failures and having a max_failure count. When that is exceeded (also just at the end),
 # we print the number of failures, the first N examples that failed, and the first N exceptions raised.
-class AsyncExecutor:
-    def __init__(self, max_workers):
-        self.executor = ThreadPoolExecutor(max_workers=max_workers)
-        self.loop = asyncio.get_event_loop()
-
-    async def run_in_executor(self, func, *args):
-        return await self.loop.run_in_executor(self.executor, func, *args)
-
-    def shutdown(self):
-        self.executor.shutdown()
-
 
 class Evaluate:
     def __init__(
         self,
         testset: List[DatasetItem],
         metric: BaseMetric,
+        generate: Optional[BaseGenerate] = None,
         global_metric: Optional[BaseGlobalMetric] = None,
-        display_progress: bool = False,
-        display_table: Union[bool, int] = False,
-        max_errors: int = 15,
-        return_outputs: bool = False,
-        return_global_metric_metadata: Optional[bool] = False,
-        batch_size: int = 50,
+        display_progress: Optional[bool] = False,
+        display_table: Optional[Union[bool, int]] = False,
+        max_errors: Optional[int] = 15,
+        batch_size: Optional[int] = 100,
+        return_only_score: Optional[bool] = True,
         **kwargs,
     ):
-        self.config = EvaluationConfig(
-            testset=testset,
-            metric=metric,
-            global_metric=global_metric or AverageGlobalMetric(),
-            display_progress=display_progress,
-            display_table=display_table,
-            max_errors=max_errors,
-            return_outputs=return_outputs,
-            return_global_metric_metadata=return_global_metric_metadata,
-            batch_size=batch_size,
-            **kwargs,
-        )
+        self.testset = testset
+        self.generate = generate or Generate()
+        self.metric = metric
+        self.global_metric = global_metric or AverageGlobalMetric()
+        self.display_progress = display_progress
+        self.display_table = display_table
+        self.max_errors = max_errors
+        self.batch_size = batch_size
+        self.return_only_score = return_only_score
+        
         self.error_count = 0
         self.total_score = 0
 
     async def __call__(
         self,
         prompt: Prompt,
-        metric: Optional[BaseMetric] = None,
-        global_metric: Optional[BaseGlobalMetric] = None,
         testset: Optional[List[DatasetItem]] = None,
+        disply_progress: Optional[bool] = None,
+        display_table: Optional[Union[bool, int]] = None,
+        max_errors: Optional[int] = None,
+        batch_size: Optional[int] = None,
+        return_only_score: Optional[bool] = None,
         **kwargs,
-    ) -> Union[float, Tuple[float, List[MetricResult]], Tuple[float, List[float]]]:
-        config = self._update_config(metric, global_metric, testset, **kwargs)
-        self.total_score = 0
+    ) -> Union[float, Tuple[List[Union[Dict, str]], List[MetricResult], GlobalMetricResult]]:
+        if disply_progress is None:
+            disply_progress = self.display_progress
+        if display_table is None:
+            display_table = self.display_table
+        if max_errors is None:
+            max_errors = self.max_errors
+        if batch_size is None:
+            batch_size = self.batch_size
+        if return_only_score is None:
+            return_only_score = self.return_only_score
+        
+        if testset is None:
+            testset = self.testset
+        
         results: List[Tuple[Union[str, Dict[str, Any]], MetricResult]] = (
-            await self._process_testset(prompt, config)
+            await self._process_testset(prompt, testset, disply_progress, batch_size, max_errors)
         )
         predictions = [result[0] for result in results]
         eval_results = [result[1] for result in results]
-        global_result = await self._compute_global_metric(eval_results, config)
-        return self._prepare_output(predictions, eval_results, global_result, config)
-
-    def _update_config(
-        self,
-        metric: Optional[BaseMetric],
-        global_metric: Optional[BaseGlobalMetric] = None,
-        testset: Optional[List[DatasetItem]] = None,
-        **kwargs,
-    ) -> EvaluationConfig:
-        return self.config.model_copy(
-            update={
-                "metric": metric or self.config.metric,
-                "global_metric": global_metric or self.config.global_metric,
-                "testset": testset or self.config.testset,
-                **kwargs,
-            }
-        )
+        global_result: GlobalMetricResult = await self.global_metric(eval_results)
+        
+        if display_table not in [False, None]:
+            self._display_results_table(testset, predictions, eval_results)
+            
+        if return_only_score:
+            return global_result.score
+        else:
+            return predictions, eval_results, global_result
 
     async def _process_testset(
-        self, prompt: Prompt, config: EvaluationConfig
+        self, 
+        prompt: Prompt, 
+        testset: List[DatasetItem], 
+        disply_progress: bool, 
+        batch_size: int, 
+        max_errors: int
     ) -> List[Tuple[Union[str, Dict[str, Any]], MetricResult]]:
         async def process_item(
             example: DatasetItem,
@@ -111,35 +109,38 @@ class Evaluate:
             try:
                 inputs = example["inputs"]
 
-                prediction = await prompt(**inputs)
+                prediction = await self.generate(prompt=prompt, inputs=inputs)
                 if not prediction:
                     raise ValueError("Prediction is None")
-                result = await config.metric(
+                result = await self.metric(
                     dataset_item=example, pred=prediction
                 )
                 return prediction, result
             except Exception as e:
-                self._handle_error(e, config)
+                logger.error(f"Error processing example: {e}")
+                self.error_count += 1
+                if self.error_count >= max_errors:
+                    raise e
                 return "", MetricResult(score=0.0)
 
         with tqdm.tqdm(
-            total=len(config.testset),
-            disable=not config.display_progress,
+            total=len(testset),
+            disable=not disply_progress,
             file=sys.stdout,
             position=0,
             leave=True,
         ) as pbar:
             tasks = [
-                self._bounded_process_item(process_item, item, pbar, config)
-                for item in config.testset
+                self._bounded_process_item(process_item, item, pbar, batch_size)
+                for item in testset
             ]
             results: List[Tuple[Union[str, Dict[str, Any]], MetricResult]] = await asyncio.gather(
                 *tasks
             )
             return results
 
-    async def _bounded_process_item(self, process_func, item, pbar, config):
-        async with asyncio.Semaphore(config.batch_size):
+    async def _bounded_process_item(self, process_func, item, pbar, batch_size):
+        async with asyncio.Semaphore(batch_size):
             result = await process_func(item)
             self._update_progress(pbar, result[1].score)
             return result
@@ -151,51 +152,11 @@ class Evaluate:
         pbar.set_description(f"Average Metric: {average_score:.2f} ({100 * average_score:.1f}%)")
         pbar.refresh()
 
-    def _handle_error(self, error: Exception, config: EvaluationConfig):
-        self.error_count += 1
-        if self.error_count >= config.max_errors:
-            raise error
-        logger.error(f"Error processing example: {error}")
-
-    async def _compute_global_metric(
-        self, results: List[MetricResult], config: EvaluationConfig
-    ) -> GlobalMetricResult:
-        return await config.global_metric(results)
-
-    def _prepare_output(
-        self,
-        predictions: List[Union[str, Dict[str, Any]]],
-        results: List[MetricResult],
-        global_result: GlobalMetricResult,
-        config: EvaluationConfig,
-    ) -> Union[
-        Tuple[float, List[MetricResult], Optional[Dict[str, Any]]],
-        Tuple[float, Optional[Dict[str, Any]]],
-        Tuple[float, List[MetricResult]],
-        Tuple[float, List[float]],
-        float,
-    ]:
-        if config.display_table:
-            self._display_results_table(predictions, results, config)
-
-        if config.return_outputs and config.return_global_metric_metadata:
-            return global_result.score, results, global_result.trace
-        elif config.return_global_metric_metadata:
-            return global_result.score, global_result.trace
-        elif config.return_outputs:
-            return global_result.score, results
-        elif config.return_all_scores:
-            return global_result.score, [r.score for r in results]
-        # elif config.custom:
-        #     return global_result, config.calculate(results)
-        else:
-            return global_result.score
-
     def _display_results_table(
         self,
+        testset: List[DatasetItem],
         predictions: List[Union[str, Dict[str, Any]]],
         results: List[MetricResult],
-        config: EvaluationConfig,
     ):
         df = pd.DataFrame(
             [
@@ -204,20 +165,20 @@ class Evaluate:
                     {"prediction": pred, "correct": result.score}
                     | (pred if isinstance(result.prediction, dict) else {}),
                 )
-                for dataset_item, pred, result in zip(config.testset, predictions, results)
+                for dataset_item, pred, result in zip(testset, predictions, results)
             ]
         )
         df = df.map(truncate_cell) if hasattr(df, "map") else df.applymap(truncate_cell)
-        df = df.rename(columns={"correct": config.metric.__class__.__name__})
+        df = df.rename(columns={"correct": self.metric.__class__.__name__})
 
-        if isinstance(config.display_table, bool):
-            styled_df = configure_dataframe_display(df, config.metric.__class__.__name__)
+        if isinstance(self.display_table, bool):
+            styled_df = configure_dataframe_display(df, self.metric.__class__.__name__)
             truncated_rows = 0
         else:
             styled_df = configure_dataframe_display(
-                df.head(config.display_table), config.metric.__class__.__name__
+                df.head(self.display_table), self.metric.__class__.__name__
             )
-            truncated_rows = len(df) - config.display_table
+            truncated_rows = len(df) - self.display_table
 
         ipython_display(styled_df)
 

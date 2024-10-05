@@ -81,9 +81,10 @@ class TextGradientTrainer(BaseTrainer):
         ## Step 8: Compute valset_score
         # valset_score = await self._evaluate(valset, best_prompt)
 
-        _, best_evalset_results, best_evalset_score = await self._evaluate_validation_set(
+        _, best_evalset_results, best_evalset_global_result = await self._evaluate_validation_set(
             best_prompt, trainset, valset
         )
+        best_evalset_score = best_evalset_global_result.score
 
         # Iterate over the shuffled training set in batches
         for batch_start in tqdm(
@@ -92,9 +93,10 @@ class TextGradientTrainer(BaseTrainer):
             batch = shuffled_trainset[batch_start : batch_start + self.batch_size]
 
             # Step 3: Run generator in parallel for the current batch
-            best_batch_preds, best_batch_eval_results, best_batch_score = (
+            best_batch_preds, best_batch_eval_results, best_batch_global_result = (
                 await self._evaluate(batch, best_prompt)
             )
+            best_batch_score = best_batch_global_result.score
 
             # Step 6: Store (output, eval_result) in evalset_result
             best_batch_results: List[Tuple[DatasetItem, Any, MetricResult]] = []
@@ -104,9 +106,10 @@ class TextGradientTrainer(BaseTrainer):
             # Compute evalset_score using global_metric
             if self.validation_type == "buffer_trainset":
                 best_evalset_results = [er for (_, _, er) in self.buffer_trainset]
-                best_evalset_score = await self.global_metric(
+                best_evalset_global_result = await self.global_metric(
                     best_evalset_results + best_batch_eval_results
                 )
+                best_evalset_score = best_evalset_global_result.score
 
             # Initialize retry mechanism
             retry_count = 0
@@ -154,9 +157,10 @@ class TextGradientTrainer(BaseTrainer):
                     )
 
                     # Evaluate new_prompt on the current batch
-                    new_batch_preds, new_batch_eval_results, new_batch_score = (
+                    new_batch_preds, new_batch_eval_results, new_batch_global_result = (
                         await self._evaluate(batch, new_prompt)
                     )
+                    new_batch_score = new_batch_global_result.score
 
                     new_batch_results = []
                     for item, pred, eval_result in zip(
@@ -164,20 +168,21 @@ class TextGradientTrainer(BaseTrainer):
                     ):
                         new_batch_results.append((item, pred, eval_result))
 
-                    if new_batch_score.score > best_batch_score.score:
+                    if new_batch_score > best_batch_score:
                         # Step 11: Evaluate new_prompt on buffer_trainset
-                        new_evalset_preds, new_evalset_eval_results, new_evalset_score = (
+                        new_evalset_preds, new_evalset_eval_results, new_evalset_global_result = (
                             await self._evaluate_validation_set(new_prompt, trainset, valset)
                         )
-
+                        new_evalset_score = new_evalset_global_result.score
+                        
                         prompt_history_queue.append(
-                            {"prompt": new_prompt, "score": new_evalset_score.score}
+                            {"prompt": new_prompt, "score": new_evalset_score}
                         )
 
                         # Step 12: Compare new score with the current best score
-                        if new_evalset_score.score > best_evalset_score.score:
+                        if new_evalset_score > best_evalset_score:
                             print(
-                                f"Trial {retry_count + 1}: Score Improved: {best_evalset_score.score} -> {new_evalset_score.score}"
+                                f"Trial {retry_count + 1}: Score Improved: {best_evalset_score} -> {new_evalset_score}"
                             )
                             # Update buffers with new predictions and metric results
                             best_prompt = new_prompt
@@ -199,7 +204,7 @@ class TextGradientTrainer(BaseTrainer):
                             step_failed_count = 0
                         else:
                             print(
-                                f"Trial {retry_count + 1}: Score Not Improved: {best_evalset_score.score} -> {new_evalset_score.score}"
+                                f"Trial {retry_count + 1}: Score Not Improved: {best_evalset_score} -> {new_evalset_score}"
                             )
                             # Step 13: Increment retry_count
                             retry_count += 1
@@ -216,7 +221,7 @@ class TextGradientTrainer(BaseTrainer):
                                 print("Retrying with a new proposal...")
                     else:
                         print(
-                            f"Trial {retry_count + 1}: Score Not Improved in batch: {best_batch_score.score} -> {new_batch_score.score}"
+                            f"Trial {retry_count + 1}: Score Not Improved in batch: {best_batch_score} -> {new_batch_score}"
                         )
                         # text_gradient_result_queue.append(
                         #     {
@@ -243,11 +248,12 @@ class TextGradientTrainer(BaseTrainer):
                 print(f"Buffer Trainset Updated: {len(self.buffer_trainset)}")
 
             # Update report with new score
-            report.scores.append({"step": len(report.scores), "score": best_evalset_score.score})
-            if best_evalset_score.score == 1.0:
+            report.scores.append({"step": len(report.scores), "score": best_evalset_score})
+            if best_evalset_score == 1.0:
                 if self.validation_type == "trainset":
-                    _, _, valset_score = await self._evaluate(valset, best_prompt)
-                    if valset_score.score == 1.0:
+                    _, _, valset_global_result = await self._evaluate(valset, best_prompt)
+                    valset_score = valset_global_result.score
+                    if valset_score == 1.0:
                         print("Validation Set Score reached 1.0")
                         return best_prompt, report
                 else:
