@@ -7,6 +7,7 @@ from ape.common.global_metric import BaseGlobalMetric
 from ape.common.metric import BaseMetric
 from ape.common.prompt import Prompt
 from ape.common.types import MetricResult, DatasetItem
+from ape.common.utils.logging import logger
 from ape.core.core_prompts import ApeCorePrompts
 from ape.core.trainer.base import BaseTrainer
 from ape.core.types.report import ExpelTrainerReport
@@ -63,28 +64,8 @@ class ExpelTrainer(BaseTrainer):
         success_batch_groups = self.divide_list(len(success_dataset), 4)
         failure_batch_groups = self.divide_list(len(failure_dataset), 4)
 
-        # if self.target_subgroup in ["success", "all"]:
-        #     success_groups = self.create_embedding_groups(success_dataset, embedding_map)
-        #     print(success_groups)
-        #     for group in success_groups:
-        #         if len(group) <= 4:
-        #             success_batch_groups.append(group)
-        #         else:
-        #             for i in range(0, len(group), 4):
-        #                 success_batch_groups.append(group[i:i+4])
-
-        # if self.target_subgroup in ["failure", "all"]:
-        #     failure_groups = self.create_embedding_groups(failure_dataset, embedding_map)
-        #     print(failure_groups)
-        #     for group in failure_groups:
-        #         if len(group) <= 4:
-        #             failure_batch_groups.append(group)
-        #         else:
-        #             for i in range(0, len(group), 4):
-        #                 failure_batch_groups.append(group[i:i+4])
-
-        print(f"Success Batch Groups : {len(success_batch_groups)}")
-        print(f"Failure Batch Groups : {len(failure_batch_groups)}")
+        logger.debug(f"Success Batch Groups : {len(success_batch_groups)}")
+        logger.debug(f"Failure Batch Groups : {len(failure_batch_groups)}")
 
         best_prompt = prompt
         global_step = 0
@@ -95,7 +76,7 @@ class ExpelTrainer(BaseTrainer):
             for group in success_batch_groups:
                 feedback_history = []
                 prompt_history = []
-                print(f"Step : {global_step}")
+                logger.debug(f"Step : {global_step}")
                 retry_count = 0
                 global_step += 1
 
@@ -116,9 +97,11 @@ class ExpelTrainer(BaseTrainer):
                     )
 
                     group_trainset = [success_dataset[i] for i in group]
-                    _, _, group_trainset_global_result = await self._evaluate(group_trainset, new_prompt)
+                    _, _, group_trainset_global_result = await self._evaluate(
+                        group_trainset, new_prompt
+                    )
                     if group_trainset_global_result.score != 1.0:
-                        print(
+                        logger.debug(
                             f"Trial {retry_count} failed in batch : 1.0 -> {group_trainset_global_result.score}"
                         )
                         score_report = {"step": global_step, "score": 0.0}
@@ -128,7 +111,7 @@ class ExpelTrainer(BaseTrainer):
                     # validate on trainset
                     _, _, trainset_global_result = await self._evaluate(trainset, new_prompt)
                     if trainset_global_result.score == 1.0:
-                        print(f"Trial {retry_count} succeeded in batch, 1.0")
+                        logger.debug(f"Trial {retry_count} succeeded in batch, 1.0")
                         score_report = {"step": global_step, "score": trainset_global_result.score}
                         report.feedbacks.append({"type": "success group", "feedback": feedback})
                         report.scores.append(score_report)
@@ -136,18 +119,22 @@ class ExpelTrainer(BaseTrainer):
 
                     score_report = {"step": global_step, "score": trainset_global_result.score}
                     if trainset_global_result.score > trainset_best_score:
-                        print(
+                        logger.debug(
                             f"Trial {retry_count} success, {trainset_best_score} -> {trainset_global_result.score}"
                         )
                         best_prompt = new_prompt
                         trainset_best_score = trainset_global_result.score
                         break
-                    print(
+                    logger.debug(
                         f"Trial {retry_count} failed, {trainset_best_score} -> {trainset_global_result.score}"
                     )
 
-                    feedback_history.append({"feedback": feedback, "score": trainset_global_result.score})
-                    prompt_history.append({"prompt": new_prompt, "score": trainset_global_result.score})
+                    feedback_history.append(
+                        {"feedback": feedback, "score": trainset_global_result.score}
+                    )
+                    prompt_history.append(
+                        {"prompt": new_prompt, "score": trainset_global_result.score}
+                    )
 
                 report.scores.append(score_report)
                 report.feedbacks.append({"type": "success group", "feedback": feedback})
@@ -156,7 +143,7 @@ class ExpelTrainer(BaseTrainer):
             for group in failure_batch_groups:
                 retry_count = 0
                 global_step += 1
-                print(f"Step : {global_step}")
+                logger.debug(f"Step : {global_step}")
                 score_report = {}
                 feedback_history = []
                 prompt_history = []
@@ -181,17 +168,19 @@ class ExpelTrainer(BaseTrainer):
 
                     # validate on trainset batch
                     group_trainset = [failure_dataset[i] for i in group]
-                    _, _, group_trainset_global_result = await self._evaluate(group_trainset, new_prompt)
+                    _, _, group_trainset_global_result = await self._evaluate(
+                        group_trainset, new_prompt
+                    )
                     if group_trainset_global_result.score == 0.0:
                         score_report = {"step": global_step, "score": 0.0}
-                        print(f"Trial {retry_count} failed in batch : 0.0 -> 0.0")
+                        logger.debug(f"Trial {retry_count} failed in batch : 0.0 -> 0.0")
                         feedback_history.append({"feedback": feedback, "score": 0.0})
                         prompt_history.append({"prompt": new_prompt, "score": 0.0})
-                        continue        
+                        continue
                     # validate on trainset
                     _, _, trainset_global_result = await self._evaluate(trainset, new_prompt)
                     if trainset_global_result.score == 1.0:
-                        print(f"Trial {retry_count} succeeded in batch, 1.0")
+                        logger.debug(f"Trial {retry_count} succeeded in batch, 1.0")
                         score_report = {"step": global_step, "score": trainset_global_result.score}
                         report.feedbacks.append({"type": "failure group", "feedback": feedback})
                         report.scores.append(score_report)
@@ -199,23 +188,27 @@ class ExpelTrainer(BaseTrainer):
 
                     score_report = {"step": global_step, "score": trainset_global_result.score}
                     if trainset_global_result.score > trainset_best_score:
-                        print(
+                        logger.debug(
                             f"Trial {retry_count} success, {trainset_best_score} -> {trainset_global_result.score}"
                         )
                         best_prompt = new_prompt
                         trainset_best_score = trainset_global_result.score
                         break
 
-                    print(
+                    logger.debug(
                         f"Trial {retry_count} failed, {trainset_best_score} -> {trainset_global_result.score}"
                     )
 
-                    feedback_history.append({"feedback": feedback, "score": trainset_global_result.score})
-                    prompt_history.append({"prompt": new_prompt, "score": trainset_global_result.score})
+                    feedback_history.append(
+                        {"feedback": feedback, "score": trainset_global_result.score}
+                    )
+                    prompt_history.append(
+                        {"prompt": new_prompt, "score": trainset_global_result.score}
+                    )
 
                 report.scores.append(score_report)
                 report.feedbacks.append({"type": "failure group", "feedback": feedback})
-                
+
         report.best_score = trainset_best_score
         return best_prompt, report
 
@@ -279,9 +272,9 @@ class ExpelTrainer(BaseTrainer):
     #         groups = [group for group in groups if len(group) > 1]
 
     #         if len(groups) > 0:
-    #             print("Find groups with threshold : ", similarity_threshold)
+    #             logger.debug("Find groups with threshold : ", similarity_threshold)
     #             return groups
-    #         print("No groups found with threshold : ", similarity_threshold)
+    #         logger.debug("No groups found with threshold : ", similarity_threshold)
 
     #         similarity_threshold -= 0.05
 
@@ -341,6 +334,7 @@ class ExpelTrainer(BaseTrainer):
                 else:
                     retry_count += 1
             except Exception as e:
+                logger.warning(f"Failed to generate feedback: {e}, Retry count: {retry_count}")
                 retry_count += 1
 
         raise Exception("Failed to generate feedback")
@@ -385,7 +379,7 @@ class ExpelTrainer(BaseTrainer):
 
                 return new_prompt
             except Exception as e:
-                print(e)
+                logger.warning(f"Failed to apply feedback: {e}, Retry count: {retry_count}")
                 retry_count += 1
 
         raise Exception("Failed to apply feedback")
