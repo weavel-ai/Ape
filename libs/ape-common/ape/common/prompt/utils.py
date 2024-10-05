@@ -2,7 +2,6 @@ import json
 from typing import List, Optional
 from ape.common.types import DatasetItem
 from ape.common.types.response_format import ResponseFormat
-from ape.common.utils import dict_to_xml
 
 
 def format_fewshot(

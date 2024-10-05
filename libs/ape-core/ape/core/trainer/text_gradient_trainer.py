@@ -7,21 +7,20 @@ from tqdm import tqdm
 from typing import Any, Dict, List, Literal, Optional, Tuple
 from ape.common.prompt.prompt_base import Prompt
 from ape.common.types import GlobalMetricResult, MetricResult, DatasetItem
-from ape.common.generate import BaseGenerate
+from ape.common.generator import BaseGenerator
 from ape.common.global_metric import BaseGlobalMetric
 from ape.common.metric import BaseMetric
-from ape.core.proposer.utils import extract_prompt
+from ape.core.utils import extract_prompt, reformat_prompt
 from ape.core.core_prompts import ApeCorePrompts
-from ape.core.v2.paraphraser.base import BaseParaphraser
-from ape.core.v2.trainer.base import BaseTrainer
-from ape.core.v2.types.report import TextGradientTrainerReport
-from ape.core.optimizer.utils import reformat_prompt
+from ape.core.paraphraser.base import BaseParaphraser
+from ape.core.trainer.base import BaseTrainer
+from ape.core.types.report import TextGradientTrainerReport
 
 
 class TextGradientTrainer(BaseTrainer):
     def __init__(
         self,
-        generator: BaseGenerate,
+        generator: BaseGenerator,
         metric: BaseMetric,
         global_metric: BaseGlobalMetric,
         paraphraser: Optional[BaseParaphraser] = None,

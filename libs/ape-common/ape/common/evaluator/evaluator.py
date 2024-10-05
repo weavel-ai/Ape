@@ -4,7 +4,7 @@ import asyncio
 import pandas as pd
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from ape.common.generate import BaseGenerate, Generate
+from ape.common.generator import BaseGenerator, Generator
 from ape.common.metric import BaseMetric
 from ape.common.global_metric import BaseGlobalMetric, AverageGlobalMetric
 from ape.common.types import MetricResult, GlobalMetricResult
@@ -28,12 +28,12 @@ from concurrent.futures import ThreadPoolExecutor
 # TODO: Counting failures and having a max_failure count. When that is exceeded (also just at the end),
 # we print the number of failures, the first N examples that failed, and the first N exceptions raised.
 
-class Evaluate:
+class Evaluator:
     def __init__(
         self,
         testset: List[DatasetItem],
         metric: BaseMetric,
-        generate: Optional[BaseGenerate] = None,
+        generator: Optional[BaseGenerator] = None,
         global_metric: Optional[BaseGlobalMetric] = None,
         display_progress: Optional[bool] = False,
         display_table: Optional[Union[bool, int]] = False,
@@ -43,7 +43,7 @@ class Evaluate:
         **kwargs,
     ):
         self.testset = testset
-        self.generate = generate or Generate()
+        self.generator = generator or Generator()
         self.metric = metric
         self.global_metric = global_metric or AverageGlobalMetric()
         self.display_progress = display_progress
@@ -109,7 +109,7 @@ class Evaluate:
             try:
                 inputs = example["inputs"]
 
-                prediction = await self.generate(prompt=prompt, inputs=inputs)
+                prediction = await self.generator(prompt=prompt, inputs=inputs)
                 if not prediction:
                     raise ValueError("Prediction is None")
                 result = await self.metric(

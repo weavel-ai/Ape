@@ -1,24 +1,24 @@
-from abc import ABC, abstractmethod
 import asyncio
 import copy
 import inspect
 import json
 import random
-from typing import Dict, Any, List, Optional, Tuple
+from abc import ABC, abstractmethod
+from typing import  Any, List, Optional, Tuple
 
-from ape.common.prompt.prompt_base import Prompt
-from ape.common.types import GlobalMetricResult, MetricResult, DatasetItem
-from ape.common.generate import BaseGenerate
+from ape.common.generator import BaseGenerator
 from ape.common.global_metric import BaseGlobalMetric
 from ape.common.metric import BaseMetric
+from ape.common.prompt import Prompt
+from ape.common.types import GlobalMetricResult, MetricResult, DatasetItem
 from ape.core.core_prompts import ApeCorePrompts
-from ape.core.proposer.utils import extract_prompt
-from ape.core.v2.types.report import BaseReport
+from ape.core.types.report import BaseReport
+from ape.core.utils import extract_prompt
 
 class BaseTrainer(ABC):
     def __init__(
         self,
-        generator: BaseGenerate,
+        generator: BaseGenerator,
         metric: BaseMetric,
         global_metric: Optional[BaseGlobalMetric] = None,
         task_description: Optional[str] = None,
