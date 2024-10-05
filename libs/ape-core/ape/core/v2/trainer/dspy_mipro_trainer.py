@@ -12,12 +12,12 @@ from ape.common.types import GlobalMetricResult, MetricResult, DatasetItem
 from ape.common.generate import BaseGenerate
 from ape.common.global_metric import BaseGlobalMetric
 from ape.common.metric import BaseMetric
+from ape.common.utils import logger
 from ape.core.optimizer.utils import run_async
 from ape.core.core_prompts import ApeCorePrompts
 from ape.core.proposer.utils import extract_prompt, get_response_format_instructions
 from ape.core.v2.trainer.base import BaseTrainer
 from ape.core.v2.types.report import OptunaTrainerReport
-
 
 class DspyMiproTrainer(BaseTrainer):
     def __init__(
@@ -186,7 +186,7 @@ class DspyMiproTrainer(BaseTrainer):
         )
 
         study.optimize(objective, n_trials=self.max_steps)
-
+        report.best_score = best_score
         return best_prompt, report
 
     async def create_n_fewshot_demo_sets(
@@ -339,8 +339,8 @@ class DspyMiproTrainer(BaseTrainer):
                 return new_prompt
 
             except Exception as e:
-                self.logger.error(f"Error in propose_one: {e}")
-                self.logger.error(f"Output: {output}")
+                logger.error(f"Error in propose_one: {e}")
+                logger.error(f"Output: {output}")
                 return base_prompt
 
         tasks = [propose_one(i) for i in range(num_candidates)]

@@ -66,7 +66,7 @@ class TextGradientTrainer(BaseTrainer):
         """
 
         # Initialize Text Gradient Trainer Report
-        report = TextGradientTrainerReport(scores=[], text_gradients=[])
+        report = TextGradientTrainerReport(scores=[], text_gradients=[], best_score=0.0)
 
         # Step 1: Shuffle the training set without modifying the original list
         shuffled_trainset = copy.deepcopy(trainset)
@@ -251,17 +251,21 @@ class TextGradientTrainer(BaseTrainer):
             report.scores.append({"step": len(report.scores), "score": best_evalset_score})
             if best_evalset_score == 1.0:
                 print("Score reached 1.0")
-                return best_prompt, report
-                # if self.validation_type == "trainset":
-                #     _, _, valset_global_result = await self._evaluate(valset, best_prompt)
-                #     valset_score = valset_global_result.score
-                #     if valset_score == 1.0:
-                #         print("Validation Set Score reached 1.0")
-                #         return best_prompt, report
-                # else:
-                #     print("Validation Set Score reached 1.0")
-                #     return best_prompt, report
+                if self.validation_type == "trainset":
+                    _, _, trainset_global_result = await self._evaluate(trainset, best_prompt)
+                    trainset_score = trainset_global_result.score
+                    if trainset_score == 1.0:
+                        print("Trainset Score reached 1.0")
+                        report.best_score = 1.0
+                        return best_prompt, report
+                else:
+                    print("Valset Score reached 1.0")
+                    report.best_score = 1.0
+                    return best_prompt, report
 
+        _, _, trainset_global_result = await self._evaluate(trainset, best_prompt)
+        trainset_score = trainset_global_result.score
+        report.best_score = trainset_score
         # Step 14: All data processed, return the best_prompt found and the report
         return best_prompt, report
 
