@@ -8,7 +8,8 @@ from ape.common.types import GlobalMetricResult, MetricResult, DatasetItem
 from ape.common.generate import BaseGenerate
 from ape.common.global_metric import BaseGlobalMetric
 from ape.common.metric import BaseMetric
-from ape.core.v2.paraphraser.base import BaseParaphraser
+from ape.core.core_prompts import ApeCorePrompts
+from ape.core.proposer.utils import extract_prompt
 from ape.core.v2.trainer.base import BaseTrainer
 from ape.core.v2.types.report import FewShotTrainerReport
 
@@ -19,20 +20,20 @@ class FewShotTrainer(BaseTrainer):
         generator: BaseGenerate,
         metric: BaseMetric,
         global_metric: BaseGlobalMetric,
-        paraphraser: Optional[BaseParaphraser] = None,
         max_bootstrapped_demos: int = 5,
         max_labeled_demos: int = 5,
         random_seed: int = 42,
-        score_threshold: float = 1.0,
+        success_score: float = 1.0,
+        num_candidates: int = 10,
         **kwargs,
     ):
         super().__init__(generator, metric, global_metric, **kwargs)
-        self.paraphraser = paraphraser
-        self.paraphraser = paraphraser
         self.random_seed = random_seed
         self.max_bootstrapped_demos = max_bootstrapped_demos
         self.max_labeled_demos = max_labeled_demos
-        self.score_threshold = score_threshold
+        self.success_score = success_score
+        self.num_candidates = num_candidates
+        
         random.seed(random_seed)
 
     async def train(
@@ -42,34 +43,33 @@ class FewShotTrainer(BaseTrainer):
         valset: List[DatasetItem],
     ) -> Tuple[Prompt, FewShotTrainerReport]:
         report = FewShotTrainerReport(scores=[], choices=[], best_params={})
+        messages_str = ""
+        for message in prompt.messages:
+            messages_str += message["content"]
+            
+        if "{_FEWSHOT_}" not in messages_str:
+            prompt = await self.generate_fewshot_placeholder(prompt)
+            
         best_score = float("-inf")
         best_fewshot = []
 
-        preds, eval_results, global_result = await self._evaluate(trainset, prompt)
+        preds, eval_results, _ = await self._evaluate(trainset, prompt)
 
-        async def run_iteration(step: int, preds, eval_results):
-            max_bootstrapped = random.randint(1, self.max_bootstrapped_demos)
-            max_labeled = random.randint(1, self.max_labeled_demos)
+        fewshot_candidates, fewshot_candidate_indices = await self.create_n_fewshot_demo_sets(trainset, preds, eval_results)
 
-            samples, indices = await self.sample(
-                trainset, preds, eval_results, max_bootstrapped, max_labeled
-            )  # Exclude sampled examples from validation
-            validation_set = [item for i, item in enumerate(trainset) if i not in indices]
-
+        async def run_iteration(step: int, candidate: List[DatasetItem], indices: List[int]):
             temp_prompt = copy.deepcopy(prompt)
-            temp_prompt.fewshot = samples
-
-            _, _, global_result = await self._evaluate(
-                validation_set, temp_prompt
-            )
+            temp_prompt.fewshot = candidate
+            trainset_without_fewshot = [trainset[i] for i in range(len(trainset)) if i not in indices]
+            _, _, global_result = await self._evaluate(trainset_without_fewshot, temp_prompt)
 
             report.scores.append({"step": step, "score": global_result.score})
-            report.choices.append({"step": step, "indices": indices})
+            report.choices.append({"step": step, "fewshot": candidate})
 
             print(f"Step {step} completed. Score: {global_result.score}")
-            return global_result.score, samples
+            return global_result.score, candidate
 
-        results = await asyncio.gather(*[run_iteration(i, preds, eval_results) for i in range(10)])
+        results = await asyncio.gather(*[run_iteration(i, candidate, indices) for i, (candidate, indices) in enumerate(zip(fewshot_candidates, fewshot_candidate_indices))])
 
         for score, fewshot in results:
             if score > best_score:
@@ -77,7 +77,38 @@ class FewShotTrainer(BaseTrainer):
                 best_fewshot = fewshot
 
         prompt.fewshot = best_fewshot
+        report.best_params = {"fewshot": best_fewshot}
         return prompt, report
+
+    async def create_n_fewshot_demo_sets(
+        self, trainset: List[DatasetItem], predictions: List[Any], eval_results: List[MetricResult]
+    ) -> Tuple[List[List[DatasetItem]], List[List[int]]]:
+        candidates = []
+        candidate_indices = []
+
+        # Add no-shot candidate
+        candidates.append([])
+        candidate_indices.append([])
+
+        # Add sampled-fewshot candidate
+        sampled_fewshot, sampled_indices = self.sample_fewshot(trainset, self.max_labeled_demos)
+        candidates.append(sampled_fewshot)
+        candidate_indices.append(sampled_indices)
+        # Add bootstrapped candidates
+        for _ in range(self.num_candidates - 2):  # -2 because we already added no-shot and sampled-fewshot
+            max_bootstrapped = random.randint(1, self.max_bootstrapped_demos)
+            max_labeled = random.randint(1, self.max_labeled_demos)
+            # shuffle the trainset
+            shuffled_trainset = copy.deepcopy(trainset)
+            random.shuffle(shuffled_trainset)
+            samples, indices = await self.sample(shuffled_trainset, predictions, eval_results, max_bootstrapped, max_labeled)
+            candidates.append(samples)
+            candidate_indices.append(indices)
+        return candidates, candidate_indices
+
+    def sample_fewshot(self, trainset: List[DatasetItem], num_samples: int) -> Tuple[List[DatasetItem], List[int]]:
+        sampled_indices = random.sample(range(len(trainset)), min(num_samples, len(trainset)))
+        return [trainset[i] for i in sampled_indices], sampled_indices
 
     async def sample(
         self,
@@ -94,7 +125,7 @@ class FewShotTrainer(BaseTrainer):
 
         # Sample bootstrapped demos
         success_indices = [
-            i for i, result in enumerate(eval_results) if result.score >= self.score_threshold
+            i for i, result in enumerate(eval_results) if result.score >= self.success_score
         ]
 
         if len(success_indices) > 0:
@@ -108,7 +139,7 @@ class FewShotTrainer(BaseTrainer):
 
         # Sample labeled demos
         failed_indices = [
-            i for i, result in enumerate(eval_results) if result.score < self.score_threshold
+            i for i, result in enumerate(eval_results) if result.score < self.success_score
         ]
 
         if len(failed_indices) > 0:

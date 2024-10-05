@@ -15,7 +15,6 @@ from ape.common.metric import BaseMetric
 from ape.core.optimizer.utils import run_async
 from ape.core.core_prompts import ApeCorePrompts
 from ape.core.proposer.utils import extract_prompt, get_response_format_instructions
-from ape.core.v2.paraphraser.base import BaseParaphraser
 from ape.core.v2.trainer.base import BaseTrainer
 from ape.core.v2.types.report import OptunaTrainerReport
 
@@ -26,7 +25,6 @@ class OptunaTrainer(BaseTrainer):
         generator: BaseGenerate,
         metric: BaseMetric,
         global_metric: BaseGlobalMetric,
-        paraphraser: Optional[BaseParaphraser] = None,
         random_seed: int = 42,
         num_candidates: int = 10,
         max_steps: int = 30,
@@ -40,7 +38,6 @@ class OptunaTrainer(BaseTrainer):
             generator (BaseGenerate): Generator for producing model outputs.
             metric (BaseMetric): Metric for evaluating model outputs.
             global_metric (BaseGlobalMetric): Global metric for overall evaluation.
-            paraphraser (Optional[BaseParaphraser], optional): Paraphraser for prompt generation. Defaults to None.
             random_seed (int, optional): Seed for reproducibility. Defaults to 42.
             num_candidates (int, optional): Number of candidate prompts to generate. Defaults to 10.
             init_temperature (float, optional): Initial temperature for sampling. Defaults to 1.0.
@@ -57,7 +54,6 @@ class OptunaTrainer(BaseTrainer):
             global_metric=global_metric,
             **kwargs,
         )
-        self.paraphraser = paraphraser
         self.random_seed = random_seed
         self.num_candidates = num_candidates
         self.max_steps = max_steps
@@ -98,8 +94,8 @@ class OptunaTrainer(BaseTrainer):
                 prompt=prompt, trainset=trainset
             )
 
-        # Initialize evaluation on validation set
-        preds, eval_results, global_result = await self._evaluate(valset, prompt)
+        # Initialize evaluation on train set
+        preds, eval_results, global_result = await self._evaluate(trainset, prompt)
         report.best_score = global_result
         report.trial_logs = []
 
@@ -195,11 +191,11 @@ class OptunaTrainer(BaseTrainer):
             candidate_prompt: Prompt = prompt.deepcopy()
             candidate_prompt.messages = merged_prompt.messages
 
-            # Evaluate the candidate prompt on the validation set
+            # Evaluate the candidate prompt on the train set
             try:
                 preds, eval_results, global_result = run_async(
                     self._evaluate(
-                        random.sample(valset, min(self.minibatch_size, len(valset))),
+                        random.sample(trainset, min(self.minibatch_size, len(trainset))),
                         candidate_prompt,
                     )
                 )
@@ -213,7 +209,7 @@ class OptunaTrainer(BaseTrainer):
             trial_logs[trial.number].update(
                 {
                     "score": score,
-                    "num_eval_calls": min(self.minibatch_size, len(valset)),
+                    "num_eval_calls": min(self.minibatch_size, len(trainset)),
                 }
             )
 
@@ -354,8 +350,6 @@ class OptunaTrainer(BaseTrainer):
                 return new_prompt
 
             except Exception as e:
-                self.logger.error(f"Error in propose_one: {e}")
-                self.logger.error(f"Output: {output}")
                 return base_prompt
 
         tasks = [propose_one(i) for i in range(num_candidates)]

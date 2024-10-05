@@ -250,15 +250,17 @@ class TextGradientTrainer(BaseTrainer):
             # Update report with new score
             report.scores.append({"step": len(report.scores), "score": best_evalset_score})
             if best_evalset_score == 1.0:
-                if self.validation_type == "trainset":
-                    _, _, valset_global_result = await self._evaluate(valset, best_prompt)
-                    valset_score = valset_global_result.score
-                    if valset_score == 1.0:
-                        print("Validation Set Score reached 1.0")
-                        return best_prompt, report
-                else:
-                    print("Validation Set Score reached 1.0")
-                    return best_prompt, report
+                print("Score reached 1.0")
+                return best_prompt, report
+                # if self.validation_type == "trainset":
+                #     _, _, valset_global_result = await self._evaluate(valset, best_prompt)
+                #     valset_score = valset_global_result.score
+                #     if valset_score == 1.0:
+                #         print("Validation Set Score reached 1.0")
+                #         return best_prompt, report
+                # else:
+                #     print("Validation Set Score reached 1.0")
+                #     return best_prompt, report
 
         # Step 14: All data processed, return the best_prompt found and the report
         return best_prompt, report
