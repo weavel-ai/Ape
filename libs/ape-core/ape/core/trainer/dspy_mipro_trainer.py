@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import optuna
 
-from ape.common.generator import BaseGenerator   
+from ape.common.generator import BaseGenerator
 from ape.common.global_metric import BaseGlobalMetric
 from ape.common.metric import BaseMetric
 from ape.common.prompt import Prompt
@@ -16,6 +16,7 @@ from ape.core.core_prompts import ApeCorePrompts
 from ape.core.trainer.base import BaseTrainer
 from ape.core.types.report import OptunaTrainerReport
 from ape.core.utils import extract_prompt, get_response_format_instructions, run_async
+
 
 class DspyMiproTrainer(BaseTrainer):
     def __init__(
@@ -66,6 +67,7 @@ class DspyMiproTrainer(BaseTrainer):
         np.random.seed(self.random_seed)
 
         self.generate_instructions_by_prompting: Prompt = ApeCorePrompts.get("gen-instructions")
+        logger.debug(f"DspyMiproTrainer initialized with random_seed: {self.random_seed}")
 
     async def train(
         self,
@@ -84,36 +86,41 @@ class DspyMiproTrainer(BaseTrainer):
         Returns:
             Tuple[Prompt, OptunaTrainerReport]: The best performing prompt and the optimization report.
         """
+        logger.debug("Starting train method")
         report = OptunaTrainerReport(scores=[], trial_logs={}, best_score=0.0)
 
         if self.metric_description is None:
+            logger.debug("Generating metric description")
             self.metric_description = await self._generate_metric_description()
         if self.task_description is None:
+            logger.debug("Generating task description")
             self.task_description = await self._generate_task_description(
                 prompt=prompt, trainset=trainset
             )
-        
+
         messages_str = ""
         for message in prompt.messages:
             messages_str += message["content"]
-            
+
         if "{_FEWSHOT_}" not in messages_str:
+            logger.debug("Generating fewshot placeholder")
             prompt = await self.generate_fewshot_placeholder(prompt)
 
+        logger.debug("Evaluating initial prompt")
         preds, eval_results, global_result = await self._evaluate(trainset, prompt)
         report.best_score = global_result.score
         report.trial_logs = []
 
+        logger.debug("Creating fewshot demo sets")
         fewshot_candidates, fewshot_candidate_indices = await self.create_n_fewshot_demo_sets(
             trainset, preds, eval_results
         )
 
-        instruction_candidates = (
-            await self.generate_instruction_candidates( 
-                base_prompt=prompt,
-                trainset=trainset,
-                num_candidates=self.num_candidates,
-            )
+        logger.debug("Generating instruction candidates")
+        instruction_candidates = await self.generate_instruction_candidates(
+            base_prompt=prompt,
+            trainset=trainset,
+            num_candidates=self.num_candidates,
         )
 
         best_score = global_result.score
@@ -124,19 +131,20 @@ class DspyMiproTrainer(BaseTrainer):
         def objective(trial: optuna.Trial) -> float:
             nonlocal best_prompt, best_score, trial_logs
 
+            logger.debug(f"Starting trial {trial.number}")
             trial_logs[trial.number] = {}
 
             instruction_idx = trial.suggest_categorical(
                 "instruction", range(len(instruction_candidates))
             )
-            fewshot_idx = trial.suggest_categorical(
-                "fewshot", range(len(fewshot_candidates))
-            )
+            fewshot_idx = trial.suggest_categorical("fewshot", range(len(fewshot_candidates)))
 
-            trial_logs[trial.number].update({
-                "instruction": instruction_idx,
-                "fewshot": fewshot_idx,
-            })
+            trial_logs[trial.number].update(
+                {
+                    "instruction": instruction_idx,
+                    "fewshot": fewshot_idx,
+                }
+            )
 
             selected_instruction_candidate = instruction_candidates[instruction_idx]
             selected_fewshot = fewshot_candidates[fewshot_idx]
@@ -146,24 +154,34 @@ class DspyMiproTrainer(BaseTrainer):
             candidate_prompt.fewshot = selected_fewshot
 
             try:
-                trainset_without_fewshot = [trainset[i] for i in range(len(trainset)) if i not in selected_fewshot_indices]
+                trainset_without_fewshot = [
+                    trainset[i] for i in range(len(trainset)) if i not in selected_fewshot_indices
+                ]
+                logger.debug(f"Evaluating candidate prompt for trial {trial.number}")
                 preds, eval_results, global_result = run_async(
                     self._evaluate(
-                        random.sample(trainset_without_fewshot, min(self.minibatch_size, len(trainset_without_fewshot))),
+                        random.sample(
+                            trainset_without_fewshot,
+                            min(self.minibatch_size, len(trainset_without_fewshot)),
+                        ),
                         candidate_prompt,
                     )
                 )
                 score = global_result.score
             except Exception as e:
+                logger.error(f"Error in trial {trial.number}: {e}")
                 trial_logs[trial.number]["evaluation_error"] = str(e)
                 return float("-inf")
 
-            trial_logs[trial.number].update({
-                "score": score,
-                "num_eval_calls": min(self.minibatch_size, len(trainset)),
-            })
+            trial_logs[trial.number].update(
+                {
+                    "score": score,
+                    "num_eval_calls": min(self.minibatch_size, len(trainset)),
+                }
+            )
 
             if score > best_score:
+                logger.info(f"New best score: {score} (trial {trial.number})")
                 best_score = score
                 best_prompt = candidate_prompt.deepcopy()
                 trial_logs[trial.number]["best_score_update"] = True
@@ -174,22 +192,28 @@ class DspyMiproTrainer(BaseTrainer):
             report.scores.append({"step": trial.number, "score": score})
 
             if score >= 1.0:
+                logger.info(f"Perfect score achieved in trial {trial.number}")
                 trial.study.stop()
 
             return score
 
+        logger.debug("Creating Optuna study")
         study = optuna.create_study(
             direction="maximize",
             sampler=optuna.samplers.TPESampler(seed=self.random_seed, multivariate=True),
         )
 
-        study.optimize(objective, n_trials=self.max_steps)
+        logger.debug(f"Starting optimization with {self.max_steps} trials")
+        await asyncio.to_thread(study.optimize, objective, n_trials=self.max_steps)
+
         report.best_score = best_score
+        logger.info(f"Optimization completed. Best score: {best_score}")
         return best_prompt, report
 
     async def create_n_fewshot_demo_sets(
         self, trainset: List[DatasetItem], predictions: List[Any], eval_results: List[MetricResult]
     ) -> Tuple[List[List[DatasetItem]], List[List[int]]]:
+        logger.debug("Creating fewshot demo sets")
         candidates = []
         candidate_indices = []
 
@@ -202,16 +226,25 @@ class DspyMiproTrainer(BaseTrainer):
         candidates.append(sampled_fewshot)
         candidate_indices.append(sampled_indices)
         # Add bootstrapped candidates
-        for _ in range(self.num_candidates - 2):  # -2 because we already added no-shot and sampled-fewshot
+        for i in range(
+            self.num_candidates - 2
+        ):  # -2 because we already added no-shot and sampled-fewshot
+            logger.debug(f"Creating bootstrapped candidate {i+1}")
             max_bootstrapped = random.randint(1, self.max_bootstrapped_demos)
             max_labeled = random.randint(1, self.max_labeled_demos)
-            samples, indices = await self.sample(trainset, predictions, eval_results, max_bootstrapped, max_labeled)
+            samples, indices = await self.sample(
+                trainset, predictions, eval_results, max_bootstrapped, max_labeled
+            )
             candidates.append(samples)
             candidate_indices.append(indices)
 
+        logger.debug(f"Created {len(candidates)} fewshot demo sets")
         return candidates, candidate_indices
-    
-    def sample_fewshot(self, trainset: List[DatasetItem], num_samples: int) -> Tuple[List[DatasetItem], List[int]]:
+
+    def sample_fewshot(
+        self, trainset: List[DatasetItem], num_samples: int
+    ) -> Tuple[List[DatasetItem], List[int]]:
+        logger.debug(f"Sampling {num_samples} fewshot examples")
         sampled_indices = random.sample(range(len(trainset)), min(num_samples, len(trainset)))
         return [trainset[i] for i in sampled_indices], sampled_indices
 
@@ -223,6 +256,9 @@ class DspyMiproTrainer(BaseTrainer):
         max_bootstrapped_demos: int,
         max_labeled_demos: int,
     ) -> Tuple[List[DatasetItem], List[int]]:
+        logger.debug(
+            f"Sampling with max_bootstrapped_demos={max_bootstrapped_demos}, max_labeled_demos={max_labeled_demos}"
+        )
         bootstrapped_samples = []
         labeled_samples = []
         bootstrapped_indices = []
@@ -258,6 +294,9 @@ class DspyMiproTrainer(BaseTrainer):
                 for i in labeled_indices
             ]
 
+        logger.debug(
+            f"Sampled {len(bootstrapped_samples)} bootstrapped and {len(labeled_samples)} labeled samples"
+        )
         return bootstrapped_samples + labeled_samples, bootstrapped_indices + labeled_indices
 
     def random_sample(
@@ -268,6 +307,7 @@ class DspyMiproTrainer(BaseTrainer):
         weights: Optional[List[float]] = None,
         delta: float = 1e-5,
     ) -> List[int]:
+        logger.debug(f"Random sampling {num_shots} shots from dataset of size {len(dataset)}")
         if len(dataset) == 0:
             return []
 
@@ -293,6 +333,7 @@ class DspyMiproTrainer(BaseTrainer):
         """
         Generate a set of new prompt candidates based on the base prompt using prompt engineering techniques.
         """
+        logger.debug(f"Generating {num_candidates} instruction candidates")
 
         TIPS = {
             "creative": "Don't be afraid to be creative when creating the new instruction!",
@@ -303,17 +344,23 @@ class DspyMiproTrainer(BaseTrainer):
         }
 
         async def propose_one(index: int) -> Prompt:
+            logger.debug(f"Proposing instruction candidate {index+1}")
             selected_tip = list(TIPS.values())[index % len(TIPS)]
+            logger.debug(f"Selected tip for candidate {index+1}: {selected_tip}")
 
             fewshot = random.sample(trainset, min(len(trainset), 3))
+            logger.debug(f"Sampled {len(fewshot)} examples for fewshot")
             task_fewshot = format_fewshot(
                 fewshot=fewshot, response_format=base_prompt.response_format
             )
+            logger.debug("Formatted fewshot examples")
 
             response_format_instructions = get_response_format_instructions(
                 base_prompt.response_format
             )
+            logger.debug("Generated response format instructions")
 
+            logger.debug("Calling generate_instructions_by_prompting")
             output = await self.generate_instructions_by_prompting(
                 task_description="",
                 dataset_desc=self.dataset_summary,
@@ -325,23 +372,32 @@ class DspyMiproTrainer(BaseTrainer):
                 outputs_desc=base_prompt.outputs_desc if base_prompt.outputs_desc else "-",
                 response_format_instructions=response_format_instructions,
             )
+            logger.debug("Received output from generate_instructions_by_prompting")
 
             try:
+                logger.debug("Attempting to extract and load new prompt")
                 extracted_prompt = extract_prompt(output)
                 new_prompt_message = Prompt.load(extracted_prompt)
                 if not new_prompt_message.messages:
+                    logger.warning("Generated prompt has no messages")
                     raise ValueError("Generated prompt has no messages")
                 new_prompt = base_prompt.deepcopy()
                 new_prompt.messages = new_prompt_message.messages
+                logger.debug("Successfully created new prompt")
 
                 return new_prompt
 
             except Exception as e:
-                logger.error(f"Error in propose_one: {e}")
+                logger.error(f"Error in propose_one for candidate {index+1}: {e}")
                 logger.error(f"Output: {output}")
+                logger.debug("Returning base prompt due to error")
                 return base_prompt
 
+        logger.debug(f"Creating {num_candidates} tasks for propose_one")
         tasks = [propose_one(i) for i in range(num_candidates)]
+        logger.debug("Awaiting completion of all propose_one tasks")
         proposed_instructions = await asyncio.gather(*tasks)
 
+        logger.debug(f"Generated {len(proposed_instructions)} instruction candidates")
+        logger.debug("Returning proposed instructions")
         return proposed_instructions

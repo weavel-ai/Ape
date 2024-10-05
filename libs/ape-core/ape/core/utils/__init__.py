@@ -1,6 +1,7 @@
 import asyncio
 import re
 import random
+from typing import Optional
 
 from ape.common.prompt import Prompt
 from ape.common.types import ResponseFormat
@@ -19,23 +20,30 @@ def extract_prompt(text: str) -> str:
         raise ValueError("No prompt found")
 
 
-def get_response_format_instructions(response_format: ResponseFormat):
+def get_response_format_instructions(response_format: Optional[ResponseFormat]) -> str:
+    if response_format is None:
+        return ""
     if response_format["type"] == "json_object":
         return (
             "The prompt should enforce a JSON output and must include the word JSON in the prompt."
         )
-    else:
-        return ""
+    return ""
 
 
-async def reformat_prompt(prompt: Prompt, response_format: ResponseFormat) -> Prompt:
+async def reformat_prompt(prompt: Prompt, response_format: Optional[ResponseFormat]) -> Prompt:
     """Reformat the prompt to be in XML style."""
+    if response_format is None:
+        return prompt  # Return the original prompt if response_format is None
+
     formatter_filename: str
     match response_format["type"]:
         case "json_object":
             formatter_filename = "reformat-prompt-json-object"
         case "json_schema":
             formatter_filename = "reformat-prompt-json-schema"
+        case _:
+            return prompt  # Return the original prompt for unsupported types
+
     formatter = ApeCorePrompts.get(formatter_filename)
     new_prompt: Prompt
     retry_count = 0
@@ -57,9 +65,9 @@ async def reformat_prompt(prompt: Prompt, response_format: ResponseFormat) -> Pr
             logger.error(f"Error reformatting prompt: {e}. Retrying...")
             retry_count += 1
             if retry_count > 10:
-                logger.error("Failed to reformat prompt after 3 retries")
+                logger.error("Failed to reformat prompt after 10 retries")
                 logger.error("Generated prompt:" + res)
-                raise e
+                return prompt  # Return the original prompt if reformatting fails
 
     # new_prompt.fewshot_config = prompt.fewshot_config # TODO: fix this more pretty way
     return new_prompt

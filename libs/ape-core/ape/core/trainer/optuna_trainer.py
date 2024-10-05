@@ -242,7 +242,7 @@ class OptunaTrainer(BaseTrainer):
         )
 
         # Optimize the study
-        study.optimize(objective, n_trials=self.max_steps)
+        await asyncio.to_thread(study.optimize, objective, n_trials=self.max_steps)
         report.best_score = best_score
         return best_prompt, report
 
