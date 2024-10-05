@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 import asyncio
+import copy
 import inspect
 import json
 import random
@@ -11,6 +12,7 @@ from ape.common.generate import BaseGenerate
 from ape.common.global_metric import BaseGlobalMetric
 from ape.common.metric import BaseMetric
 from ape.core.core_prompts import ApeCorePrompts
+from ape.core.proposer.utils import extract_prompt
 from ape.core.v2.types.report import BaseReport
 
 class BaseTrainer(ABC):
@@ -203,3 +205,28 @@ class BaseTrainer(ABC):
             formatted_examples += f"**Outputs**\n{json.dumps(outputs, indent=2)}\n\n"
         
         return formatted_examples
+
+    async def generate_fewshot_placeholder(self, prompt: Prompt) -> Prompt:
+        fewshot_placeholder_generator = ApeCorePrompts.get("gen-fewshot-placeholder")
+        
+        prompt_messages = [json.dumps(message) for message in prompt.messages]
+        prompt_messages_str = "\n".join(prompt_messages)
+
+        retry_count = 0
+        while retry_count < 5:
+            try:
+                new_prompt_raw = await fewshot_placeholder_generator(prompt=prompt_messages_str)
+                if not new_prompt_raw.strip().startswith("```prompt"):
+                    new_prompt_raw = f"```prompt\n" + new_prompt_raw
+                
+                new_prompt_messages_str = extract_prompt(new_prompt_raw)
+                new_prompt_messages = Prompt.load(new_prompt_messages_str)
+                new_prompt = copy.deepcopy(prompt)
+                new_prompt.messages = new_prompt_messages.messages
+                return new_prompt
+            except Exception as e:
+                print(f"Error occurred: {e}. Retrying... (Attempt {retry_count + 1}/5)")
+                retry_count += 1
+                if retry_count == 5:
+                    raise ValueError(f"Failed to generate fewshot placeholder after 5 attempts: {str(e)}")
+                
