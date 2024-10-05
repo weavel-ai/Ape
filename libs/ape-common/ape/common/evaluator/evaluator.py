@@ -4,7 +4,7 @@ import asyncio
 import pandas as pd
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from ape.common.generate import BaseGenerate, Generate
+from ape.common.generator import BaseGenerator, Generator
 from ape.common.metric import BaseMetric
 from ape.common.global_metric import BaseGlobalMetric, AverageGlobalMetric
 from ape.common.types import MetricResult, GlobalMetricResult
@@ -22,18 +22,12 @@ except ImportError:
         return x
 
 
-from concurrent.futures import ThreadPoolExecutor
-
-
-# TODO: Counting failures and having a max_failure count. When that is exceeded (also just at the end),
-# we print the number of failures, the first N examples that failed, and the first N exceptions raised.
-
-class Evaluate:
+class Evaluator:
     def __init__(
         self,
         testset: List[DatasetItem],
         metric: BaseMetric,
-        generate: Optional[BaseGenerate] = None,
+        generator: Optional[BaseGenerator] = None,
         global_metric: Optional[BaseGlobalMetric] = None,
         display_progress: Optional[bool] = False,
         display_table: Optional[Union[bool, int]] = False,
@@ -43,7 +37,7 @@ class Evaluate:
         **kwargs,
     ):
         self.testset = testset
-        self.generate = generate or Generate()
+        self.generate = generator or Generator()
         self.metric = metric
         self.global_metric = global_metric or AverageGlobalMetric()
         self.display_progress = display_progress
@@ -51,7 +45,7 @@ class Evaluate:
         self.max_errors = max_errors
         self.batch_size = batch_size
         self.return_only_score = return_only_score
-        
+
         self.error_count = 0
         self.total_score = 0
 
@@ -76,32 +70,32 @@ class Evaluate:
             batch_size = self.batch_size
         if return_only_score is None:
             return_only_score = self.return_only_score
-        
+
         if testset is None:
             testset = self.testset
-        
+
         results: List[Tuple[Union[str, Dict[str, Any]], MetricResult]] = (
             await self._process_testset(prompt, testset, disply_progress, batch_size, max_errors)
         )
         predictions = [result[0] for result in results]
         eval_results = [result[1] for result in results]
         global_result: GlobalMetricResult = await self.global_metric(eval_results)
-        
+
         if display_table not in [False, None]:
             self._display_results_table(testset, predictions, eval_results)
-            
+
         if return_only_score:
             return global_result.score
         else:
             return predictions, eval_results, global_result
 
     async def _process_testset(
-        self, 
-        prompt: Prompt, 
-        testset: List[DatasetItem], 
-        disply_progress: bool, 
-        batch_size: int, 
-        max_errors: int
+        self,
+        prompt: Prompt,
+        testset: List[DatasetItem],
+        disply_progress: bool,
+        batch_size: int,
+        max_errors: int,
     ) -> List[Tuple[Union[str, Dict[str, Any]], MetricResult]]:
         async def process_item(
             example: DatasetItem,
@@ -112,9 +106,7 @@ class Evaluate:
                 prediction = await self.generate(prompt=prompt, inputs=inputs)
                 if not prediction:
                     raise ValueError("Prediction is None")
-                result = await self.metric(
-                    dataset_item=example, pred=prediction
-                )
+                result = await self.metric(dataset_item=example, pred=prediction)
                 return prediction, result
             except Exception as e:
                 logger.error(f"Error processing example: {e}")
@@ -131,8 +123,7 @@ class Evaluate:
             leave=True,
         ) as pbar:
             tasks = [
-                self._bounded_process_item(process_item, item, pbar, batch_size)
-                for item in testset
+                self._bounded_process_item(process_item, item, pbar, batch_size) for item in testset
             ]
             results: List[Tuple[Union[str, Dict[str, Any]], MetricResult]] = await asyncio.gather(
                 *tasks

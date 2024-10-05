@@ -9,7 +9,7 @@ from ape.common.prompt.prompt_base import Prompt
 from ape.common.types import MetricResult
 
 
-class BaseGenerate(ABC):
+class BaseGenerator(ABC):
     @abstractmethod
     async def generate(
         self,

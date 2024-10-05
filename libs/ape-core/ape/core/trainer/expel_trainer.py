@@ -1,23 +1,22 @@
-import asyncio
 import json
 import random
-from typing import Any, Dict, List, Literal, Optional, Tuple
-from ape.common.prompt.prompt_base import Prompt
-from ape.common.types import GlobalMetricResult, MetricResult, DatasetItem
-from ape.common.generate import BaseGenerate
+from typing import Any, Dict, List, Literal, Tuple
+
+from ape.common.generator import BaseGenerator
 from ape.common.global_metric import BaseGlobalMetric
 from ape.common.metric import BaseMetric
+from ape.common.prompt import Prompt
+from ape.common.types import MetricResult, DatasetItem
 from ape.core.core_prompts import ApeCorePrompts
-from ape.core.proposer.utils import extract_prompt
-from ape.core.v2.trainer.base import BaseTrainer
-from ape.core.v2.types.report import ExpelTrainerReport
-from ape.core.optimizer.utils import reformat_prompt
+from ape.core.trainer.base import BaseTrainer
+from ape.core.types.report import ExpelTrainerReport
+from ape.core.utils import extract_prompt, reformat_prompt
 
 
 class ExpelTrainer(BaseTrainer):
     def __init__(
         self,
-        generator: BaseGenerate,
+        generator: BaseGenerator,
         metric: BaseMetric,
         global_metric: BaseGlobalMetric,
         random_seed: int = 42,

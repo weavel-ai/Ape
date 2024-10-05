@@ -1,28 +1,26 @@
 import asyncio
-import json
 import random
 import numpy as np
-from typing import Any, Dict, List, Literal, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import optuna
 
-from ape.common.prompt.prompt_base import Prompt, format_fewshot
-from ape.common.prompt.utils import format_fewshot
-from ape.common.types import GlobalMetricResult, MetricResult, DatasetItem
-from ape.common.generate import BaseGenerate
+from ape.common.generator import BaseGenerator   
 from ape.common.global_metric import BaseGlobalMetric
 from ape.common.metric import BaseMetric
+from ape.common.prompt import Prompt
+from ape.common.prompt.utils import format_fewshot
+from ape.common.types import MetricResult, DatasetItem
 from ape.common.utils import logger
-from ape.core.optimizer.utils import run_async
 from ape.core.core_prompts import ApeCorePrompts
-from ape.core.proposer.utils import extract_prompt, get_response_format_instructions
-from ape.core.v2.trainer.base import BaseTrainer
-from ape.core.v2.types.report import OptunaTrainerReport
+from ape.core.trainer.base import BaseTrainer
+from ape.core.types.report import OptunaTrainerReport
+from ape.core.utils import extract_prompt, get_response_format_instructions, run_async
 
 class DspyMiproTrainer(BaseTrainer):
     def __init__(
         self,
-        generator: BaseGenerate,
+        generator: BaseGenerator,
         metric: BaseMetric,
         global_metric: BaseGlobalMetric,
         random_seed: int = 42,
@@ -38,7 +36,7 @@ class DspyMiproTrainer(BaseTrainer):
         Initialize the DspyMiproTrainer.
 
         Args:
-            generator (BaseGenerate): Generator for producing model outputs.
+            generator (BaseGenerator): Generator for producing model outputs.
             metric (BaseMetric): Metric for evaluating model outputs.
             global_metric (BaseGlobalMetric): Global metric for overall evaluation.
             random_seed (int, optional): Seed for reproducibility. Defaults to 42.
