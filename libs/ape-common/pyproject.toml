@@ -18,12 +18,13 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    "pydantic>=2.9.2",
-    "pandas>=2.2.3",
-    "litellm>=1.48.0",
-    "promptfile>=0.7.0",
-    "structlog>=23.1.0",
-    "rich>=13.0.1",
+    "pydantic>=2.9.2,<3.0.0",
+    "pandas>=2.2.3,<3.0.0",
+    "litellm>=1.48.0,<2.0.0",
+    "promptfile>=0.7.0,<1.0.0",
+    "structlog>=23.1.0,<24.0.0",
+    "rich>=13.0.1,<14.0.0",
+    "pysbd>=0.3.4,<1.0.0",
 ]
 
 [project.urls]
