@@ -4,6 +4,7 @@ from pydantic import BaseModel
 
 class BaseReport(BaseModel):
     scores: List[Dict[str, Any]]
+    best_score: float = 0.0
 
 
 class TextGradientTrainerReport(BaseReport):
@@ -16,7 +17,6 @@ class ExpelTrainerReport(BaseReport):
 
 class OptunaTrainerReport(BaseReport):
     trial_logs: Dict[str, Any]
-    best_score: float
 
 
 class FewShotTrainerReport(BaseReport):

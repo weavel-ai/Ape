@@ -244,7 +244,7 @@ class OptunaTrainer(BaseTrainer):
 
         # Optimize the study
         study.optimize(objective, n_trials=self.max_steps)
-
+        report.best_score = best_score
         return best_prompt, report
 
     async def generate_prompt_candidates_by_eval_result(

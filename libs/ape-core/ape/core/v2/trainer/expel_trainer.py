@@ -41,7 +41,7 @@ class ExpelTrainer(BaseTrainer):
         trainset: List[DatasetItem],
         valset: List[DatasetItem],
     ) -> Tuple[Prompt, ExpelTrainerReport]:
-        report = ExpelTrainerReport(scores=[], feedbacks=[])
+        report = ExpelTrainerReport(scores=[], feedbacks=[], best_score=0.0)
         # embedding_map = await self.create_embedding_map(trainset)
 
         success_dataset = []
@@ -216,6 +216,8 @@ class ExpelTrainer(BaseTrainer):
 
                 report.scores.append(score_report)
                 report.feedbacks.append({"type": "failure group", "feedback": feedback})
+                
+        report.best_score = trainset_best_score
         return best_prompt, report
 
     # async def create_embedding_map(self, dataset: List[DatasetItem]) -> List[Dict[str, List[float]]]:

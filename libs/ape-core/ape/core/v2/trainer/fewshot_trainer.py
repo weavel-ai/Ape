@@ -42,7 +42,7 @@ class FewShotTrainer(BaseTrainer):
         trainset: List[DatasetItem],
         valset: List[DatasetItem],
     ) -> Tuple[Prompt, FewShotTrainerReport]:
-        report = FewShotTrainerReport(scores=[], choices=[], best_params={})
+        report = FewShotTrainerReport(scores=[], choices=[], best_params={}, best_score=0.0)
         messages_str = ""
         for message in prompt.messages:
             messages_str += message["content"]
@@ -78,6 +78,7 @@ class FewShotTrainer(BaseTrainer):
 
         prompt.fewshot = best_fewshot
         report.best_params = {"fewshot": best_fewshot}
+        report.best_score = best_score
         return prompt, report
 
     async def create_n_fewshot_demo_sets(
