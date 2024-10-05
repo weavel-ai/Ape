@@ -5,3 +5,4 @@ from typing_extensions import TypedDict
 class DatasetItem(TypedDict):
     inputs: Dict[str, Any]
     outputs: Optional[Union[Dict[str, Any], str]] = None
+    metadata: Optional[Dict[str, Any]] = None

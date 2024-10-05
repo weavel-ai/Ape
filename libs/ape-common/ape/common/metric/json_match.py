@@ -1,6 +1,6 @@
 from typing import Any, Dict, Optional, List
 from ape.common.metric import BaseMetric
-from ape.common.types import MetricResult
+from ape.common.types import MetricResult, DatasetItem
 from ape.common.utils import logger
 from ape.common.metric_prompts import ApeMetricPrompts
 
@@ -38,21 +38,15 @@ class JsonMatchMetric(BaseMetric):
 
     async def compute(
         self,
+        dataset_item: DatasetItem,
         pred: Dict[str, Any],
-        gold: Dict[str, Any],
-        inputs: Dict[str, Any] = {},
-        trace: Optional[Dict] = None,
-        metadata: Optional[Dict] = None,
     ) -> MetricResult:
         """
         Compute the similarity score between the gold standard and prediction.
 
         Args:
+            dataset_item (DatasetItem): The dataset item to evaluate. It includes inputs, outputs, and metadata as attributes.
             pred (Dict[str, Any]): The prediction to compare against the gold standard.
-            gold (Dict[str, Any]): The gold standard data item.
-            inputs (Dict[str, Any]): Additional input information (not used in this implementation).
-            trace (Optional[Dict]): Additional trace information (not used in this implementation).
-            metadata (Optional[Dict]): Additional metadata (not used in this implementation).
 
         Returns:
             MetricResult: The computed similarity score and any intermediate values.
@@ -165,6 +159,7 @@ class JsonMatchMetric(BaseMetric):
 
         try:
             # Normalize keys
+            gold = dataset_item["outputs"]
             gold_dict = {k.lower().replace(" ", "_"): v for k, v in gold.items()}
             pred_dict = {k.lower().replace(" ", "_"): v for k, v in pred.items()}
 
@@ -175,4 +170,4 @@ class JsonMatchMetric(BaseMetric):
 
         except Exception as e:
             logger.error(f"Error in JsonMatchMetric: {e}")
-            return MetricResult(score=0.0, intermediate_values={"error": str(e)})
+            return MetricResult(score=0.0)

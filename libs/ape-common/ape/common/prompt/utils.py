@@ -2,7 +2,7 @@ import json
 from typing import List, Optional
 from ape.common.types import DatasetItem
 from ape.common.types.response_format import ResponseFormat
-from ape.common.utils import dict_to_xml
+from ape.common.utils.logging import logger
 
 
 def format_fewshot(
@@ -27,6 +27,6 @@ def format_fewshot(
             #         outputs.pop(key, None)
             formatted += f"**Outputs**\n{json.dumps(outputs, indent=2)}\n\n"
     except Exception as err:
-        print(err)
+        logger.warning(f"Error formatting fewshot: {err}")
 
     return formatted

@@ -106,17 +106,16 @@ class CostTracker:
         finally:
             instance.context_uuid.reset(token)
 
-
 class CostTrackerContext:
     def __init__(self):
         self.context_uuid = str(uuid4())
-        self._cm = None
 
     async def __aenter__(self):
         self._cm = CostTracker.set_context(self.context_uuid)
-        async with self._cm:
-            return self
+        await self._cm.__aenter__()
+        return self
 
     async def __aexit__(self, exc_type, exc_value, traceback):
-        await self._cm.__anext__()  # await the async generator
+        await self._cm.__aexit__(exc_type, exc_value, traceback)
         CostTracker.delete_context(self.context_uuid)
+

@@ -12,7 +12,7 @@ import promptfile as pf
 from .cost_tracker import CostTracker
 from .utils import format_fewshot
 from ape.common.types import DatasetItem, ResponseFormat
-from ape.common.utils import parse_xml_outputs, logger
+from ape.common.utils import logger
 
 
 litellm_logger.disabled = True

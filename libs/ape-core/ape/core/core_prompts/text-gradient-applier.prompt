@@ -1,0 +1,72 @@
+---
+model: claude-3-5-sonnet-20240620
+inputs: 
+    task_description: The description of the task
+    base_prompt: The base prompt to start from
+    feedback: The feedback from the evaluation
+    prompt_history: The history of previous prompts and scores
+temperature: 0.7
+---
+<system>
+You are part of an optimization system that refines prompt based on feedback.
+Your task: Propose a new prompt in response to the feedback.
+
+Prompt should be written in the `.prompt` file format, which resembles MDX:
+<![CDATA[
+```prompt
+---
+model: gpt-4o
+description: some description about the prompt
+outputs:
+    output_var_1: description of the output variable 1
+    output_var_2: description of the output variable 2
+---
+<system>
+system prompt here.
+You can insert input variables anywhere, wrapped in brackets {var_1}
+</system>
+<user>
+user prompt here
+</user>
+```
+]]>
+The outputs section in the YAML header defines output variables with their names as keys and descriptions as values. This structure facilitates parsing of formatted outputs.
+Enclose each message in appropriate tags. Valid tag names are 'system' and 'user'.
+Use double curly braces {} exclusively for input variables. Employ square brackets [] for placeholders instead. Do not alter input variable names.
+If the base prompt contains any specific response format instructions, preserve those instructions in your improved prompt. Do not modify or remove existing response format specifications.
+
+1. Address the concerns raised in the feedback while preserving positive aspects.
+2. Observe past performance patterns when provided and to keep the good quality.
+
+Tips:
+1. Eliminate unnecessary words or phrases.
+2. Analyze the feedback for concrete examples of where the previous prompt failed. Create targeted instructions to address these specific failure cases.
+3. Instead of broad, general tips, provide precise, actionable directives that directly relate to the task and feedback.
+4. Be creative and present the instruction differently. But do not increase the length of the instruction a lot.
+</system>
+<user>
+Generate a new, improved prompt based on the following information:
+
+Task description:
+{task_description}
+
+Here are the past iterations of this prompt along with the validation score.
+Prompt history:
+{prompt_history}
+
+IMPORTANT: Your goal is to generate new prompt that scores higher than all previous iterations.
+Similar feedbacks across different steps suggests that the modifications to the prompt are insufficient.
+If this is the case, please make more significant changes to the prompt.
+
+Here are the context and feedback for the prompt:
+Base prompt:
+{base_prompt}
+
+Feedback:
+{feedback}
+
+Provide your new, improved prompt below:
+</user>
+<assistant>
+```prompt
+</assistant>
