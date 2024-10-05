@@ -97,16 +97,13 @@ class LogSettings:
             log.addHandler(rich_handler)
 
 
-level = os.environ.get("APE_LOG_LEVEL", "info").upper()
+DEFAULT_LOG_LEVEL = os.environ.get("APE_LOG_LEVEL", "WARNING").upper()
 
 
 # Set Defaults
-def show_logging(level: str = level) -> None:
-    ape_logger = logging.getLogger(LOGGER_NAME)
-    ape_logger.setLevel(level)
-    ape_logger.handlers = [RichHandler(console=console, rich_tracebacks=True, markup=True)]
+_logger = logging.getLogger(LOGGER_NAME)
+_logger.handlers = [RichHandler(console=console, rich_tracebacks=True, markup=True)]
+logger.setLevel(DEFAULT_LOG_LEVEL)
 
-
-show_logging(level)
 settings = LogSettings(output_type="str", method="console", file_name=None)
 set_log_output = settings.set_log_output
