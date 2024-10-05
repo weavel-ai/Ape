@@ -10,6 +10,7 @@ from ape.common.global_metric import BaseGlobalMetric
 from ape.common.metric import BaseMetric
 from ape.common.prompt import Prompt
 from ape.common.types import MetricResult, DatasetItem
+from ape.common.utils.logging import logger
 from ape.core.trainer.base import BaseTrainer
 from ape.core.types.report import FewShotTrainerReport
 
@@ -66,7 +67,7 @@ class FewShotTrainer(BaseTrainer):
             report.scores.append({"step": step, "score": global_result.score})
             report.choices.append({"step": step, "fewshot": candidate})
 
-            print(f"Step {step} completed. Score: {global_result.score}")
+            logger.debug(f"Step {step} completed. Score: {global_result.score}")
             return global_result.score, candidate
 
         results = await asyncio.gather(*[run_iteration(i, candidate, indices) for i, (candidate, indices) in enumerate(zip(fewshot_candidates, fewshot_candidate_indices))])

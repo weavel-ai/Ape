@@ -11,6 +11,7 @@ from ape.common.global_metric import BaseGlobalMetric
 from ape.common.metric import BaseMetric
 from ape.common.prompt import Prompt
 from ape.common.types import GlobalMetricResult, MetricResult, DatasetItem
+from ape.common.utils.logging import logger
 from ape.core.core_prompts import ApeCorePrompts
 from ape.core.types.report import BaseReport
 from ape.core.utils import extract_prompt
@@ -124,9 +125,11 @@ class BaseTrainer(ABC):
                 return prompt_description
             except Exception as e:
                 if attempt == 2:  # Last attempt
-                    print(f"Error generating task description: {e}")
+                    logger.exception("Error generating task description")
                     return ""
-                print(f"Error occurred: {e}. Retrying... (Attempt {attempt + 1}/3)")
+                logger.warning(
+                    f"Error generating task description: {e}. Retrying... (Attempt {attempt + 1}/3)"
+                )
                 await asyncio.sleep(1)  # Wait for 1 second before retrying
                 temperature += 0.1
 
@@ -189,7 +192,9 @@ class BaseTrainer(ABC):
             except Exception as e:
                 if attempt == 2:  # Last attempt
                     raise e
-                print(f"Error occurred: {e}. Retrying... (Attempt {attempt + 1}/3)")
+                logger.warning(
+                    f"Error summarizing dataset: {e}. Retrying... (Attempt {attempt + 1}/3)"
+                )
                 await asyncio.sleep(1)  # Wait for 1 second before retrying
                 temperature += 0.1
 
@@ -228,10 +233,12 @@ class BaseTrainer(ABC):
                 new_prompt = copy.deepcopy(prompt)
                 new_prompt.messages = new_prompt_messages.messages
                 return new_prompt
-            except Exception as e:
-                print(f"Error occurred: {e}. Retrying... (Attempt {retry_count + 1}/5)")
+            except Exception as exc:
+                logger.warning(
+                    f"Error generating fewshot placeholder: {exc}. Retrying... (Attempt {retry_count + 1}/5)"
+                )
                 retry_count += 1
                 if retry_count == 5:
                     raise ValueError(
-                        f"Failed to generate fewshot placeholder after 5 attempts: {str(e)}"
-                    )
+                        f"Failed to generate fewshot placeholder after 5 attempts: {str(exc)}"
+                    ) from exc

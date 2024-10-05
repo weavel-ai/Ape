@@ -10,6 +10,7 @@ from ape.core.core_prompts import ApeCorePrompts
 
 _nest_asyncio_applied = False
 
+
 def extract_prompt(text: str) -> str:
     match = re.search(r"```prompt(.*?)```", text, re.DOTALL)
     if match:
@@ -25,6 +26,7 @@ def get_response_format_instructions(response_format: ResponseFormat):
         )
     else:
         return ""
+
 
 async def reformat_prompt(prompt: Prompt, response_format: ResponseFormat) -> Prompt:
     """Reformat the prompt to be in XML style."""
@@ -49,7 +51,7 @@ async def reformat_prompt(prompt: Prompt, response_format: ResponseFormat) -> Pr
             new_prompt_message = Prompt.load(extracted)
             new_prompt = prompt.deepcopy()
             new_prompt.messages = new_prompt_message.messages
-            
+
             break
         except Exception as e:
             logger.error(f"Error reformatting prompt: {e}. Retrying...")
@@ -62,6 +64,7 @@ async def reformat_prompt(prompt: Prompt, response_format: ResponseFormat) -> Pr
     # new_prompt.fewshot_config = prompt.fewshot_config # TODO: fix this more pretty way
     return new_prompt
 
+
 def run_async(coroutine):
     global _nest_asyncio_applied
 
@@ -72,7 +75,7 @@ def run_async(coroutine):
             nest_asyncio.apply()
             _nest_asyncio_applied = True
         except ImportError:
-            print("Please install nest_asyncio: !pip install nest_asyncio")
+            logger.error("Please install nest_asyncio: !pip install nest_asyncio")
             raise
 
     try:
