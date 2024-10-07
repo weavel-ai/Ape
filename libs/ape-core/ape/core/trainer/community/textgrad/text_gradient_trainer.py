@@ -44,7 +44,6 @@ class TextGradientTrainer(BaseTrainer):
         self.text_gradient_generator_prompt = ApeCorePrompts.get("text-gradient-generator")
         self.text_gradient_applier_prompt = ApeCorePrompts.get("text-gradient-applier")
 
-        self.buffer_trainset = deque(maxlen=20)
         random.seed(random_seed)
 
     async def train(
@@ -74,7 +73,7 @@ class TextGradientTrainer(BaseTrainer):
 
         # Step 2: Initialize best_prompt and failed_count
         best_prompt = prompt
-        step_failed_count = 0
+        # step_failed_count = 0
         # text_gradient_result_queue = deque(maxlen=4)
         prompt_history_queue = deque(maxlen=4)
 
@@ -102,14 +101,6 @@ class TextGradientTrainer(BaseTrainer):
             best_batch_results: List[Tuple[DatasetItem, Any, MetricResult]] = []
             for item, pred, eval_result in zip(batch, best_batch_preds, best_batch_eval_results):
                 best_batch_results.append((item, pred, eval_result))
-
-            # Compute evalset_score using global_metric
-            if self.validation_type == "buffer_trainset":
-                best_evalset_results = [er for (_, _, er) in self.buffer_trainset]
-                best_evalset_global_result = await self.global_metric(
-                    best_evalset_results + best_batch_eval_results
-                )
-                best_evalset_score = best_evalset_global_result.score
 
             # Initialize retry mechanism
             retry_count = 0
@@ -144,7 +135,6 @@ class TextGradientTrainer(BaseTrainer):
                         prompt=best_prompt,
                         trainset=trainset,
                         valset=valset,
-                        buffer_trainset=list(self.buffer_trainset),
                         text_gradient="\n".join(text_gradients),
                     )
                     success = True
@@ -169,7 +159,7 @@ class TextGradientTrainer(BaseTrainer):
                         new_batch_results.append((item, pred, eval_result))
 
                     if new_batch_score > best_batch_score:
-                        # Step 11: Evaluate new_prompt on buffer_trainset
+                        # Step 11: Evaluate new_prompt on evalset
                         new_evalset_preds, new_evalset_eval_results, new_evalset_global_result = (
                             await self._evaluate_validation_set(new_prompt, trainset, valset)
                         )
@@ -189,19 +179,10 @@ class TextGradientTrainer(BaseTrainer):
                             best_evalset_score = new_evalset_score
                             best_batch_results = new_batch_results
 
-                            # Clear existing buffer and repopulate with new predictions
-                            if self.validation_type == "buffer_trainset":
-                                for i, (item, _, _) in enumerate(self.buffer_trainset):
-                                    self.buffer_trainset[i] = (
-                                        item,
-                                        new_evalset_preds[i],
-                                        new_evalset_eval_results[i],
-                                    )
-
                             # Update report with text_gradients
                             report.text_gradients.extend(text_gradients)
                             success = True  # Mark as successful update
-                            step_failed_count = 0
+                            # step_failed_count = 0
                         else:
                             logger.debug(
                                 f"Trial {retry_count + 1}: Score Not Improved: {best_evalset_score} -> {new_evalset_score}"
@@ -213,10 +194,10 @@ class TextGradientTrainer(BaseTrainer):
                                 logger.debug(
                                     f"Maximum retries ({self.max_proposals_per_step}) reached for this batch."
                                 )
-                                step_failed_count += 1
-                                if step_failed_count > self.early_stopping_rounds:
-                                    logger.debug("Early Stopping Triggered")
-                                    return best_prompt, report
+                                # step_failed_count += 1
+                                # if step_failed_count > self.early_stopping_rounds:
+                                #     logger.debug("Early Stopping Triggered")
+                                #     return best_prompt, report
                             else:
                                 logger.debug("Retrying with a new proposal...")
                     else:
@@ -235,33 +216,19 @@ class TextGradientTrainer(BaseTrainer):
                             logger.debug(
                                 f"Maximum retries ({self.max_proposals_per_step}) reached for this batch."
                             )
-                            step_failed_count += 1
-                            if step_failed_count > self.early_stopping_rounds:
-                                logger.debug("Early Stopping Triggered")
-                                return best_prompt, report
+                            # step_failed_count += 1
+                            # if step_failed_count > self.early_stopping_rounds:
+                            #     logger.debug("Early Stopping Triggered")
+                            #     return best_prompt, report
                         else:
                             logger.debug("Retrying with a new proposal...")
-
-            # add new samples to the buffer
-            if self.validation_type == "buffer_trainset":
-                self._manage_buffer(best_batch_results)
-                logger.debug(f"Buffer Trainset Updated: {len(self.buffer_trainset)}")
 
             # Update report with new score
             report.scores.append({"step": len(report.scores), "score": best_evalset_score})
             if best_evalset_score == 1.0:
                 logger.debug("Score reached 1.0")
-                if self.validation_type == "trainset":
-                    _, _, trainset_global_result = await self._evaluate(trainset, best_prompt)
-                    trainset_score = trainset_global_result.score
-                    if trainset_score == 1.0:
-                        logger.debug("Trainset Score reached 1.0")
-                        report.best_score = 1.0
-                        return best_prompt, report
-                else:
-                    logger.debug("Valset Score reached 1.0")
-                    report.best_score = 1.0
-                    return best_prompt, report
+                report.best_score = 1.0
+                return best_prompt, report
 
         _, _, trainset_global_result = await self._evaluate(trainset, best_prompt)
         trainset_score = trainset_global_result.score
@@ -269,48 +236,48 @@ class TextGradientTrainer(BaseTrainer):
         # Step 14: All data processed, return the best_prompt found and the report
         return best_prompt, report
 
-    def _manage_buffer(self, new_samples: List[Tuple[Any, Any, Any]]):
-        """
-        Manage the buffer_trainset to ensure it contains at most max_buffer_size samples
-        with a balanced ratio of success and failure samples.
+    # def _manage_buffer(self, new_samples: List[Tuple[Any, Any, Any]]):
+    #     """
+    #     Manage the buffer_trainset to ensure it contains at most max_buffer_size samples
+    #     with a balanced ratio of success and failure samples.
 
-        Args:
-            new_samples (List[Tuple[Any, Any, Any]]): New samples to add to the buffer.
-        """
-        # Add new samples to the buffer
-        for sample in new_samples:
-            self.buffer_trainset.append(sample)
+    #     Args:
+    #         new_samples (List[Tuple[Any, Any, Any]]): New samples to add to the buffer.
+    #     """
+    #     # Add new samples to the buffer
+    #     for sample in new_samples:
+    #         self.buffer_trainset.append(sample)
 
-        # If buffer size exceeds max_buffer_size, remove oldest samples to maintain balance
-        while len(self.buffer_trainset) > 20:
-            # Count current successes and failures
-            num_success = sum(1 for s in self.buffer_trainset if s[2].score >= 0.5)
-            num_failure = sum(1 for s in self.buffer_trainset if s[2].score < 0.5)
+    #     # If buffer size exceeds max_buffer_size, remove oldest samples to maintain balance
+    #     while len(self.buffer_trainset) > 20:
+    #         # Count current successes and failures
+    #         num_success = sum(1 for s in self.buffer_trainset if s[2].score >= 0.5)
+    #         num_failure = sum(1 for s in self.buffer_trainset if s[2].score < 0.5)
 
-            # Determine desired counts
-            desired_success = 10
-            desired_failure = 10
+    #         # Determine desired counts
+    #         desired_success = 10
+    #         desired_failure = 10
 
-            # Calculate excess
-            excess_success = num_success - desired_success
-            excess_failure = num_failure - desired_failure
+    #         # Calculate excess
+    #         excess_success = num_success - desired_success
+    #         excess_failure = num_failure - desired_failure
 
-            # Decide which class to remove from
-            if excess_success > 0:
-                # Remove the oldest success sample
-                for idx, sample in enumerate(self.buffer_trainset):
-                    if sample[2].score >= 0.5:
-                        del self.buffer_trainset[idx]
-                        break
-            elif excess_failure > 0:
-                # Remove the oldest failure sample
-                for idx, sample in enumerate(self.buffer_trainset):
-                    if sample[2].score < 0.5:
-                        del self.buffer_trainset[idx]
-                        break
-            else:
-                # If no class is in excess, remove the oldest sample
-                self.buffer_trainset.popleft()
+    #         # Decide which class to remove from
+    #         if excess_success > 0:
+    #             # Remove the oldest success sample
+    #             for idx, sample in enumerate(self.buffer_trainset):
+    #                 if sample[2].score >= 0.5:
+    #                     del self.buffer_trainset[idx]
+    #                     break
+    #         elif excess_failure > 0:
+    #             # Remove the oldest failure sample
+    #             for idx, sample in enumerate(self.buffer_trainset):
+    #                 if sample[2].score < 0.5:
+    #                     del self.buffer_trainset[idx]
+    #                     break
+    #         else:
+    #             # If no class is in excess, remove the oldest sample
+    #             self.buffer_trainset.popleft()
 
     async def _text_gradient_generator(
         self,
@@ -421,8 +388,6 @@ class TextGradientTrainer(BaseTrainer):
             return valset
         elif self.validation_type == "all":
             return trainset + valset
-        elif self.validation_type == "buffer_trainset":
-            return [item for (item, _, _) in self.buffer_trainset]
         else:
             raise ValueError(f"Invalid validation_type: {self.validation_type}")
 
