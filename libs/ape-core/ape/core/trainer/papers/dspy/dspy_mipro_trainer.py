@@ -247,7 +247,6 @@ class DspyMiproTrainer(BaseTrainer):
         logger.debug(f"Sampling {num_samples} fewshot examples")
         sampled_indices = random.sample(range(len(trainset)), min(num_samples, len(trainset)))
         return [trainset[i] for i in sampled_indices], sampled_indices
-
     async def sample(
         self,
         trainset: List[DatasetItem],
@@ -277,17 +276,11 @@ class DspyMiproTrainer(BaseTrainer):
                 for i in bootstrapped_indices
             ]
 
-        failed_indices = [
-            i for i, result in enumerate(eval_results) if result.score < self.success_score
-        ]
-
-        if failed_indices:
-            weights = [1 - eval_results[i].score for i in failed_indices]
-            labeled_indices = self.random_sample(
-                failed_indices,
-                num_shots=min(max_labeled_demos, len(failed_indices)),
-                replace=False,
-                weights=weights,
+        # Select labeled demos from the remaining data (excluding bootstrapped demos)
+        remaining_indices = list(set(range(len(trainset))) - set(bootstrapped_indices))
+        if remaining_indices:
+            labeled_indices = random.sample(
+                remaining_indices, min(max_labeled_demos, len(remaining_indices))
             )
             labeled_samples = [
                 DatasetItem(inputs=trainset[i]["inputs"], outputs=trainset[i]["outputs"])
