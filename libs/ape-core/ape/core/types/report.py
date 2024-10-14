@@ -22,3 +22,7 @@ class OptunaTrainerReport(BaseReport):
 class FewShotTrainerReport(BaseReport):
     choices: List[Dict[str, Any]]
     best_params: Dict[str, Any]
+
+
+class EvoPromptReport(BaseReport):
+    pass
