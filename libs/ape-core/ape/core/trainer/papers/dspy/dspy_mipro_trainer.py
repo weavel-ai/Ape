@@ -189,7 +189,11 @@ class DspyMiproTrainer(BaseTrainer):
                 trial_logs[trial.number]["best_score_update"] = False
 
             report.trial_logs = trial_logs
-            report.scores.append({"step": trial.number, "score": score})
+            if self.testmode:
+                _, _, val_global_result  = run_async(self._evaluate(valset, candidate_prompt))
+                report.scores.append({"step": trial.number, "score": score, "val_score": val_global_result.score})
+            else:
+                report.scores.append({"step": trial.number, "score": score})
 
             if score >= 1.0:
                 logger.info(f"Perfect score achieved in trial {trial.number}")

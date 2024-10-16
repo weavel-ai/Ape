@@ -25,6 +25,7 @@ class BaseTrainer(ABC):
         global_metric: Optional[BaseGlobalMetric] = None,
         task_description: Optional[str] = None,
         metric_description: Optional[str] = None,
+        testmode: Optional[bool] = False,
         **kwargs,
     ):
         self.generate = generator
@@ -33,6 +34,7 @@ class BaseTrainer(ABC):
         self.task_description = task_description
         self.metric_description = metric_description
         self.dataset_summary = None
+        self.testmode = testmode
 
     @abstractmethod
     async def train(

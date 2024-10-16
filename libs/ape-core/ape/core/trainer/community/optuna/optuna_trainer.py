@@ -222,8 +222,12 @@ class OptunaTrainer(BaseTrainer):
 
             # Update report
             report.trial_logs = trial_logs
-            report.scores.append(
-                {
+            if self.testmode:
+                _, _, val_global_result  = run_async(self._evaluate(valset, candidate_prompt))
+                report.scores.append({"step": trial.number, "score": score, "val_score": val_global_result.score})
+            else:
+                report.scores.append(
+                    {
                     "step": trial.number,
                     "score": score,
                 }
