@@ -224,7 +224,12 @@ class TextGradientTrainer(BaseTrainer):
                             logger.debug("Retrying with a new proposal...")
 
             # Update report with new score
-            report.scores.append({"step": len(report.scores), "score": best_evalset_score})
+            if self.testmode:
+                _, _, val_global_result  = await self._evaluate(valset, best_prompt)
+                report.scores.append({"step": len(report.scores), "score": best_evalset_score, "val_score": val_global_result.score})
+            else:
+                report.scores.append({"step": len(report.scores), "score": best_evalset_score})
+                
             if best_evalset_score == 1.0:
                 logger.debug("Score reached 1.0")
                 report.best_score = 1.0

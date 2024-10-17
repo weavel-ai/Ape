@@ -113,6 +113,9 @@ class ExpelTrainer(BaseTrainer):
                     if trainset_global_result.score == 1.0:
                         logger.debug(f"Trial {retry_count} succeeded in batch, 1.0")
                         score_report = {"step": global_step, "score": trainset_global_result.score}
+                        if self.testmode:
+                            _, _, val_global_result  = await self._evaluate(valset, new_prompt)
+                            score_report["val_score"] = val_global_result.score
                         report.feedbacks.append({"type": "success group", "feedback": feedback})
                         report.scores.append(score_report)
                         return new_prompt, report
@@ -135,7 +138,9 @@ class ExpelTrainer(BaseTrainer):
                     prompt_history.append(
                         {"prompt": new_prompt, "score": trainset_global_result.score}
                     )
-
+                if self.testmode:
+                    _, _, val_global_result  = await self._evaluate(valset, new_prompt)
+                    score_report["val_score"] = val_global_result.score
                 report.scores.append(score_report)
                 report.feedbacks.append({"type": "success group", "feedback": feedback})
 
@@ -183,6 +188,9 @@ class ExpelTrainer(BaseTrainer):
                         logger.debug(f"Trial {retry_count} succeeded in batch, 1.0")
                         score_report = {"step": global_step, "score": trainset_global_result.score}
                         report.feedbacks.append({"type": "failure group", "feedback": feedback})
+                        if self.testmode:
+                            _, _, val_global_result  = await self._evaluate(valset, new_prompt)
+                            score_report["val_score"] = val_global_result.score
                         report.scores.append(score_report)
                         return new_prompt, report
 
@@ -205,7 +213,9 @@ class ExpelTrainer(BaseTrainer):
                     prompt_history.append(
                         {"prompt": new_prompt, "score": trainset_global_result.score}
                     )
-
+                if self.testmode:
+                    _, _, val_global_result  = await self._evaluate(valset, new_prompt)
+                    score_report["val_score"] = val_global_result.score
                 report.scores.append(score_report)
                 report.feedbacks.append({"type": "failure group", "feedback": feedback})
 

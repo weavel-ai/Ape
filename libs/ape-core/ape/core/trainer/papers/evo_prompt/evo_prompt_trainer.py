@@ -67,7 +67,7 @@ class EvoPromptTrainer(BaseTrainer):
         # Initialize population
         report = EvoPromptReport(scores=[], best_score=0.0)
         print("Initializing population...")
-        await self.init_pop(prompt, trainset, report)
+        await self.init_pop(prompt, trainset, valset, report)
         print("Population initialized")
         
         best_scores = []
@@ -95,7 +95,38 @@ class EvoPromptTrainer(BaseTrainer):
             avg_scores.append(avg_score)
 
             # Optionally write step results
-            self.write_step(step, best_score, avg_score, report)
+            logger.info(f"Step {step}: Best Score = {best_score}, Avg Score = {avg_score}")
+            print(f"Step {step}: Best Score = {best_score}, Avg Score = {avg_score}")
+            
+            if self.testmode:
+                semaphore = asyncio.Semaphore(5)
+                async def eval_with_semaphore(p):
+                    async with semaphore:
+                        return await self._evaluate(valset, self.indices2prompts[p])
+                val_eval_tasks = [eval_with_semaphore(p) for p in self.population]
+                val_results = await asyncio.gather(*val_eval_tasks)
+                val_scores = [global_score.score for _, _, global_score in val_results]
+                best_val_score = max(val_scores)
+                
+                best_score_prompt_index = max(self.evaluated_prompts.items(), key=lambda x: x[1])[0]
+                best_score_prompt_population_index = self.population.index(best_score_prompt_index)
+                best_score_prompt_val_score = val_scores[best_score_prompt_population_index]
+                
+                report.scores.append({
+                    "step": step,
+                    "best_score": best_score,
+                    "avg_score": avg_score,
+                    "val_best_score": best_val_score,
+                    "val_score": best_score_prompt_val_score,
+                    "val_avg_score": sum(val_scores) / len(val_scores)
+                })
+            else:
+                report.scores.append({
+                    "step": step,
+                    "best_score": best_score,
+                    "avg_score": avg_score
+                })
+            
             if best_score >= 1.0:
                 break
 
@@ -104,7 +135,7 @@ class EvoPromptTrainer(BaseTrainer):
         best_prompt = self.indices2prompts[best_prompt_index]
         return best_prompt, report
 
-    async def init_pop(self, prompt: Prompt, trainset: List[DatasetItem], report: EvoPromptReport):
+    async def init_pop(self, prompt: Prompt, trainset: List[DatasetItem], valset: List[DatasetItem], report: EvoPromptReport):
         # Function to paraphrase a single prompt
         async def _paraphrase_prompt(prompt: Prompt) -> Prompt:
             # Use the paraphraser prompt to paraphrase the prompt
@@ -135,28 +166,66 @@ class EvoPromptTrainer(BaseTrainer):
         self.population = [await self._add_prompt(p) for p in paraphrased_prompts]
         self.prompts2mark = {p: "paraphrased_initial" for p in self.population}
 
-        # Evaluate the initial population in parallel
+        # Evaluate the initial population in parallel using a semaphore
+        semaphore = asyncio.Semaphore(5)  # Adjust the value as needed
+        async def evaluate_with_semaphore(p):
+            async with semaphore:
+                return await self._evaluate(trainset, self.indices2prompts[p])
+        
         eval_tasks = [
-            self._evaluate(trainset, self.indices2prompts[p]) for p in self.population
+            evaluate_with_semaphore(p) for p in self.population
         ]
         eval_results = await asyncio.gather(*eval_tasks)
         for p, (_, _, global_score) in zip(self.population, eval_results):
             self.evaluated_prompts[p] = global_score.score
         
-        report.scores.append({
-            "step": -1,
-            "best_score": max(self.evaluated_prompts.values()),
-            "avg_score": sum(self.evaluated_prompts.values()) / len(self.evaluated_prompts)
-        })
+        if self.testmode:
+            semaphore = asyncio.Semaphore(5)  # Limit concurrent evaluations to 5
+            async def evaluate_with_semaphore(p):
+                async with semaphore:
+                    return await self._evaluate(valset, self.indices2prompts[p])
+            
+            val_eval_tasks = [
+                evaluate_with_semaphore(p) for p in self.population
+            ]
+            val_results = await asyncio.gather(*val_eval_tasks)
+            val_scores = [global_score.score for _, _, global_score in val_results]
+            best_val_score = max(val_scores)
+            
+            best_score_prompt_index = max(self.evaluated_prompts.items(), key=lambda x: x[1])[0]
+            best_score_prompt_population_index = self.population.index(best_score_prompt_index)
+            best_score_prompt_val_score = val_scores[best_score_prompt_population_index]
+            
+            report.scores.append({
+                "step": -1,
+                "best_score": max(self.evaluated_prompts.values()),
+                "avg_score": sum(self.evaluated_prompts.values()) / len(self.evaluated_prompts),
+                "val_best_score": best_val_score,
+                "val_score": best_score_prompt_val_score,
+                "val_avg_score": sum(val_scores) / len(val_scores)
+            })
+        else:
+            report.scores.append({
+                "step": -1,
+                "best_score": max(self.evaluated_prompts.values()),
+                "avg_score": sum(self.evaluated_prompts.values()) / len(self.evaluated_prompts)
+            })
         report.best_score = max(self.evaluated_prompts.values())
 
     async def evaluate_population(self, trainset: List[DatasetItem]):
-        # Evaluate each prompt in the population
+        # Evaluate each prompt in the population using a semaphore
+        semaphore = asyncio.Semaphore(5)  # Limit concurrent evaluations to 5
         eval_tasks = []
+
+        async def evaluate_with_semaphore(prompt_index):
+            async with semaphore:
+                return prompt_index, await self._evaluate(trainset, self.indices2prompts[prompt_index])
+
         for prompt_index in self.population:
             if prompt_index not in self.evaluated_prompts:
-                eval_tasks.append((prompt_index, self._evaluate(trainset, self.indices2prompts[prompt_index])))
-        results = await asyncio.gather(*[task for _, task in eval_tasks]) if eval_tasks else []
+                eval_tasks.append(evaluate_with_semaphore(prompt_index))
+
+        results = await asyncio.gather(*eval_tasks) if eval_tasks else []
         for (prompt_index, _), (_, _, global_score) in zip(eval_tasks, results):
             self.evaluated_prompts[prompt_index] = global_score.score
 
@@ -220,8 +289,8 @@ class EvoPromptTrainer(BaseTrainer):
             # Load into Prompt object
             new_prompt_message = Prompt.load(child_prompt_messages_str)
             if not new_prompt_message.messages:
-                logger.warning("Generated prompt has no messages")
-                raise ValueError("Generated prompt has no messages")
+                logger.warning(f"Generated prompt has no messages, {child_prompt_raw}")
+                raise ValueError(f"Generated prompt has no messages, {child_prompt_raw}")
             child_prompt = self.indices2prompts[cand_a].deepcopy()  # Use cand_a as base
             child_prompt.messages = new_prompt_message.messages
             child_prompt_index = await self._add_prompt(child_prompt)
@@ -339,14 +408,3 @@ class EvoPromptTrainer(BaseTrainer):
             heapq.heappush(self.topk_heap, (self.evaluated_prompts[p_index], p_index))
 
         self.new_children = new_children
-
-    def write_step(self, step: int, best_score: float, avg_score: float, report: EvoPromptReport):
-        # Optionally write step results
-        logger.info(f"Step {step}: Best Score = {best_score}, Avg Score = {avg_score}")
-        print(f"Step {step}: Best Score = {best_score}, Avg Score = {avg_score}")
-        
-        report.scores.append({
-            "step": step,
-            "best_score": best_score,
-            "avg_score": avg_score
-        })
