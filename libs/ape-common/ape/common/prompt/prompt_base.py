@@ -198,7 +198,9 @@ class Prompt(pf.Prompt):
             if self.response_format["type"] == "text":
                 return res_text
             parsed_outputs: Dict[str, Any]
-            if isinstance(self.response_format, BaseModel):
+            if isinstance(self.response_format, type) and issubclass(
+                self.response_format, BaseModel
+            ):
                 parsed_outputs = json.loads(res_text)
                 parsed_outputs = self.response_format.model_validate(parsed_outputs)
             else:
@@ -285,7 +287,7 @@ class Prompt(pf.Prompt):
         """
 
         response_format_cache = None
-        if isinstance(self.response_format, BaseModel):
+        if isinstance(self.response_format, type) and issubclass(self.response_format, BaseModel):
             response_format_cache = self.response_format
             self.response_format = type_to_response_format_param(self.response_format)
 
