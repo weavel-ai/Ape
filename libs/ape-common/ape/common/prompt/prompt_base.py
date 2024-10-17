@@ -18,6 +18,47 @@ from ape.common.utils import logger
 litellm_logger.disabled = True
 litellm.suppress_debug_info = True
 
+prompt_messages_json_schema = {
+    "name": "prompt",
+    "description": "Creates a prompt consisting of a list of messages.",
+    "strict": True,
+    "parameters": {
+        "type": "object",
+        "required": [
+            "messages"
+        ],
+        "properties": {
+            "messages": {
+                "type": "array",
+                "description": "List of messages in the prompt",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "role": {
+                            "type": "string",
+                            "description": "Role of the message sender",
+                            "enum": [
+                                "system",
+                                "user",
+                                "assistant"
+                            ]
+                        },
+                        "content": {
+                            "type": "string",
+                            "description": "Content of the message"
+                        }
+                    },
+                    "required": [
+                        "role",
+                        "content"
+                    ],
+                    "additionalProperties": False
+                }
+            }
+        },
+        "additionalProperties": False
+    }
+}
 
 class Prompt(pf.Prompt):
     """
@@ -223,6 +264,21 @@ class Prompt(pf.Prompt):
             Prompt: A new Prompt object.
         """
         config = super().load(content)
+        instance = cls(**config.model_dump())
+        return instance
+    
+    @classmethod
+    def load_json(cls, json: dict) -> "Prompt":
+        """
+        Load a Prompt object from a JSON dictionary.
+
+        Args:
+            json (dict): The JSON dictionary to load the prompt from.
+
+        Returns:
+            Prompt: A new Prompt object.
+        """
+        config = super().load_json(str(json))
         instance = cls(**config.model_dump())
         return instance
 

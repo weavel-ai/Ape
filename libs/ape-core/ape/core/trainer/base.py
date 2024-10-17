@@ -104,9 +104,6 @@ class BaseTrainer(ABC):
     ) -> str:
         describe_prompt = ApeCorePrompts.get("describe-prompt")
 
-        base_prompt_messages = [json.dumps(message) for message in prompt.messages]
-        base_prompt_messages_str = "\n".join(base_prompt_messages)
-
         temperature = describe_prompt.temperature
 
         for attempt in range(3):
@@ -118,7 +115,7 @@ class BaseTrainer(ABC):
                 # Describe the prompt
                 prompt_description = await describe_prompt(
                     lm_config=dict(temperature=temperature),
-                    prompt=base_prompt_messages_str,
+                    prompt=str(prompt.messages),
                     dataset_description=dataset_summary,
                 )
 
@@ -220,20 +217,13 @@ class BaseTrainer(ABC):
     async def generate_fewshot_placeholder(self, prompt: Prompt) -> Prompt:
         fewshot_placeholder_generator = ApeCorePrompts.get("gen-fewshot-placeholder")
 
-        prompt_messages = [json.dumps(message) for message in prompt.messages]
-        prompt_messages_str = "\n".join(prompt_messages)
-
         retry_count = 0
         while retry_count < 5:
             try:
-                new_prompt_raw = await fewshot_placeholder_generator(prompt=prompt_messages_str)
-                if not new_prompt_raw.strip().startswith("```prompt"):
-                    new_prompt_raw = f"```prompt\n" + new_prompt_raw
-
-                new_prompt_messages_str = extract_prompt(new_prompt_raw)
-                new_prompt_messages = Prompt.load(new_prompt_messages_str)
+                new_prompt_raw = await fewshot_placeholder_generator(prompt=str(prompt.messages))
+                new_prompt_messages = new_prompt_raw["messages"]
                 new_prompt = copy.deepcopy(prompt)
-                new_prompt.messages = new_prompt_messages.messages
+                new_prompt.messages = new_prompt_messages
                 return new_prompt
             except Exception as exc:
                 logger.warning(

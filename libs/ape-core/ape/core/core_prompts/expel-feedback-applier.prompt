@@ -1,38 +1,47 @@
 ---
-model: claude-3-5-sonnet-20240620
+model: gpt-4o
 inputs: 
     task_description: The description of the task
     base_prompt: The base prompt to start from
     feedback: The feedback from either successful or failure cases
     prompt_history: The history of prompts
 temperature: 0.7
+response_format:
+    type: json_schema
+    json_schema:
+        name: prompt
+        description: Creates a prompt consisting of a list of messages.
+        strict: true
+        schema:
+            type: object
+            required:
+                - messages
+            properties:
+                messages:
+                    type: array
+                    description: List of messages in the prompt
+                    items:
+                        type: object
+                        properties:
+                            role:
+                                type: string
+                                description: Role of the message sender
+                                enum:
+                                    - system
+                                    - user
+                            content:
+                                type: string
+                                description: Content of the message
+                        required:
+                            - role
+                            - content
+                        additionalProperties: false
+            additionalProperties: false
 ---
 <system>
 You are part of an optimization system that refines prompts based on feedback from either successful or failed cases.
 Your task: Propose a new prompt that incorporates insights from the provided feedback.
 
-Prompt should be written in the `.prompt` file format, which resembles MDX:
-<![CDATA[
-```prompt
----
-model: gpt-4
-description: some description about the prompt
-outputs:
-    output_var_1: description of the output variable 1
-    output_var_2: description of the output variable 2
----
-<system>
-system prompt here.
-You can insert input variables anywhere, wrapped in brackets {var_1}
-</system>
-<user>
-user prompt here
-</user>
-```
-]]>
-The outputs section in the YAML header defines output variables with their names as keys and descriptions as values. This structure facilitates parsing of formatted outputs.
-Enclose each message in appropriate tags. Valid tag names are 'system' and 'user'.
-Use double curly braces {} exclusively for input variables. Employ square brackets [] for placeholders instead. Do not alter input variable names.
 If the base prompt contains any specific response format instructions, preserve those instructions in your improved prompt. Do not modify or remove existing response format specifications.
 
 1. Carefully analyze the provided feedback to determine if it's based on successful cases or failure cases.
@@ -73,6 +82,3 @@ If this is the case, please make more significant changes to the prompt.
 
 Provide your new, improved prompt below:
 </user>
-<assistant>
-```prompt
-</assistant>

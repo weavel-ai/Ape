@@ -305,9 +305,6 @@ class ExpelTrainer(BaseTrainer):
         else:
             feedback_generator = self.failure_feedback_generator
 
-        prompt_messages = [json.dumps(message) for message in prompt.messages]
-        prompt_messages_str = "\n".join(prompt_messages)
-
         feedback_history_str = ""
         for history in feedback_history:
             feedback_history_str += f"Feedback : {history['feedback']}\n"
@@ -330,7 +327,7 @@ class ExpelTrainer(BaseTrainer):
                 response = await feedback_generator(
                     task_description=self.task_description,
                     metric_description=self.metric_description,
-                    base_prompt=prompt_messages_str,
+                    base_prompt=str(prompt.messages),
                     report=report,
                     feedback_history=feedback_history_str,
                 )
@@ -353,29 +350,24 @@ class ExpelTrainer(BaseTrainer):
         self, prompt: Prompt, feedback: str, prompt_history: List[Dict[str, Any]]
     ):
         retry_count = 0
-        prompt_messages = [json.dumps(message) for message in prompt.messages]
-        prompt_messages_str = "\n".join(prompt_messages)
 
         prompt_history_str = ""
         for history in prompt_history:
-            prompt_history_str += f"Prompt : {json.dumps(history['prompt'].messages)}\n"
+            prompt_history_str += f"Prompt : {str(history['prompt'].messages)}\n"
             prompt_history_str += f"Score : {history['score']}\n"
 
         while retry_count < 3:
             try:
-                new_prompt_str = await self.feedback_applier(
+                new_prompt_raw = await self.feedback_applier(
                     task_description=self.task_description,
-                    base_prompt=prompt_messages_str,
+                    base_prompt=str(prompt.messages),
                     feedback=feedback,
                     prompt_history=prompt_history_str,
                 )
-                if not new_prompt_str.strip().startswith("```prompt"):
-                    new_prompt_str = "```prompt\n" + new_prompt_str
 
-                extracted_prompt = extract_prompt(new_prompt_str)
-                new_prompt_message = Prompt.load(extracted_prompt)
+                new_prompt_message = new_prompt_raw["messages"]
                 new_prompt = prompt.deepcopy()
-                new_prompt.messages = new_prompt_message.messages
+                new_prompt.messages = new_prompt_message
 
                 messages = [json.dumps(message) for message in new_prompt.messages]
                 messages_str = "\n".join(messages)

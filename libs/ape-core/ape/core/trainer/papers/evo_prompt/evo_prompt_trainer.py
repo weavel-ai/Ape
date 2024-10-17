@@ -11,7 +11,6 @@ from ape.common.generator import BaseGenerator
 from ape.common.global_metric import BaseGlobalMetric
 from ape.common.metric import BaseMetric
 from ape.common.utils.logging import logger
-from ape.core.utils import extract_prompt, reformat_prompt
 from ape.core.core_prompts import ApeCorePrompts
 from ape.core.trainer.base import BaseTrainer
 from ape.core.types.report import EvoPromptReport
@@ -44,10 +43,10 @@ class EvoPromptTrainer(BaseTrainer):
         self.next_index = 0  # To generate unique indices
 
         # Load the evolution prompt template
-        self.evolution_prompt_de = ApeCorePrompts.get("evolution-prompt-de")
-        self.evolution_prompt_ga = ApeCorePrompts.get("evolution-prompt-ga")
+        self.evolution_prompt_de = ApeCorePrompts.get("evoprompt-prompt-de")
+        self.evolution_prompt_ga = ApeCorePrompts.get("evoprompt-prompt-ga")
         # Load the paraphraser prompt
-        self.paraphraser_prompt = ApeCorePrompts.get("evolution-prompt-para")
+        self.paraphraser_prompt = ApeCorePrompts.get("evoprompt-prompt-para")
 
         self.lock = asyncio.Lock()
 
@@ -66,9 +65,9 @@ class EvoPromptTrainer(BaseTrainer):
     ) -> Tuple[Prompt, EvoPromptReport]:
         # Initialize population
         report = EvoPromptReport(scores=[], best_score=0.0)
-        print("Initializing population...")
+        logger.info("Initializing population...")
         await self.init_pop(prompt, trainset, valset, report)
-        print("Population initialized")
+        logger.info("Population initialized")
         
         best_scores = []
         avg_scores = []
@@ -76,16 +75,11 @@ class EvoPromptTrainer(BaseTrainer):
         # Evolution loop
         for step in range(self.cur_epoch + 1, self.epoch):
             logger.info(f"Step: {step}")
-            print(f"Step: {step}")
             # Generate new prompts
-            print("Generating new prompts...")
             await self.generate_new_prompts(trainset)
-            print("New prompts generated")
 
             # Evaluate the new population
-            print("Evaluating population...")
             await self.evaluate_population(trainset)
-            print("Population evaluated")
             
             # Record best and average scores
             total_score = sum(self.evaluated_prompts[p] for p in self.population)
@@ -96,7 +90,6 @@ class EvoPromptTrainer(BaseTrainer):
 
             # Optionally write step results
             logger.info(f"Step {step}: Best Score = {best_score}, Avg Score = {avg_score}")
-            print(f"Step {step}: Best Score = {best_score}, Avg Score = {avg_score}")
             
             if self.testmode:
                 semaphore = asyncio.Semaphore(5)
@@ -139,23 +132,13 @@ class EvoPromptTrainer(BaseTrainer):
         # Function to paraphrase a single prompt
         async def _paraphrase_prompt(prompt: Prompt) -> Prompt:
             # Use the paraphraser prompt to paraphrase the prompt
-            prompt_messages = [json.dumps(message) for message in prompt.messages]
-            prompt_messages_str = "\n".join(prompt_messages)
-
             # Generate paraphrased prompt
-            paraphrased_prompt_raw = await self.paraphraser_prompt(base_prompt=prompt_messages_str)
+            paraphrased_prompt_raw = await self.paraphraser_prompt(base_prompt=str(prompt.messages))
             # Ensure the paraphrased prompt starts with the expected format
-            if not paraphrased_prompt_raw.strip().startswith("```prompt"):
-                paraphrased_prompt_raw = "```prompt\n" + paraphrased_prompt_raw
-                
-            paraphrased_prompt_messages_str = extract_prompt(paraphrased_prompt_raw)
+            paraphrased_prompt_messages = paraphrased_prompt_raw["messages"]
             # Load into Prompt object
-            new_prompt_message = Prompt.load(paraphrased_prompt_messages_str)
-            if not new_prompt_message.messages:
-                logger.warning("Generated prompt has no messages")
-                raise ValueError("Generated prompt has no messages")
             paraphrased_prompt = prompt.deepcopy()
-            paraphrased_prompt.messages = new_prompt_message.messages
+            paraphrased_prompt.messages = paraphrased_prompt_messages
             return paraphrased_prompt
 
         # Create paraphrased prompts in parallel
@@ -231,7 +214,6 @@ class EvoPromptTrainer(BaseTrainer):
 
     async def generate_new_prompts(self, trainset: List[DatasetItem]):
         # Call the appropriate method based on evolution_method
-        print(f"Generating new prompts with {self.evolution_method}...")
         if self.evolution_method == 'para':
             await self.generate_new_prompts_para(trainset)
         elif self.evolution_method == 'ga':
@@ -240,8 +222,6 @@ class EvoPromptTrainer(BaseTrainer):
             await self.generate_new_prompts_de(trainset)
         else:
             raise ValueError(f"Unknown evolution method: {self.evolution_method}")
-        print("New prompts generated")
-        print("Start Selecting Next Generation...")
         # Update the population based on child_selection_mode
         if self.child_selection_mode == 'child':
             # Completely replace the population with new children
@@ -256,7 +236,6 @@ class EvoPromptTrainer(BaseTrainer):
             new_population = [prompt_index for prompt_index, _ in sorted_prompts[:self.popsize]]
         else:
             raise ValueError(f"Unknown child selection mode: {self.child_selection_mode}")
-        print("Next Generation Selected")
         self.population = new_population
 
     async def generate_new_prompts_ga(self, trainset: List[DatasetItem]):
@@ -281,18 +260,13 @@ class EvoPromptTrainer(BaseTrainer):
         async def create_child(cand_a: int, cand_b: int) -> int:
             # Use the evolution prompt to generate a new prompt
             child_prompt_raw = await self.evolution_prompt_ga(
-                prompt1=str(self.indices2prompts[cand_a]),
-                prompt2=str(self.indices2prompts[cand_b])
+                prompt1=str(self.indices2prompts[cand_a].messages),
+                prompt2=str(self.indices2prompts[cand_b].messages)
             )
-            child_prompt_raw = child_prompt_raw["mutation_prompt"]
-            child_prompt_messages_str = extract_prompt(child_prompt_raw)
-            # Load into Prompt object
-            new_prompt_message = Prompt.load(child_prompt_messages_str)
-            if not new_prompt_message.messages:
-                logger.warning(f"Generated prompt has no messages, {child_prompt_raw}")
-                raise ValueError(f"Generated prompt has no messages, {child_prompt_raw}")
+            child_prompt_messages = child_prompt_raw["mutation_prompt"]["messages"]
+            # Load into Prompt object   
             child_prompt = self.indices2prompts[cand_a].deepcopy()  # Use cand_a as base
-            child_prompt.messages = new_prompt_message.messages
+            child_prompt.messages = child_prompt_messages
             child_prompt_index = await self._add_prompt(child_prompt)
             self.prompts2mark[child_prompt_index] = "evolved"
             
@@ -323,21 +297,15 @@ class EvoPromptTrainer(BaseTrainer):
 
             # Use the evolution prompt to generate a new prompt
             new_prompt_raw = await self.evolution_prompt_de(
-                base_prompt=str(self.indices2prompts[old_prompt_index]),
-                prompt1=str(self.indices2prompts[a]),
-                prompt2=str(self.indices2prompts[b]),
-                prompt3=str(self.indices2prompts[c])
+                base_prompt=str(self.indices2prompts[old_prompt_index].messages),
+                prompt1=str(self.indices2prompts[a].messages),
+                prompt2=str(self.indices2prompts[b].messages),
+                prompt3=str(self.indices2prompts[c].messages)
             )
-            new_prompt_raw = new_prompt_raw["final_prompt"]
-            new_prompt_messages_str = extract_prompt(new_prompt_raw)
-            # Load into Prompt object
-            new_prompt_message = Prompt.load(new_prompt_messages_str)
-            if not new_prompt_message.messages:
-                logger.warning("Generated prompt has no messages")
-                raise ValueError("Generated prompt has no messages")
+            new_prompt_messages = new_prompt_raw["final_prompt"]["messages"]
+            
             de_prompt = self.indices2prompts[old_prompt_index].deepcopy()
-            de_prompt.messages = new_prompt_message.messages
-
+            de_prompt.messages = new_prompt_messages
             de_prompt_index = await self._add_prompt(de_prompt)
             self.prompts2mark[de_prompt_index] = "evolved"
 
@@ -372,23 +340,13 @@ class EvoPromptTrainer(BaseTrainer):
 
         async def _paraphrase_prompt(prompt: Prompt) -> Prompt:
             # Use the paraphraser prompt to paraphrase the prompt
-            prompt_messages = [json.dumps(message) for message in prompt.messages]
-            prompt_messages_str = "\n".join(prompt_messages)
-
             # Generate paraphrased prompt
-            paraphrased_prompt_raw = await self.paraphraser_prompt(base_prompt=prompt_messages_str)
+            paraphrased_prompt_raw = await self.paraphraser_prompt(base_prompt=str(prompt.messages))
             # Extract the prompt
-            if not paraphrased_prompt_raw.strip().startswith("```prompt"):
-                paraphrased_prompt_raw = "```prompt\n" + paraphrased_prompt_raw
-                
-            paraphrased_prompt_messages_str = extract_prompt(paraphrased_prompt_raw)
+            paraphrased_prompt_messages = paraphrased_prompt_raw["messages"]
             # Load into Prompt object
-            new_prompt_message = Prompt.load(paraphrased_prompt_messages_str)
-            if not new_prompt_message.messages:
-                logger.warning("Generated prompt has no messages")
-                raise ValueError("Generated prompt has no messages")
             paraphrased_prompt = prompt.deepcopy()
-            paraphrased_prompt.messages = new_prompt_message.messages
+            paraphrased_prompt.messages = paraphrased_prompt_messages
             return paraphrased_prompt
         
         # Paraphrase the top k prompts

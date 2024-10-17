@@ -147,38 +147,19 @@ class OptunaTrainer(BaseTrainer):
             max_retries = 3
             retry_count = 0
 
-            basic_prompt_messages = [json.dumps(message) for message in prompt.messages]
-            basic_prompt_messages_str = "\n".join(basic_prompt_messages)
-            selected_eval_based_candidate_messages = [
-                json.dumps(message) for message in selected_eval_based_candidate.messages
-            ]
-            selected_eval_based_candidate_messages_str = "\n".join(
-                selected_eval_based_candidate_messages
-            )
-            selected_prompt_engineering_candidate_messages = [
-                json.dumps(message) for message in selected_prompt_engineering_candidate.messages
-            ]
-            selected_prompt_engineering_candidate_messages_str = "\n".join(
-                selected_prompt_engineering_candidate_messages
-            )
-
             while retry_count < max_retries:
                 try:
-                    merged_prompt_text = run_async(
+                    merged_prompt_raw = run_async(
                         self.merge_prompts(
-                            basic_prompt=basic_prompt_messages_str,
-                            instruction_improved_prompt=selected_eval_based_candidate_messages_str,
-                            format_improved_prompt=selected_prompt_engineering_candidate_messages_str,
+                            basic_prompt=str(prompt.messages),
+                            instruction_improved_prompt=str(selected_eval_based_candidate.messages),
+                            format_improved_prompt=str(selected_prompt_engineering_candidate.messages),
                         )
                     )
-                    if not merged_prompt_text.startswith("```prompt"):
-                        merged_prompt_text = "```prompt\n" + merged_prompt_text
-
-                    merged_prompt_message = extract_prompt(merged_prompt_text)
-                    merged_prompt_message = Prompt.load(merged_prompt_message)
-
+                    merged_prompt_message = merged_prompt_raw["messages"]   
+                
                     merged_prompt = prompt.deepcopy()
-                    merged_prompt.messages = merged_prompt_message.messages
+                    merged_prompt.messages = merged_prompt_message
 
                     break
                 except Exception as e:
@@ -273,25 +254,18 @@ class OptunaTrainer(BaseTrainer):
 
         async def generate_new_instruction(index: int) -> Prompt:
             selected_tip = list(TIPS.values())[index % len(TIPS)]
-            base_prompt_messages = [json.dumps(message) for message in base_prompt.messages]
-            base_prompt_messages_str = "\n".join(base_prompt_messages)
 
-            new_instruction_text = await self.generate_instructions_by_eval(
-                base_prompt=base_prompt_messages_str,
+            new_prompt_raw = await self.generate_instructions_by_eval(
+                base_prompt=str(base_prompt.messages),
                 evaluation_result=evaluation_result_str,
                 evaluation_function=self.metric_description,
                 tip=selected_tip,
                 response_format=str(base_prompt.response_format),
                 human_tip="",
             )
-
-            if "```prompt" not in new_instruction_text:
-                new_instruction_text = "```prompt\n" + new_instruction_text
-            extracted_prompt = extract_prompt(new_instruction_text)
-
-            new_prompt_message = Prompt.load(extracted_prompt)
+            new_prompt_message = new_prompt_raw["messages"]
             new_prompt = base_prompt.deepcopy()
-            new_prompt.messages = new_prompt_message.messages
+            new_prompt.messages = new_prompt_message
 
             return new_prompt
 
@@ -330,12 +304,12 @@ class OptunaTrainer(BaseTrainer):
                 base_prompt.response_format
             )
 
-            output = await self.generate_instructions_by_prompting(
+            new_prompt_raw = await self.generate_instructions_by_prompting(
                 task_description="",
                 dataset_desc=self.dataset_summary,
                 task_fewshot=task_fewshot,
                 prompt_desc=self.task_description,
-                basic_prompt=base_prompt.dump(),
+                basic_prompt=str(base_prompt.messages),
                 tip=selected_tip,
                 inputs_desc=base_prompt.inputs_desc if base_prompt.inputs_desc else "-",
                 outputs_desc=base_prompt.outputs_desc if base_prompt.outputs_desc else "-",
@@ -343,12 +317,9 @@ class OptunaTrainer(BaseTrainer):
             )
 
             try:
-                extracted_prompt = extract_prompt(output)
-                new_prompt_message = Prompt.load(extracted_prompt)
-                if not new_prompt_message.messages:
-                    raise ValueError("Generated prompt has no messages")
+                new_prompt_message = new_prompt_raw["messages"]
                 new_prompt = base_prompt.deepcopy()
-                new_prompt.messages = new_prompt_message.messages
+                new_prompt.messages = new_prompt_message
 
                 return new_prompt
 
