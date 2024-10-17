@@ -77,7 +77,6 @@ class ExpelTrainer(BaseTrainer):
                 feedback_history = []
                 prompt_history = []
                 logger.debug(f"Step : {global_step}")
-                print(f"Step : {global_step}")
                 retry_count = 0
                 global_step += 1
 
@@ -93,18 +92,14 @@ class ExpelTrainer(BaseTrainer):
                         type="success",
                         feedback_history=feedback_history,
                     )
-                    print(f"Feedback : {feedback}")
                     new_prompt = await self.apply_feedback(
                         prompt=best_prompt, feedback=feedback, prompt_history=prompt_history
                     )
-                    print(f"New Prompt : {str(new_prompt.messages)}")
 
                     group_trainset = [success_dataset[i] for i in group]
-                    print(f"Start Evaluate on trainset batch")
                     _, _, group_trainset_global_result = await self._evaluate(
                         group_trainset, new_prompt
                     )
-                    print(f"End Evaluate on trainset batch, Score : {group_trainset_global_result.score}")
                     if group_trainset_global_result.score != 1.0:
                         logger.debug(
                             f"Trial {retry_count} failed in batch : 1.0 -> {group_trainset_global_result.score}"
@@ -114,9 +109,7 @@ class ExpelTrainer(BaseTrainer):
                         prompt_history.append({"prompt": new_prompt, "score": 0.0})
                         continue
                     # validate on trainset
-                    print("Start Evaluate on trainset")
                     _, _, trainset_global_result = await self._evaluate(trainset, new_prompt)
-                    print(f"End Evaluate on trainset, Score : {trainset_global_result.score}")
                     if trainset_global_result.score == 1.0:
                         logger.debug(f"Trial {retry_count} succeeded in batch, 1.0")
                         score_report = {"step": global_step, "score": trainset_global_result.score}
@@ -156,7 +149,6 @@ class ExpelTrainer(BaseTrainer):
                 retry_count = 0
                 global_step += 1
                 logger.debug(f"Step : {global_step}")
-                print(f"Step : {global_step}")
                 score_report = {}
                 feedback_history = []
                 prompt_history = []

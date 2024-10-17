@@ -268,17 +268,17 @@ class Prompt(pf.Prompt):
         return instance
     
     @classmethod
-    def load_json(cls, json: str) -> "Prompt":
+    def load_json(cls, json: dict) -> "Prompt":
         """
-        Load a Prompt object from a JSON string.
+        Load a Prompt object from a JSON dictionary.
 
         Args:
-            json (str): The JSON string to load the prompt from.
+            json (dict): The JSON dictionary to load the prompt from.
 
         Returns:
             Prompt: A new Prompt object.
         """
-        config = super().load_json(json)
+        config = super().load_json(str(json))
         instance = cls(**config.model_dump())
         return instance
 
@@ -351,15 +351,3 @@ class Prompt(pf.Prompt):
         if response_format_cache:
             self.response_format = response_format_cache
         return raw
-
-    def json_loads(self, json: dict) -> "Prompt":
-        """
-        Load a Prompt object from a JSON dictionary.
-
-        Args:
-            json (dict): The JSON dictionary to load the prompt from.
-
-        Returns:
-            Prompt: A new Prompt object.
-        """
-        return super().json_loads(json)

@@ -65,9 +65,9 @@ class EvoPromptTrainer(BaseTrainer):
     ) -> Tuple[Prompt, EvoPromptReport]:
         # Initialize population
         report = EvoPromptReport(scores=[], best_score=0.0)
-        print("Initializing population...")
+        logger.info("Initializing population...")
         await self.init_pop(prompt, trainset, valset, report)
-        print("Population initialized")
+        logger.info("Population initialized")
         
         best_scores = []
         avg_scores = []
@@ -75,16 +75,11 @@ class EvoPromptTrainer(BaseTrainer):
         # Evolution loop
         for step in range(self.cur_epoch + 1, self.epoch):
             logger.info(f"Step: {step}")
-            print(f"Step: {step}")
             # Generate new prompts
-            print("Generating new prompts...")
             await self.generate_new_prompts(trainset)
-            print("New prompts generated")
 
             # Evaluate the new population
-            print("Evaluating population...")
             await self.evaluate_population(trainset)
-            print("Population evaluated")
             
             # Record best and average scores
             total_score = sum(self.evaluated_prompts[p] for p in self.population)
@@ -95,7 +90,6 @@ class EvoPromptTrainer(BaseTrainer):
 
             # Optionally write step results
             logger.info(f"Step {step}: Best Score = {best_score}, Avg Score = {avg_score}")
-            print(f"Step {step}: Best Score = {best_score}, Avg Score = {avg_score}")
             
             if self.testmode:
                 semaphore = asyncio.Semaphore(5)
@@ -220,7 +214,6 @@ class EvoPromptTrainer(BaseTrainer):
 
     async def generate_new_prompts(self, trainset: List[DatasetItem]):
         # Call the appropriate method based on evolution_method
-        print(f"Generating new prompts with {self.evolution_method}...")
         if self.evolution_method == 'para':
             await self.generate_new_prompts_para(trainset)
         elif self.evolution_method == 'ga':
@@ -229,8 +222,6 @@ class EvoPromptTrainer(BaseTrainer):
             await self.generate_new_prompts_de(trainset)
         else:
             raise ValueError(f"Unknown evolution method: {self.evolution_method}")
-        print("New prompts generated")
-        print("Start Selecting Next Generation...")
         # Update the population based on child_selection_mode
         if self.child_selection_mode == 'child':
             # Completely replace the population with new children
@@ -245,7 +236,6 @@ class EvoPromptTrainer(BaseTrainer):
             new_population = [prompt_index for prompt_index, _ in sorted_prompts[:self.popsize]]
         else:
             raise ValueError(f"Unknown child selection mode: {self.child_selection_mode}")
-        print("Next Generation Selected")
         self.population = new_population
 
     async def generate_new_prompts_ga(self, trainset: List[DatasetItem]):
