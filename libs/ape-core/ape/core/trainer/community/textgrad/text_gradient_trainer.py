@@ -140,10 +140,11 @@ class TextGradientTrainer(BaseTrainer):
                     success = True
                 else:
                     # Apply paraphraser in this iteration
+                        
                     new_prompt = await self._text_gradient_applier(
                         prompt=best_prompt,
                         text_gradient="\n".join(text_gradients),
-                        prompt_history=list(prompt_history_queue),
+                        prompt_history=prompt_history_queue,
                     )
 
                     # Evaluate new_prompt on the current batch
@@ -301,14 +302,12 @@ class TextGradientTrainer(BaseTrainer):
         # text_gradient_momentum_str = ""
         # for tg in text_gradient_momentum:
         #     text_gradient_momentum_str += f"Feedback: {tg['text_gradient']}, Score: {tg['score']}\n"
-        prompt_messages = [json.dumps(message) for message in prompt.messages]
-        prompt_messages_str = "\n".join(prompt_messages)
         while retry_count < 3:
             try:
                 text_gradient = await self.text_gradient_generator_prompt(
                     task_description=self.task_description,
                     metric_description=self.metric_description,
-                    base_prompt=prompt_messages_str,
+                    base_prompt=str(prompt.messages),
                     inputs=str(inputs),
                     outputs=str(outputs),
                     generator_output=str(generator_output),
@@ -335,32 +334,24 @@ class TextGradientTrainer(BaseTrainer):
         Apply text gradient to the prompt to obtain a new prompt.
         """
         retry_count = 0
-        prompt_messages = [json.dumps(message) for message in prompt.messages]
-        prompt_messages_str = "\n".join(prompt_messages)
 
         prompt_history_str = ""
         for ph in prompt_history:
-            prompt_history_str += f"Prompt: ```"
-            history_prompt_messages = [json.dumps(message) for message in ph["prompt"].messages]
-            history_prompt_messages_str = "\n".join(history_prompt_messages)
-            prompt_history_str += f"{history_prompt_messages_str}```\nScore: {ph['score']}\n\n"
+            prompt_history_str += f"Prompt: {str(ph['prompt'].messages)}"
+            prompt_history_str += f"Score: {ph['score']}\n\n"
 
         while retry_count < 3:
             try:
-                new_prompt_str = await self.text_gradient_applier_prompt(
+                new_prompt_raw = await self.text_gradient_applier_prompt(
                     task_description=self.task_description,
-                    base_prompt=prompt_messages_str,
+                    base_prompt=str(prompt.messages),
                     feedback=text_gradient,
                     prompt_history=prompt_history_str,
                 )
-                new_prompt_str = new_prompt_str.strip()
-                if not new_prompt_str.startswith("```prompt"):
-                    new_prompt_str = "```prompt\n" + new_prompt_str
 
-                extracted_prompt = extract_prompt(new_prompt_str)
-                new_prompt_message = Prompt.load(extracted_prompt)
+                new_prompt_message = new_prompt_raw["messages"]
                 new_prompt = prompt.deepcopy()
-                new_prompt.messages = new_prompt_message.messages
+                new_prompt.messages = new_prompt_message
 
                 # add "json" if response_format is not None & response_format.type is "json_object" & "json" not in messages
                 messages = [json.dumps(message) for message in new_prompt.messages]

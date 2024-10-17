@@ -363,7 +363,7 @@ class DspyMiproTrainer(BaseTrainer):
                 dataset_desc=self.dataset_summary,
                 task_fewshot=task_fewshot,
                 prompt_desc=self.task_description,
-                basic_prompt=base_prompt.dump(),
+                basic_prompt=str(base_prompt.messages),
                 tip=selected_tip,
                 inputs_desc=base_prompt.inputs_desc if base_prompt.inputs_desc else "-",
                 outputs_desc=base_prompt.outputs_desc if base_prompt.outputs_desc else "-",
@@ -373,13 +373,9 @@ class DspyMiproTrainer(BaseTrainer):
 
             try:
                 logger.debug("Attempting to extract and load new prompt")
-                extracted_prompt = extract_prompt(output)
-                new_prompt_message = Prompt.load(extracted_prompt)
-                if not new_prompt_message.messages:
-                    logger.warning("Generated prompt has no messages")
-                    raise ValueError("Generated prompt has no messages")
+                new_prompt_message = output["messages"]
                 new_prompt = base_prompt.deepcopy()
-                new_prompt.messages = new_prompt_message.messages
+                new_prompt.messages = new_prompt_message
                 logger.debug("Successfully created new prompt")
 
                 return new_prompt

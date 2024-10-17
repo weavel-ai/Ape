@@ -18,6 +18,47 @@ from ape.common.utils import logger
 litellm_logger.disabled = True
 litellm.suppress_debug_info = True
 
+prompt_messages_json_schema = {
+    "name": "prompt",
+    "description": "Creates a prompt consisting of a list of messages.",
+    "strict": True,
+    "parameters": {
+        "type": "object",
+        "required": [
+            "messages"
+        ],
+        "properties": {
+            "messages": {
+                "type": "array",
+                "description": "List of messages in the prompt",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "role": {
+                            "type": "string",
+                            "description": "Role of the message sender",
+                            "enum": [
+                                "system",
+                                "user",
+                                "assistant"
+                            ]
+                        },
+                        "content": {
+                            "type": "string",
+                            "description": "Content of the message"
+                        }
+                    },
+                    "required": [
+                        "role",
+                        "content"
+                    ],
+                    "additionalProperties": False
+                }
+            }
+        },
+        "additionalProperties": False
+    }
+}
 
 class Prompt(pf.Prompt):
     """
@@ -225,6 +266,21 @@ class Prompt(pf.Prompt):
         config = super().load(content)
         instance = cls(**config.model_dump())
         return instance
+    
+    @classmethod
+    def load_json(cls, json: str) -> "Prompt":
+        """
+        Load a Prompt object from a JSON string.
+
+        Args:
+            json (str): The JSON string to load the prompt from.
+
+        Returns:
+            Prompt: A new Prompt object.
+        """
+        config = super().load_json(json)
+        instance = cls(**config.model_dump())
+        return instance
 
     @classmethod
     def load_file(cls, file_path: str) -> "Prompt":
@@ -295,3 +351,15 @@ class Prompt(pf.Prompt):
         if response_format_cache:
             self.response_format = response_format_cache
         return raw
+
+    def json_loads(self, json: dict) -> "Prompt":
+        """
+        Load a Prompt object from a JSON dictionary.
+
+        Args:
+            json (dict): The JSON dictionary to load the prompt from.
+
+        Returns:
+            Prompt: A new Prompt object.
+        """
+        return super().json_loads(json)

@@ -77,6 +77,7 @@ class ExpelTrainer(BaseTrainer):
                 feedback_history = []
                 prompt_history = []
                 logger.debug(f"Step : {global_step}")
+                print(f"Step : {global_step}")
                 retry_count = 0
                 global_step += 1
 
@@ -92,14 +93,18 @@ class ExpelTrainer(BaseTrainer):
                         type="success",
                         feedback_history=feedback_history,
                     )
+                    print(f"Feedback : {feedback}")
                     new_prompt = await self.apply_feedback(
                         prompt=best_prompt, feedback=feedback, prompt_history=prompt_history
                     )
+                    print(f"New Prompt : {str(new_prompt.messages)}")
 
                     group_trainset = [success_dataset[i] for i in group]
+                    print(f"Start Evaluate on trainset batch")
                     _, _, group_trainset_global_result = await self._evaluate(
                         group_trainset, new_prompt
                     )
+                    print(f"End Evaluate on trainset batch, Score : {group_trainset_global_result.score}")
                     if group_trainset_global_result.score != 1.0:
                         logger.debug(
                             f"Trial {retry_count} failed in batch : 1.0 -> {group_trainset_global_result.score}"
@@ -109,7 +114,9 @@ class ExpelTrainer(BaseTrainer):
                         prompt_history.append({"prompt": new_prompt, "score": 0.0})
                         continue
                     # validate on trainset
+                    print("Start Evaluate on trainset")
                     _, _, trainset_global_result = await self._evaluate(trainset, new_prompt)
+                    print(f"End Evaluate on trainset, Score : {trainset_global_result.score}")
                     if trainset_global_result.score == 1.0:
                         logger.debug(f"Trial {retry_count} succeeded in batch, 1.0")
                         score_report = {"step": global_step, "score": trainset_global_result.score}
@@ -149,6 +156,7 @@ class ExpelTrainer(BaseTrainer):
                 retry_count = 0
                 global_step += 1
                 logger.debug(f"Step : {global_step}")
+                print(f"Step : {global_step}")
                 score_report = {}
                 feedback_history = []
                 prompt_history = []
@@ -305,9 +313,6 @@ class ExpelTrainer(BaseTrainer):
         else:
             feedback_generator = self.failure_feedback_generator
 
-        prompt_messages = [json.dumps(message) for message in prompt.messages]
-        prompt_messages_str = "\n".join(prompt_messages)
-
         feedback_history_str = ""
         for history in feedback_history:
             feedback_history_str += f"Feedback : {history['feedback']}\n"
@@ -330,7 +335,7 @@ class ExpelTrainer(BaseTrainer):
                 response = await feedback_generator(
                     task_description=self.task_description,
                     metric_description=self.metric_description,
-                    base_prompt=prompt_messages_str,
+                    base_prompt=str(prompt.messages),
                     report=report,
                     feedback_history=feedback_history_str,
                 )
@@ -353,29 +358,24 @@ class ExpelTrainer(BaseTrainer):
         self, prompt: Prompt, feedback: str, prompt_history: List[Dict[str, Any]]
     ):
         retry_count = 0
-        prompt_messages = [json.dumps(message) for message in prompt.messages]
-        prompt_messages_str = "\n".join(prompt_messages)
 
         prompt_history_str = ""
         for history in prompt_history:
-            prompt_history_str += f"Prompt : {json.dumps(history['prompt'].messages)}\n"
+            prompt_history_str += f"Prompt : {str(history['prompt'].messages)}\n"
             prompt_history_str += f"Score : {history['score']}\n"
 
         while retry_count < 3:
             try:
-                new_prompt_str = await self.feedback_applier(
+                new_prompt_raw = await self.feedback_applier(
                     task_description=self.task_description,
-                    base_prompt=prompt_messages_str,
+                    base_prompt=str(prompt.messages),
                     feedback=feedback,
                     prompt_history=prompt_history_str,
                 )
-                if not new_prompt_str.strip().startswith("```prompt"):
-                    new_prompt_str = "```prompt\n" + new_prompt_str
 
-                extracted_prompt = extract_prompt(new_prompt_str)
-                new_prompt_message = Prompt.load(extracted_prompt)
+                new_prompt_message = new_prompt_raw["messages"]
                 new_prompt = prompt.deepcopy()
-                new_prompt.messages = new_prompt_message.messages
+                new_prompt.messages = new_prompt_message
 
                 messages = [json.dumps(message) for message in new_prompt.messages]
                 messages_str = "\n".join(messages)
