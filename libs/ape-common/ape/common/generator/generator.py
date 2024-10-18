@@ -26,6 +26,7 @@ class Generator(BaseGenerator):
         response_format = prompt.response_format
         
         while retry_count < self.retry_count:
+            stream_response = None
             try:
                 start_time = time.time()
                 stream_response = await asyncio.wait_for(

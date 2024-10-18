@@ -82,7 +82,9 @@ class BaseTrainer(ABC):
             )
             for item in dataset
         ]
-        preds = await asyncio.gather(*generate_tasks)
+        preds = []
+        for i in range(0, len(generate_tasks), 50):
+            preds.extend(await asyncio.gather(*generate_tasks[i:i+50]))
 
         metric_tasks = [
             self.metric(
@@ -91,7 +93,9 @@ class BaseTrainer(ABC):
             )
             for item, pred in zip(dataset, preds)
         ]
-        eval_results = await asyncio.gather(*metric_tasks)
+        eval_results = []
+        for i in range(0, len(metric_tasks), 50):
+            eval_results.extend(await asyncio.gather(*metric_tasks[i:i+50]))
 
         # Compute the global metric
         global_score = await self.global_metric(eval_results)
