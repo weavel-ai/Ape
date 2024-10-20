@@ -330,6 +330,7 @@ class ExpelTrainer(BaseTrainer):
                     base_prompt=str(prompt.messages),
                     report=report,
                     feedback_history=feedback_history_str,
+                    _retry_count=retry_count
                 )
 
                 if not response.strip().startswith("{"):
@@ -363,6 +364,7 @@ class ExpelTrainer(BaseTrainer):
                     base_prompt=str(prompt.messages),
                     feedback=feedback,
                     prompt_history=prompt_history_str,
+                    _retry_count=retry_count
                 )
 
                 new_prompt_message = new_prompt_raw["messages"]

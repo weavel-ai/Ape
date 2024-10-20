@@ -224,7 +224,7 @@ class BaseTrainer(ABC):
         retry_count = 0
         while retry_count < 5:
             try:
-                new_prompt_raw = await fewshot_placeholder_generator(prompt=str(prompt.messages))
+                new_prompt_raw = await fewshot_placeholder_generator(prompt=str(prompt.messages), _retry_count=retry_count)
                 new_prompt_messages = new_prompt_raw["messages"]
                 new_prompt = copy.deepcopy(prompt)
                 new_prompt.messages = new_prompt_messages

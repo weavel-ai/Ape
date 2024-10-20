@@ -13,6 +13,7 @@ from .cost_tracker import CostTracker
 from .utils import format_fewshot
 from ape.common.types import DatasetItem, ResponseFormat
 from ape.common.utils import logger
+from ape.common.cache.prompt_cache import PromptCache
 
 
 litellm_logger.disabled = True
@@ -177,6 +178,7 @@ class Prompt(pf.Prompt):
         self,
         lm_config: Optional[Dict[str, Any]] = None,
         num_retries: int = 3,
+        _retry_count: Optional[int] = 0,
         **kwargs,
     ) -> Union[str, Dict[str, Any]]:
         """
@@ -198,6 +200,8 @@ class Prompt(pf.Prompt):
 
         if "temperature" not in lm_config:
             lm_config["temperature"] = self.temperature
+            
+        lm_config["temperature"] += 0.01 * _retry_count
 
         if self.inputs_desc:
             inputs = {k: v for k, v in kwargs.items() if k in self.inputs_desc}
@@ -206,6 +210,13 @@ class Prompt(pf.Prompt):
                     f"Error: Expected inputs {self.inputs_desc.keys()}, got {inputs.keys()}"
                 )
                 return None
+
+        cache = PromptCache.get_instance()
+        if cache:
+            cached_result = cache.get(self.messages, lm_config, kwargs)
+            if cached_result:
+                # logger.debug(f"Cache hit on Prompt {self.name}")
+                return cached_result
 
         messages = self.format(**kwargs).messages
         if not messages:
@@ -235,8 +246,14 @@ class Prompt(pf.Prompt):
         try:
             # logger.info(res_text)
             if not self.response_format:
+                if cache:
+                    cache.set(self.messages, lm_config, kwargs, res_text)
+                    # logger.debug(f"Cache set on Prompt {self.name}")
                 return res_text
             if self.response_format["type"] == "text":
+                if cache:
+                    cache.set(self.messages, lm_config, kwargs, res_text)
+                    # logger.debug(f"Cache set on Prompt {self.name}")
                 return res_text
             parsed_outputs: Dict[str, Any]
             if isinstance(self.response_format, type) and issubclass(
@@ -246,6 +263,10 @@ class Prompt(pf.Prompt):
                 parsed_outputs = self.response_format.model_validate(parsed_outputs)
             else:
                 parsed_outputs = json.loads(res_text)
+                
+            if cache:
+                cache.set(self.messages, lm_config, kwargs, parsed_outputs)
+                # logger.debug(f"Cache set on Prompt {self.name}")
             return parsed_outputs
         except Exception as e:
             logger.error(f"Error parsing outputs: {e}")
