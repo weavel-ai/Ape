@@ -189,7 +189,11 @@ class DspyMiproTrainer(BaseTrainer):
                 trial_logs[trial.number]["best_score_update"] = False
 
             report.trial_logs = trial_logs
-            report.scores.append({"step": trial.number, "score": score})
+            if self.testmode:
+                _, _, val_global_result  = run_async(self._evaluate(valset, candidate_prompt))
+                report.scores.append({"step": trial.number, "score": score, "val_score": val_global_result.score})
+            else:
+                report.scores.append({"step": trial.number, "score": score})
 
             if score >= 1.0:
                 logger.info(f"Perfect score achieved in trial {trial.number}")
@@ -247,7 +251,6 @@ class DspyMiproTrainer(BaseTrainer):
         logger.debug(f"Sampling {num_samples} fewshot examples")
         sampled_indices = random.sample(range(len(trainset)), min(num_samples, len(trainset)))
         return [trainset[i] for i in sampled_indices], sampled_indices
-
     async def sample(
         self,
         trainset: List[DatasetItem],
@@ -277,17 +280,11 @@ class DspyMiproTrainer(BaseTrainer):
                 for i in bootstrapped_indices
             ]
 
-        failed_indices = [
-            i for i, result in enumerate(eval_results) if result.score < self.success_score
-        ]
-
-        if failed_indices:
-            weights = [1 - eval_results[i].score for i in failed_indices]
-            labeled_indices = self.random_sample(
-                failed_indices,
-                num_shots=min(max_labeled_demos, len(failed_indices)),
-                replace=False,
-                weights=weights,
+        # Select labeled demos from the remaining data (excluding bootstrapped demos)
+        remaining_indices = list(set(range(len(trainset))) - set(bootstrapped_indices))
+        if remaining_indices:
+            labeled_indices = random.sample(
+                remaining_indices, min(max_labeled_demos, len(remaining_indices))
             )
             labeled_samples = [
                 DatasetItem(inputs=trainset[i]["inputs"], outputs=trainset[i]["outputs"])
@@ -366,7 +363,7 @@ class DspyMiproTrainer(BaseTrainer):
                 dataset_desc=self.dataset_summary,
                 task_fewshot=task_fewshot,
                 prompt_desc=self.task_description,
-                basic_prompt=base_prompt.dump(),
+                basic_prompt=str(base_prompt.messages),
                 tip=selected_tip,
                 inputs_desc=base_prompt.inputs_desc if base_prompt.inputs_desc else "-",
                 outputs_desc=base_prompt.outputs_desc if base_prompt.outputs_desc else "-",
@@ -376,13 +373,9 @@ class DspyMiproTrainer(BaseTrainer):
 
             try:
                 logger.debug("Attempting to extract and load new prompt")
-                extracted_prompt = extract_prompt(output)
-                new_prompt_message = Prompt.load(extracted_prompt)
-                if not new_prompt_message.messages:
-                    logger.warning("Generated prompt has no messages")
-                    raise ValueError("Generated prompt has no messages")
+                new_prompt_message = output["messages"]
                 new_prompt = base_prompt.deepcopy()
-                new_prompt.messages = new_prompt_message.messages
+                new_prompt.messages = new_prompt_message
                 logger.debug("Successfully created new prompt")
 
                 return new_prompt

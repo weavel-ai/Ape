@@ -4,7 +4,6 @@ inputs:
     task_description: The description of the task
     base_prompt: The base prompt to start from
     feedback: The feedback from the evaluation
-    prompt_history: The history of previous prompts and scores
 temperature: 0.7
 response_format:
     type: json_schema
@@ -43,9 +42,7 @@ You are part of an optimization system that refines prompt based on feedback.
 Your task: Propose a new prompt in response to the feedback.
 
 If the base prompt contains any specific response format instructions, preserve those instructions in your improved prompt. Do not modify or remove existing response format specifications.
-
-1. Address the concerns raised in the feedback while preserving positive aspects.
-2. Observe past performance patterns when provided and to keep the good quality.
+Address the concerns raised in the feedback while preserving positive aspects.
 
 Tips:
 1. Eliminate unnecessary words or phrases.
@@ -58,14 +55,6 @@ Generate a new, improved prompt based on the following information:
 
 Task description:
 {task_description}
-
-Here are the past iterations of this prompt along with the validation score.
-Prompt history:
-{prompt_history}
-
-IMPORTANT: Your goal is to generate new prompt that scores higher than all previous iterations.
-Similar feedbacks across different steps suggests that the modifications to the prompt are insufficient.
-If this is the case, please make more significant changes to the prompt.
 
 Here are the context and feedback for the prompt:
 Base prompt:

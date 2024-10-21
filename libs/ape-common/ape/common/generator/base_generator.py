@@ -7,6 +7,8 @@ from openai.types.chat.completion_create_params import ChatCompletionMessagePara
 
 from ape.common.prompt.prompt_base import Prompt
 from ape.common.types import MetricResult
+from ape.common.cache.generator_cache import GeneratorCache
+from ape.common.utils import logger
 
 
 class BaseGenerator(ABC):
@@ -44,7 +46,19 @@ class BaseGenerator(ABC):
         Returns:
             MetricResult: An object containing the score and intermediate values.
         """
+        cache = GeneratorCache.get_instance()
+        if cache:
+            cached_result = cache.get(prompt.model_dump(), inputs)
+            if cached_result:
+                # logger.debug("Cache hit on Generator")
+                return cached_result
+
         result = self.generate(prompt, inputs)
         if asyncio.iscoroutine(result):
-            return await result
+            result = await result
+
+        if cache:
+            cache.set(prompt.model_dump(), inputs, result)
+            # logger.debug("Cache set on Generator")
+
         return result

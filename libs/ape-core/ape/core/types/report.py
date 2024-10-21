@@ -10,7 +10,6 @@ class BaseReport(BaseModel):
 class TextGradientTrainerReport(BaseReport):
     text_gradients: List[Dict[str, Any]]
 
-
 class ExpelTrainerReport(BaseReport):
     feedbacks: List[Dict[str, Any]]
 
@@ -22,3 +21,10 @@ class OptunaTrainerReport(BaseReport):
 class FewShotTrainerReport(BaseReport):
     choices: List[Dict[str, Any]]
     best_params: Dict[str, Any]
+
+
+class EvoPromptReport(BaseReport):
+    pass
+
+class TextGradEvoTrainerReport(BaseReport):
+    evolution_steps: List[Dict[str, Any]]

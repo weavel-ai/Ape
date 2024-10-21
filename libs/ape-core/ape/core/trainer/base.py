@@ -25,6 +25,7 @@ class BaseTrainer(ABC):
         global_metric: Optional[BaseGlobalMetric] = None,
         task_description: Optional[str] = None,
         metric_description: Optional[str] = None,
+        testmode: Optional[bool] = False,
         **kwargs,
     ):
         self.generate = generator
@@ -33,6 +34,7 @@ class BaseTrainer(ABC):
         self.task_description = task_description
         self.metric_description = metric_description
         self.dataset_summary = None
+        self.testmode = testmode
 
     @abstractmethod
     async def train(
@@ -80,7 +82,9 @@ class BaseTrainer(ABC):
             )
             for item in dataset
         ]
-        preds = await asyncio.gather(*generate_tasks)
+        preds = []
+        for i in range(0, len(generate_tasks), 50):
+            preds.extend(await asyncio.gather(*generate_tasks[i:i+50]))
 
         metric_tasks = [
             self.metric(
@@ -89,7 +93,9 @@ class BaseTrainer(ABC):
             )
             for item, pred in zip(dataset, preds)
         ]
-        eval_results = await asyncio.gather(*metric_tasks)
+        eval_results = []
+        for i in range(0, len(metric_tasks), 50):
+            eval_results.extend(await asyncio.gather(*metric_tasks[i:i+50]))
 
         # Compute the global metric
         global_score = await self.global_metric(eval_results)
@@ -102,9 +108,6 @@ class BaseTrainer(ABC):
     ) -> str:
         describe_prompt = ApeCorePrompts.get("describe-prompt")
 
-        base_prompt_messages = [json.dumps(message) for message in prompt.messages]
-        base_prompt_messages_str = "\n".join(base_prompt_messages)
-
         temperature = describe_prompt.temperature
 
         for attempt in range(3):
@@ -116,7 +119,7 @@ class BaseTrainer(ABC):
                 # Describe the prompt
                 prompt_description = await describe_prompt(
                     lm_config=dict(temperature=temperature),
-                    prompt=base_prompt_messages_str,
+                    prompt=str(prompt.messages),
                     dataset_description=dataset_summary,
                 )
 
@@ -218,20 +221,13 @@ class BaseTrainer(ABC):
     async def generate_fewshot_placeholder(self, prompt: Prompt) -> Prompt:
         fewshot_placeholder_generator = ApeCorePrompts.get("gen-fewshot-placeholder")
 
-        prompt_messages = [json.dumps(message) for message in prompt.messages]
-        prompt_messages_str = "\n".join(prompt_messages)
-
         retry_count = 0
         while retry_count < 5:
             try:
-                new_prompt_raw = await fewshot_placeholder_generator(prompt=prompt_messages_str)
-                if not new_prompt_raw.strip().startswith("```prompt"):
-                    new_prompt_raw = f"```prompt\n" + new_prompt_raw
-
-                new_prompt_messages_str = extract_prompt(new_prompt_raw)
-                new_prompt_messages = Prompt.load(new_prompt_messages_str)
+                new_prompt_raw = await fewshot_placeholder_generator(prompt=str(prompt.messages), _retry_count=retry_count)
+                new_prompt_messages = new_prompt_raw["messages"]
                 new_prompt = copy.deepcopy(prompt)
-                new_prompt.messages = new_prompt_messages.messages
+                new_prompt.messages = new_prompt_messages
                 return new_prompt
             except Exception as exc:
                 logger.warning(

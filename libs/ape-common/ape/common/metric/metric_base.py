@@ -3,7 +3,8 @@ from typing import Any, Dict, Optional, Union
 import asyncio
 
 from ape.common.types import MetricResult, DatasetItem
-
+from ape.common.cache.metric_cache import MetricCache
+from ape.common.utils import logger
 
 class BaseMetric(ABC):
     @abstractmethod
@@ -45,7 +46,18 @@ class BaseMetric(ABC):
         Returns:
             MetricResult: An object containing the score and intermediate values.
         """
+        cache = MetricCache.get_instance()
+        if cache:
+            cached_result = cache.get(dataset_item, pred)
+            if cached_result:
+                # logger.debug("Cache hit on Metric")
+                return cached_result
+
         result = self.compute(dataset_item=dataset_item, pred=pred)
         if asyncio.iscoroutine(result):
-            return await result
+            result = await result
+
+        if cache:
+            cache.set(dataset_item, pred, result)
+            # logger.debug("Cache set on Metric")
         return result

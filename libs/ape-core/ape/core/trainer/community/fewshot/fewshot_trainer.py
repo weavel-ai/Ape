@@ -64,7 +64,11 @@ class FewShotTrainer(BaseTrainer):
             trainset_without_fewshot = [trainset[i] for i in range(len(trainset)) if i not in indices]
             _, _, global_result = await self._evaluate(trainset_without_fewshot, temp_prompt)
 
-            report.scores.append({"step": step, "score": global_result.score})
+            if self.testmode:
+                _, _, val_global_result  = await self._evaluate(valset, temp_prompt)
+                report.scores.append({"step": step, "score": global_result.score, "val_score": val_global_result.score})
+            else:
+                report.scores.append({"step": step, "score": global_result.score})
             report.choices.append({"step": step, "fewshot": candidate})
 
             logger.debug(f"Step {step} completed. Score: {global_result.score}")

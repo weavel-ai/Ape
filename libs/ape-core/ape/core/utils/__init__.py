@@ -50,15 +50,15 @@ async def reformat_prompt(prompt: Prompt, response_format: Optional[ResponseForm
     logger.info(f"Reformatting prompt: {prompt.dump()}")
     while True:
         try:
-            res = await formatter(prompt=prompt.dump())
-            extracted = extract_prompt(res)
+            res = await formatter(prompt=str(prompt.messages))
+            new_messages = res["messages"]
+            new_messages_str = str(new_messages)
             if response_format["type"] == "json_object":
-                if "json" not in extracted.lower():
+                if "json" not in new_messages_str.lower():
                     raise ValueError("Reformatted prompt does not include the word 'JSON'")
-            logger.info(f"Reformatted prompt: {extracted}")
-            new_prompt_message = Prompt.load(extracted)
+            logger.info(f"Reformatted prompt: {new_messages_str}")
             new_prompt = prompt.deepcopy()
-            new_prompt.messages = new_prompt_message.messages
+            new_prompt.messages = new_messages
 
             break
         except Exception as e:

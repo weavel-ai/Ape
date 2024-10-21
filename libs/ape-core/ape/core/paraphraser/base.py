@@ -11,7 +11,6 @@ class BaseParaphraser(ABC):
         prompt: Prompt,
         trainset: List[DatasetItem],
         valset: List[DatasetItem],
-        buffer_trainset: List[DatasetItem],
         text_gradient: str,
         config: Dict[str, Any],
     ) -> Tuple[Prompt, List[DatasetItem], List[DatasetItem], List[DatasetItem], str]:
@@ -32,8 +31,7 @@ class BaseParaphraser(ABC):
         prompt: Prompt,
         trainset: List[DatasetItem],
         valset: List[DatasetItem],
-        buffer_trainset: List[DatasetItem],
         text_gradient: str,
         config: Dict[str, Any],
     ) -> Tuple[Prompt, List[DatasetItem], List[DatasetItem], List[DatasetItem], str]:
-        return await self.paraphrase(prompt, trainset, valset, buffer_trainset, text_gradient, config)
+        return await self.paraphrase(prompt, trainset, valset, text_gradient, config)
