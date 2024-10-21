@@ -179,6 +179,7 @@ class Prompt(pf.Prompt):
         lm_config: Optional[Dict[str, Any]] = None,
         num_retries: int = 3,
         _retry_count: Optional[int] = 0,
+        parallel_task_id: Optional[int] = 0,
         **kwargs,
     ) -> Union[str, Dict[str, Any]]:
         """
@@ -213,7 +214,7 @@ class Prompt(pf.Prompt):
 
         cache = PromptCache.get_instance()
         if cache:
-            cached_result = cache.get(self.messages, lm_config, kwargs)
+            cached_result = cache.get(self.messages, lm_config, kwargs, parallel_task_id)
             if cached_result:
                 # logger.debug(f"Cache hit on Prompt {self.name}")
                 return cached_result
@@ -247,12 +248,12 @@ class Prompt(pf.Prompt):
             # logger.info(res_text)
             if not self.response_format:
                 if cache:
-                    cache.set(self.messages, lm_config, kwargs, res_text)
+                    cache.set(self.messages, lm_config, kwargs, res_text, parallel_task_id)
                     # logger.debug(f"Cache set on Prompt {self.name}")
                 return res_text
             if self.response_format["type"] == "text":
                 if cache:
-                    cache.set(self.messages, lm_config, kwargs, res_text)
+                    cache.set(self.messages, lm_config, kwargs, res_text, parallel_task_id)
                     # logger.debug(f"Cache set on Prompt {self.name}")
                 return res_text
             parsed_outputs: Dict[str, Any]
@@ -265,7 +266,7 @@ class Prompt(pf.Prompt):
                 parsed_outputs = json.loads(res_text)
                 
             if cache:
-                cache.set(self.messages, lm_config, kwargs, parsed_outputs)
+                cache.set(self.messages, lm_config, kwargs, parsed_outputs, parallel_task_id)
                 # logger.debug(f"Cache set on Prompt {self.name}")
             return parsed_outputs
         except Exception as e:

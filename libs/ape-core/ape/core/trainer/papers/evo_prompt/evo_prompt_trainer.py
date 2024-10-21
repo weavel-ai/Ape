@@ -2,7 +2,6 @@ import asyncio
 import copy
 import json
 import random
-import heapq
 import numpy as np
 from typing import Any, Dict, List, Optional, Tuple, Literal
 from ape.common.prompt import Prompt
@@ -45,7 +44,6 @@ class EvoPromptTrainer(BaseTrainer):
         # Load the evolution prompt template
         self.evolution_prompt_de = ApeCorePrompts.get("evoprompt-prompt-de")
         self.evolution_prompt_ga = ApeCorePrompts.get("evoprompt-prompt-ga")
-        # Load the paraphraser prompt
         self.paraphraser_prompt = ApeCorePrompts.get("evoprompt-prompt-para")
 
         self.lock = asyncio.Lock()
@@ -130,10 +128,13 @@ class EvoPromptTrainer(BaseTrainer):
 
     async def init_pop(self, prompt: Prompt, trainset: List[DatasetItem], valset: List[DatasetItem], report: EvoPromptReport):
         # Function to paraphrase a single prompt
-        async def _paraphrase_prompt(prompt: Prompt) -> Prompt:
+        async def _paraphrase_prompt(prompt: Prompt, parallel_task_id: int) -> Prompt:
             # Use the paraphraser prompt to paraphrase the prompt
             # Generate paraphrased prompt
-            paraphrased_prompt_raw = await self.paraphraser_prompt(base_prompt=str(prompt.messages))
+            paraphrased_prompt_raw = await self.paraphraser_prompt(
+                base_prompt=str(prompt.messages),
+                parallel_task_id=parallel_task_id
+            )
             # Ensure the paraphrased prompt starts with the expected format
             paraphrased_prompt_messages = paraphrased_prompt_raw["messages"]
             # Load into Prompt object
@@ -142,7 +143,7 @@ class EvoPromptTrainer(BaseTrainer):
             return paraphrased_prompt
 
         # Create paraphrased prompts in parallel
-        paraphrase_tasks = [ _paraphrase_prompt(prompt) for _ in range(self.popsize) ]
+        paraphrase_tasks = [ _paraphrase_prompt(prompt, parallel_task_id=i) for i in range(self.popsize) ]
         paraphrased_prompts = await asyncio.gather(*paraphrase_tasks)
 
         # Add paraphrased prompts to the population
@@ -323,35 +324,16 @@ class EvoPromptTrainer(BaseTrainer):
         self.new_children = new_children
 
     async def generate_new_prompts_para(self, trainset: List[DatasetItem]):
-        # For paraphrasing, we paraphrase the top k prompts
-        k = self.popsize
-
-        # If we haven't initialized the heap, do so
-        if not hasattr(self, 'topk_heap'):
-            # Initialize the heap with initial prompts
-            self.topk_heap = []
-            for prompt_index in self.population:
-                score = self.evaluated_prompts.get(prompt_index, 0)
-                heapq.heappush(self.topk_heap, (score, prompt_index))
-
-        # Get the top k prompts
-        top_k = heapq.nlargest(k, self.topk_heap)
-        top_k_prompt_indices = [item[1] for item in top_k]
-
         async def _paraphrase_prompt(prompt: Prompt) -> Prompt:
-            # Use the paraphraser prompt to paraphrase the prompt
-            # Generate paraphrased prompt
             paraphrased_prompt_raw = await self.paraphraser_prompt(base_prompt=str(prompt.messages))
-            # Extract the prompt
             paraphrased_prompt_messages = paraphrased_prompt_raw["messages"]
-            # Load into Prompt object
             paraphrased_prompt = prompt.deepcopy()
             paraphrased_prompt.messages = paraphrased_prompt_messages
             return paraphrased_prompt
         
-        # Paraphrase the top k prompts
+        # Paraphrase all prompts in the population
         paraphrased_prompts = await asyncio.gather(
-            *[_paraphrase_prompt(self.indices2prompts[prompt_index]) for prompt_index in top_k_prompt_indices]
+            *[_paraphrase_prompt(self.indices2prompts[prompt_index]) for prompt_index in self.population]
         )
 
         new_children = []
@@ -363,6 +345,5 @@ class EvoPromptTrainer(BaseTrainer):
                 _, _, global_score = await self._evaluate(trainset, p)
                 self.evaluated_prompts[p_index] = global_score.score
             new_children.append(p_index)
-            heapq.heappush(self.topk_heap, (self.evaluated_prompts[p_index], p_index))
 
         self.new_children = new_children
