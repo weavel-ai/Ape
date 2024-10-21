@@ -154,6 +154,7 @@ class OptunaTrainer(BaseTrainer):
                             basic_prompt=str(prompt.messages),
                             instruction_improved_prompt=str(selected_eval_based_candidate.messages),
                             format_improved_prompt=str(selected_prompt_engineering_candidate.messages),
+                            _retry_count=retry_count
                         )
                     )
                     merged_prompt_message = merged_prompt_raw["messages"]   

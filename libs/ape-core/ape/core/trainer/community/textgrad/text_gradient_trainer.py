@@ -13,7 +13,6 @@ from ape.common.metric import BaseMetric
 from ape.common.utils.logging import logger
 from ape.core.utils import extract_prompt, reformat_prompt
 from ape.core.core_prompts import ApeCorePrompts
-from ape.core.paraphraser.base import BaseParaphraser
 from ape.core.trainer.base import BaseTrainer
 from ape.core.types.report import TextGradientTrainerReport
 
@@ -24,7 +23,6 @@ class TextGradientTrainer(BaseTrainer):
         generator: BaseGenerator,
         metric: BaseMetric,
         global_metric: BaseGlobalMetric,
-        paraphraser: Optional[BaseParaphraser] = None,
         batch_size: int = 4,
         early_stopping_rounds: int = 10,
         random_seed: int = 42,
@@ -33,10 +31,8 @@ class TextGradientTrainer(BaseTrainer):
         **kwargs,
     ):
         super().__init__(generator, metric, global_metric, **kwargs)
-        self.paraphraser = paraphraser
         self.batch_size = batch_size
         self.early_stopping_rounds = early_stopping_rounds
-        self.paraphraser = paraphraser
         self.random_seed = random_seed
         self.max_proposals_per_step = max_proposals_per_step
         self.validation_type = validation_type
@@ -105,7 +101,11 @@ class TextGradientTrainer(BaseTrainer):
             # Initialize retry mechanism
             retry_count = 0
             success = False
+            if best_batch_score == 1.0:
+                print("Batch score is 1.0, skipping text gradient generation")
+                success = True
 
+            text_gradient_history = {}
             while retry_count < self.max_proposals_per_step and not success:
                 # Step 9: Compute text gradients for the buffered training set
                 text_gradients = await asyncio.gather(
@@ -116,7 +116,7 @@ class TextGradientTrainer(BaseTrainer):
                             outputs=item["outputs"],
                             generator_output=pred,
                             metric_result=eval_result,
-                            # text_gradient_momentum=list(text_gradient_result_queue)
+                            text_gradient_history=text_gradient_history
                         )
                         for (item, pred, eval_result) in best_batch_results
                         if eval_result.score < 1.0
@@ -130,89 +130,56 @@ class TextGradientTrainer(BaseTrainer):
                     break  # Exit retry loop if no gradients are generated
 
                 # Step 10: Apply text gradients in batches
-                if self.paraphraser is not None:
-                    best_prompt, best_batch_results, best_evalset_results = await self.paraphraser(
-                        prompt=best_prompt,
-                        trainset=trainset,
-                        valset=valset,
-                        text_gradient="\n".join(text_gradients),
+                new_prompt = await self._text_gradient_applier(
+                    prompt=best_prompt,
+                    text_gradient="\n".join(text_gradients),
+                    prompt_history=prompt_history_queue,
+                )
+
+                # Evaluate new_prompt on the current batch
+                new_batch_preds, new_batch_eval_results, new_batch_global_result = (
+                    await self._evaluate(batch, new_prompt)
+                )
+                new_batch_score = new_batch_global_result.score
+
+                new_batch_results = []
+                for item, pred, eval_result in zip(
+                    batch, new_batch_preds, new_batch_eval_results
+                ):
+                    new_batch_results.append((item, pred, eval_result))
+
+                if new_batch_score > best_batch_score:
+                    # Step 11: Evaluate new_prompt on evalset
+                    new_evalset_preds, new_evalset_eval_results, new_evalset_global_result = (
+                        await self._evaluate_validation_set(new_prompt, trainset, valset)
                     )
-                    success = True
-                else:
-                    # Apply paraphraser in this iteration
-                        
-                    new_prompt = await self._text_gradient_applier(
-                        prompt=best_prompt,
-                        text_gradient="\n".join(text_gradients),
-                        prompt_history=prompt_history_queue,
+                    new_evalset_score = new_evalset_global_result.score
+
+                    prompt_history_queue.append(
+                        {"prompt": new_prompt, "score": new_evalset_score}
                     )
 
-                    # Evaluate new_prompt on the current batch
-                    new_batch_preds, new_batch_eval_results, new_batch_global_result = (
-                        await self._evaluate(batch, new_prompt)
-                    )
-                    new_batch_score = new_batch_global_result.score
-
-                    new_batch_results = []
-                    for item, pred, eval_result in zip(
-                        batch, new_batch_preds, new_batch_eval_results
-                    ):
-                        new_batch_results.append((item, pred, eval_result))
-
-                    if new_batch_score > best_batch_score:
-                        # Step 11: Evaluate new_prompt on evalset
-                        new_evalset_preds, new_evalset_eval_results, new_evalset_global_result = (
-                            await self._evaluate_validation_set(new_prompt, trainset, valset)
+                    # Step 12: Compare new score with the current best score
+                    if new_evalset_score > best_evalset_score:
+                        logger.debug(
+                            f"Trial {retry_count + 1}: Score Improved: {best_evalset_score} -> {new_evalset_score}"
                         )
-                        new_evalset_score = new_evalset_global_result.score
+                        # Update buffers with new predictions and metric results
+                        best_prompt = new_prompt
+                        best_evalset_score = new_evalset_score
+                        best_batch_results = new_batch_results
 
-                        prompt_history_queue.append(
-                            {"prompt": new_prompt, "score": new_evalset_score}
-                        )
-
-                        # Step 12: Compare new score with the current best score
-                        if new_evalset_score > best_evalset_score:
-                            logger.debug(
-                                f"Trial {retry_count + 1}: Score Improved: {best_evalset_score} -> {new_evalset_score}"
-                            )
-                            # Update buffers with new predictions and metric results
-                            best_prompt = new_prompt
-                            best_evalset_score = new_evalset_score
-                            best_batch_results = new_batch_results
-
-                            # Update report with text_gradients
-                            report.text_gradients.extend(text_gradients)
-                            success = True  # Mark as successful update
-                            # step_failed_count = 0
-                        else:
-                            logger.debug(
-                                f"Trial {retry_count + 1}: Score Not Improved: {best_evalset_score} -> {new_evalset_score}"
-                            )
-                            # Step 13: Increment retry_count
-                            retry_count += 1
-
-                            if retry_count >= self.max_proposals_per_step:
-                                logger.debug(
-                                    f"Maximum retries ({self.max_proposals_per_step}) reached for this batch."
-                                )
-                                # step_failed_count += 1
-                                # if step_failed_count > self.early_stopping_rounds:
-                                #     logger.debug("Early Stopping Triggered")
-                                #     return best_prompt, report
-                            else:
-                                logger.debug("Retrying with a new proposal...")
+                        # Update report with text_gradients
+                        report.text_gradients.extend(text_gradients)
+                        success = True  # Mark as successful update
+                        # step_failed_count = 0
                     else:
                         logger.debug(
-                            f"Trial {retry_count + 1}: Score Not Improved in batch: {best_batch_score} -> {new_batch_score}"
+                            f"Trial {retry_count + 1}: Score Not Improved: {best_evalset_score} -> {new_evalset_score}"
                         )
-                        # text_gradient_result_queue.append(
-                        #     {
-                        #         "text_gradient": "\n".join(text_gradients),
-                        #         "score": 0.0
-                        #     }
-                        # )
-                        prompt_history_queue.append({"prompt": new_prompt, "score": 0.0})
+                        # Step 13: Increment retry_count
                         retry_count += 1
+
                         if retry_count >= self.max_proposals_per_step:
                             logger.debug(
                                 f"Maximum retries ({self.max_proposals_per_step}) reached for this batch."
@@ -223,6 +190,28 @@ class TextGradientTrainer(BaseTrainer):
                             #     return best_prompt, report
                         else:
                             logger.debug("Retrying with a new proposal...")
+                else:
+                    logger.debug(
+                        f"Trial {retry_count + 1}: Score Not Improved in batch: {best_batch_score} -> {new_batch_score}"
+                    )
+                    # text_gradient_result_queue.append(
+                    #     {
+                    #         "text_gradient": "\n".join(text_gradients),
+                    #         "score": 0.0
+                    #     }
+                    # )
+                    prompt_history_queue.append({"prompt": new_prompt, "score": 0.0})
+                    retry_count += 1
+                    if retry_count >= self.max_proposals_per_step:
+                        logger.debug(
+                            f"Maximum retries ({self.max_proposals_per_step}) reached for this batch."
+                        )
+                        # step_failed_count += 1
+                        # if step_failed_count > self.early_stopping_rounds:
+                        #     logger.debug("Early Stopping Triggered")
+                        #     return best_prompt, report
+                    else:
+                        logger.debug("Retrying with a new proposal...")
 
             # Update report with new score
             if self.testmode:
@@ -292,7 +281,7 @@ class TextGradientTrainer(BaseTrainer):
         outputs: Any,
         generator_output: Any,
         metric_result: MetricResult,
-        # text_gradient_momentum: List[Dict[str, Any]]
+        text_gradient_history: Dict[str, List[str]],
     ) -> Any:
         """
         Generate text gradient based on inputs, outputs, generator outputs, and metric results.
@@ -302,6 +291,11 @@ class TextGradientTrainer(BaseTrainer):
         # text_gradient_momentum_str = ""
         # for tg in text_gradient_momentum:
         #     text_gradient_momentum_str += f"Feedback: {tg['text_gradient']}, Score: {tg['score']}\n"
+        text_gradient_history_str = ""
+        text_gradient_history_list = text_gradient_history.get(str(inputs), [])
+        for tg in text_gradient_history_list:
+            text_gradient_history_str += f"{tg}\n"
+        
         while retry_count < 3:
             try:
                 text_gradient = await self.text_gradient_generator_prompt(
@@ -312,14 +306,17 @@ class TextGradientTrainer(BaseTrainer):
                     outputs=str(outputs),
                     generator_output=str(generator_output),
                     metric_result=str(metric_result),
-                    # feedback_history=text_gradient_momentum_str
+                    feedback_history=text_gradient_history_str,
+                    _retry_count=retry_count
                 )
                 text_gradient = text_gradient.strip()
                 if not text_gradient.startswith("{"):
                     text_gradient = "{" + text_gradient
 
                 text_gradient = json.loads(text_gradient)["feedback"]
-
+                if str(inputs) not in text_gradient_history:
+                    text_gradient_history[str(inputs)] = []
+                text_gradient_history[str(inputs)].append(text_gradient)
                 return text_gradient
             except Exception as e:
                 logger.warning(f"Error generating text gradient: {e}")
@@ -347,6 +344,7 @@ class TextGradientTrainer(BaseTrainer):
                     base_prompt=str(prompt.messages),
                     feedback=text_gradient,
                     prompt_history=prompt_history_str,
+                    _retry_count=retry_count
                 )
 
                 new_prompt_message = new_prompt_raw["messages"]

@@ -8,6 +8,7 @@ inputs:
     outputs: The ground truth outputs
     generator_output: The output of the generator
     metric_result: The result of the evaluation
+    feedback_history: The feedback history
 temperature: 0.7
 ---
 <system>
@@ -54,6 +55,10 @@ Generator Output:
 Ground Truth Output: 
 {outputs}
 
+You must create different feedback from the feedback history below:
+
+Feedback History: 
+{feedback_history}
 
 </user>
 <assistant>
