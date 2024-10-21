@@ -37,24 +37,59 @@ class PromptCache:
                     data = pickle.load(f)
                     self.cache[data['hash']] = data
                     
-    def _hash_input(self, messages: List[Dict[str, str]], lm_config: Dict[str, Any], kwargs: Dict[str, Any]) -> str:
-        combined_data = {'messages': messages, 'lm_config': lm_config, 'kwargs': kwargs}
+    def _hash_input(
+        self,
+        messages: List[Dict[str, str]],
+        lm_config: Dict[str, Any],
+        kwargs: Dict[str, Any],
+        parallel_task_id: int
+    ) -> str:
+        combined_data = {
+            'messages': messages,
+            'lm_config': lm_config,
+            'kwargs': kwargs,
+            'parallel_task_id': parallel_task_id
+        }
         sorted_items = sorted(combined_data.items())
         input_str = pickle.dumps(sorted_items)
         return hashlib.md5(input_str).hexdigest()
 
-    def get(self, messages: List[Dict[str, str]], lm_config: Dict[str, Any], kwargs: Dict[str, Any]) -> Optional[Any]:
-        hash_key = self._hash_input(messages, lm_config, kwargs)
+    def get(
+        self,
+        messages: List[Dict[str, str]],
+        lm_config: Dict[str, Any],
+        kwargs: Dict[str, Any],
+        parallel_task_id: int
+    ) -> Optional[Any]:
+        hash_key = self._hash_input(
+            messages,
+            lm_config,
+            kwargs,
+            parallel_task_id
+        )
         return self.cache.get(hash_key, {}).get('output')
 
-    def set(self, messages: List[Dict[str, str]], lm_config: Dict[str, Any], kwargs: Dict[str, Any], output: Any):
-        hash_key = self._hash_input(messages, lm_config, kwargs)
+    def set(
+        self,
+        messages: List[Dict[str, str]],
+        lm_config: Dict[str, Any],
+        kwargs: Dict[str, Any],
+        output: Any,
+        parallel_task_id: int
+    ):
+        hash_key = self._hash_input(
+            messages,
+            lm_config,
+            kwargs,
+            parallel_task_id
+        )
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
         filename = f"{timestamp}-{hash_key}.pkl"
         data = {
             'messages': messages,
             'lm_config': lm_config,
             'kwargs': kwargs,
+            'parallel_task_id': parallel_task_id,
             'hash': hash_key,
             'output': output
         }

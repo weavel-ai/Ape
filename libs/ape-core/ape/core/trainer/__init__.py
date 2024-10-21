@@ -7,3 +7,4 @@ from .community.textgrad.text_gradient_trainer import TextGradientTrainer
 from .community.expel.expel_trainer import ExpelTrainer
 from .community.fewshot.fewshot_trainer import FewShotTrainer
 from .community.optuna.optuna_trainer import OptunaTrainer
+from .community.textgrad_evo.text_grad_evo_trainer import TextGradEvoTrainer
