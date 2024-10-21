@@ -2,7 +2,7 @@
     <a href="https://www.weavel.ai/ape">
         <img src="https://www.dropbox.com/scl/fi/h7e7lunf2x8g0teeqlrlt/Ape-Logo.png?rlkey=fc9fzxye4mls00cluv08f4vus&st=pfjsapa3&raw=1" title="Logo" style="width:200px; padding: 20px;" />
     </a>
-    <h1>Ape: Open-Source Hub for Prompt Optimization</h1>
+    <h1>Ape: Open-Source Hub for AI Prompt Engineering</h1>
     <div>
         <a href="https://pypi.org/project/ape-core" target="_blank">
             <img src="https://img.shields.io/pypi/v/ape-core.svg" alt="PyPI Version"/>
@@ -12,7 +12,7 @@
 
 ## About
 
-**Ape** is an open-source library that serves as a centralized hub for prompt optimization techniques.  
+**Ape(AI prompt engineer)** is an open-source hub for prompt optimization algorithms.  
 Our goal is to provide easy-to-use implementations of various prompt engineering methods, facilitating benchmarking, experimentation, and collaborative research within the community.
 
 ## Features
@@ -35,7 +35,7 @@ Our goal is to provide easy-to-use implementations of various prompt engineering
 - **DSPy-MIPRO**
 - **EvoPrompt**
 
-### Community Contributions (`ape-core/trainer/community`)
+### Community Implementations (`ape-core/trainer/community`)
 
 - **Few-Shot Trainer**
 - **TextGradient Trainer**
