@@ -27,7 +27,6 @@ class TextGradientTrainer(BaseTrainer):
         early_stopping_rounds: int = 10,
         random_seed: int = 42,
         max_proposals_per_step: int = 5,
-        validation_type: Literal["trainset", "valset", "all"] = "trainset",
         **kwargs,
     ):
         super().__init__(generator, metric, global_metric, **kwargs)
@@ -35,7 +34,6 @@ class TextGradientTrainer(BaseTrainer):
         self.early_stopping_rounds = early_stopping_rounds
         self.random_seed = random_seed
         self.max_proposals_per_step = max_proposals_per_step
-        self.validation_type = validation_type
 
         self.text_gradient_generator_prompt = ApeCorePrompts.get("text-gradient-generator")
         self.text_gradient_applier_prompt = ApeCorePrompts.get("text-gradient-applier")
@@ -75,10 +73,10 @@ class TextGradientTrainer(BaseTrainer):
         best_prompt = prompt
         prompt_history_queue = deque(maxlen=4)
 
-        _, best_evalset_results, best_evalset_global_result = await self._evaluate_validation_set(
-            best_prompt, trainset, valset
+        _, best_trainset_results, best_trainset_global_result = await self._evaluate(
+            prompt=best_prompt, dataset=trainset
         )
-        best_evalset_score = best_evalset_global_result.score
+        best_trainset_score = best_trainset_global_result.score
 
         # Iterate over the shuffled training set in batches
         for batch_start in tqdm(
@@ -146,23 +144,23 @@ class TextGradientTrainer(BaseTrainer):
                     new_batch_results.append((item, pred, eval_result))
 
                 if new_batch_score > best_batch_score:
-                    # Evaluate new_prompt on evalset
-                    new_evalset_preds, new_evalset_eval_results, new_evalset_global_result = (
-                        await self._evaluate_validation_set(new_prompt, trainset, valset)
+                    # Evaluate new_prompt on trainset
+                    new_trainset_preds, new_trainset_eval_results, new_trainset_global_result = (
+                        await self._evaluate(prompt=new_prompt, dataset=trainset)
                     )
-                    new_evalset_score = new_evalset_global_result.score
+                    new_trainset_score = new_trainset_global_result.score
 
                     prompt_history_queue.append(
-                        {"prompt": new_prompt, "score": new_evalset_score}
+                        {"prompt": new_prompt, "score": new_trainset_score}
                     )
 
                     # Compare new score with the current best score
-                    if new_evalset_score > best_evalset_score:
+                    if new_trainset_score > best_trainset_score:
                         logger.debug(
-                            f"Trial {retry_count + 1}: Score Improved: {best_evalset_score} -> {new_evalset_score}"
+                            f"Trial {retry_count + 1}: Score Improved: {best_trainset_score} -> {new_trainset_score}"
                         )
                         best_prompt = new_prompt
-                        best_evalset_score = new_evalset_score
+                        best_trainset_score = new_trainset_score
                         best_batch_results = new_batch_results
 
                         # Update report with text_gradients
@@ -170,7 +168,7 @@ class TextGradientTrainer(BaseTrainer):
                         success = True  # Mark as successful update
                     else:
                         logger.debug(
-                            f"Trial {retry_count + 1}: Score Not Improved: {best_evalset_score} -> {new_evalset_score}"
+                            f"Trial {retry_count + 1}: Score Not Improved: {best_trainset_score} -> {new_trainset_score}"
                         )
                         # Increment retry_count
                         retry_count += 1
@@ -197,11 +195,11 @@ class TextGradientTrainer(BaseTrainer):
             # Update report with new score
             if self.testmode:
                 _, _, val_global_result  = await self._evaluate(valset, best_prompt)
-                report.scores.append({"step": len(report.scores), "score": best_evalset_score, "val_score": val_global_result.score})
+                report.scores.append({"step": len(report.scores), "score": best_trainset_score, "val_score": val_global_result.score})
             else:
-                report.scores.append({"step": len(report.scores), "score": best_evalset_score})
+                report.scores.append({"step": len(report.scores), "score": best_trainset_score})
                 
-            if best_evalset_score == 1.0:
+            if best_trainset_score == 1.0:
                 logger.debug("Score reached 1.0")
                 report.best_score = 1.0
                 return best_prompt, report
@@ -299,36 +297,3 @@ class TextGradientTrainer(BaseTrainer):
             except Exception as e:
                 logger.warning(f"Error applying text gradient: {e}")
                 retry_count += 1
-
-    def _get_validation_dataset(
-        self, trainset: List[DatasetItem], valset: List[DatasetItem]
-    ) -> List[DatasetItem]:
-        """
-        Get the validation dataset based on the validation_type.
-
-        Returns:
-            List[DatasetItem]: The dataset to use for validation.
-        """
-        if self.validation_type == "trainset":
-            return trainset
-        elif self.validation_type == "valset":
-            return valset
-        elif self.validation_type == "all":
-            return trainset + valset
-        else:
-            raise ValueError(f"Invalid validation_type: {self.validation_type}")
-
-    async def _evaluate_validation_set(
-        self, prompt: Prompt, trainset: List[DatasetItem], valset: List[DatasetItem]
-    ) -> Tuple[List[Any], List[MetricResult], GlobalMetricResult]:
-        """
-        Evaluate the selected validation dataset using the prompt.
-
-        Args:
-            prompt (Prompt): The prompt to evaluate.
-
-        Returns:
-            Tuple[List[Any], List[MetricResult], GlobalMetricResult]: Predictions, metric results, and global score.
-        """
-        validation_dataset = self._get_validation_dataset(trainset, valset)
-        return await self._evaluate(validation_dataset, prompt)

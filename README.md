@@ -43,6 +43,10 @@ Our goal is to provide easy-to-use implementations of various prompt engineering
 - **Optuna Trainer**
 - **Expel Trainer**
 
+## Experiment Results
+
+If you want to see the experiment results of methods over various benchmarks, please refer to the [Experiment Results](./experiments/benchmarks/RESULT.md) file.
+
 ## Installation
 
 ```bash
@@ -84,28 +88,31 @@ Explore the ape-core/trainer/paper directory to find implementations of various 
 README.md: An overview of the method.
 paper_name_trainer.py: The implementation of the technique inheriting from the Trainer class.
 
+If you want to see the tutorial code to run Ape, please refer to the [Example Experiment Code](./experiments/EXAMPLE_EXPERIMENT.ipynb).
+
 ## Contributing
 
-We welcome contributions to enhance Ape's capabilities and expand its collection of prompt optimization techniques. There are three main types of contributions you can make:
+We welcome contributions to enhance Ape's capabilities and expand its collection of prompt optimization techniques. There are four main types of contributions you can make:
 
-### 1. Paper Implementation
+### 1. Paper Implementation Contributions
 
-If you want to implement a new paper method, follow these steps:
+We aim to implement every paper on prompt optimization or automated prompt engineering.
+If you want to implement a new paper, please refer to the [`CONTRIBUTING.md`](CONTRIBUTING.md) file for more information.
 
-1. Create a new directory under `ape-core/trainer/paper` with the name of the paper.
-2. Implement the method by creating a new class that inherits from the `Trainer` class. Ensure the implementation is contained in a single file to maintain simplicity and clarity.
-3. Add a `README.md` file in the same directory to describe the paper and its method.
-4. Submit a pull request with the new implementation.
+### 2. Benchmark Contributions
 
-### 2. Paper Benchmarking
+All prompt optimization methods will be evaluated on various benchmarks to understand the strengths and weaknesses of each approach.
+Currently, we have 5 benchmarks: bird-bench, gpqa, math, boolq, and NYT.
 
-While paper benchmarking is still under development, this will eventually involve running benchmarks on various datasets using the methods in `ape-core/trainer`. Stay tuned for updates on how to contribute to this area.
+### 3. Community Research Contributions
 
-### 3. Community Research
+Community research contributions focus on innovating beyond existing methods.
 
-Community research contributions are focused on innovating beyond existing methods. This type of contribution is still under development.
+### 4. Other Contributions
 
-For more information on contributing, please see the [`CONTRIBUTING.md`](CONTRIBUTING.md) file.
+These contributions include bug fixes, documentation improvements, experiment management, and more.
+
+**For more information on contributing, please see the [`CONTRIBUTING.md`](CONTRIBUTING.md) file.**
 
 ## Help and Support
 
@@ -121,3 +128,11 @@ Ape is released under the MIT License.
 ## Acknowledgments
 
 Special thanks to the Stanford NLP's DSPy project for inspiration and foundational ideas.
+
+## References
+
+- [DSPy](https://github.com/stanfordnlp/DSPy)
+- [EvoPrompt](https://arxiv.org/abs/2309.08532)
+- [TextGrad](https://github.com/microsoft/TextGrad)
+- [Expel](https://arxiv.org/abs/2308.10144)
+- [adalflow](https://github.com/SylphAI-Inc/AdalFlow)

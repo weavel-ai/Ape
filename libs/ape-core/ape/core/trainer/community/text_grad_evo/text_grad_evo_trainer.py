@@ -189,7 +189,6 @@ class TextGradEvoTrainer(BaseTrainer):
                         if best_score > best_trainset_score:
                             best_prompt = new_generation_prompts[new_generation_scores.index(best_score)]
                             best_trainset_score = best_score
-                            report.scores.append({"step": i, "score": best_trainset_score})
                             evolution_step_info = {
                                 "best_score": best_trainset_score,
                                 "average_score": sum(new_generation_scores) / len(new_generation_scores),
