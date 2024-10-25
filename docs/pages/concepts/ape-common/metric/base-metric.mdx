@@ -1,0 +1,52 @@
+---
+title: BaseMetric
+description: Abstract base class for individual metrics in prompt evaluation.
+---
+
+## Overview
+
+The `BaseMetric` class provides an abstract base for implementing individual metrics in prompt evaluation. It defines a common interface for computing metrics based on dataset items and predictions.
+
+## Methods
+
+### compute
+
+Abstract method to compute the metric.
+
+**Parameters:**
+
+- `dataset_item` (DatasetItem): The dataset item to evaluate. It includes inputs, outputs, and metadata as attributes.
+- `pred` (Union[str, Dict[str, Any]]): The prediction to evaluate.
+
+**Returns:**
+MetricResult: An object containing the computed score and any intermediate values.
+
+**Note:**
+The implementation of this method should handle the comparison between `pred` and `dataset_item["outputs"]`,
+potentially using the information in `dataset_item["inputs"]` and `dataset_item["metadata"]` to inform the computation.
+It should return a MetricResult object that encapsulates the result of the metric calculation.
+
+### \_\_call\_\_
+
+Unified method to compute the metric, handling both sync and async implementations.
+
+**Parameters:**
+
+- `dataset_item` (DatasetItem): The dataset item to evaluate.
+- `pred` (Union[str, Dict[str, Any]]): The prediction to evaluate.
+
+**Returns:**
+MetricResult: An object containing the score and intermediate values.
+
+## Usage
+
+To use the `BaseMetric` class, create a subclass and implement the `compute` method:
+
+```python
+from ape.common.metrics import BaseMetric
+
+class MyMetric(BaseMetric):
+    def compute(self, dataset_item: DatasetItem, pred: Union[str, Dict[str, Any]]) -> MetricResult:
+        # Implement your metric computation here
+        return MetricResult(score=0.5)
+```

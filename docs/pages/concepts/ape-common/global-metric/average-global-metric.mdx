@@ -1,0 +1,45 @@
+---
+title: AverageGlobalMetric
+description: A class that computes the average of local scores as the global metric.
+---
+
+## Overview
+
+The `AverageGlobalMetric` class computes the average of local scores as the global metric. This class is a subclass of `BaseGlobalMetric` and provides an implementation for the `compute` method.
+
+## Methods
+
+### compute
+
+Compute the average of local scores as the global metric.
+
+**Parameters:**
+
+- `results` (List[EvaluationResult]): The results from BaseMetric evaluations.
+
+**Returns:**
+GlobalMetricResult: The average score.
+
+**Note:**
+This method calculates the average score from the provided results. If the results list is empty, it returns a score of 0.0.
+
+## Usage
+
+To use the `AverageGlobalMetric` class, create an instance and call the `compute` method with the results from BaseMetric evaluations.
+
+Example:
+
+```python
+from ape.common.metrics import MetricResult
+from ape.common.global_metrics import AverageGlobalMetric
+
+global_metric = AverageGlobalMetric()
+
+results = [
+    MetricResult(score=0.8),
+    MetricResult(score=0.9),
+]
+
+average_score = global_metric.compute(results)
+print(average_score)
+```

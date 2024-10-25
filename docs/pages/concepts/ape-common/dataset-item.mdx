@@ -1,0 +1,34 @@
+---
+title: DatasetItem
+description: A TypedDict class representing an item in a dataset.
+---
+
+## Overview
+
+The `DatasetItem` class is a TypedDict that represents a single item in a dataset. It is designed to store input data, optional output data, and optional metadata for each item in a structured format.
+
+## Fields
+
+| Field    | Type                                 | Description                                                                                |
+| -------- | ------------------------------------ | ------------------------------------------------------------------------------------------ |
+| inputs   | Dict[str, Any]                       | A dictionary containing the input data for the dataset item.                               |
+| outputs  | Optional[Union[Dict[str, Any], str]] | An optional dictionary or string containing the expected output data for the dataset item. |
+| metadata | Optional[Dict[str, Any]]             | An optional dictionary containing additional metadata for the dataset item.                |
+
+## Usage
+
+Here's an example of how to create and use a `DatasetItem`:
+
+```python
+item = DatasetItem(
+    inputs={"question": "What is the capital of France?"},
+    outputs="Paris",
+    metadata={"source": "geography_quiz"}
+)
+
+inputs = item["inputs"]
+outputs = item["outputs"]
+metadata = item["metadata"]
+```
+
+This example demonstrates creating a `DatasetItem` with input data, specifying an output, and adding metadata.

@@ -1,0 +1,160 @@
+import { Steps } from "nextra/components";
+
+# Getting Started
+
+<Steps>
+### Installation
+
+```bash
+pip install ape-core
+```
+
+### Prepare Prompt
+
+You should prepare your prompt as a [`Prompt`](./concepts/ape-common/prompt.mdx) object.
+You should use fstring to insert variables into the prompt.
+
+```python
+
+from ape.common import Prompt
+
+student_prompt = Prompt(
+    name="MathSolver",
+    messages=[
+        {"role": "system", "content": "Solve math problem."},
+        {"role": "user", "content": "{problem}"},
+    ],
+    model="gpt-4o-mini",
+    temperature=0.0,
+    response_format=None,
+)
+```
+
+You can use any OpenAI ChatCompletion API input parameters in `Prompt` object.
+
+### Prepare Dataset
+
+Prepare your dataset as as list of [`DatasetItem`](./concepts/ape-common/dataset-item.mdx) TypedDict.
+`DatasetItem` is a TypedDict that contains `inputs` and `outputs` keys.
+
+- `inputs`: Dictionary of input values.
+- `outputs`: string or dictionary.
+
+```python
+from ape.common import DatasetItem
+
+dataset = [
+    DatasetItem(inputs={"problem": "1+1"}, outputs="2"),
+]
+```
+
+### Prepare Generator, Metric
+
+You should prepare your own [`Generator`](./concepts/ape-common/generator/base-generator.mdx) and [`Metric`](./concepts/ape-common/metric/base-metric.mdx) classes.
+
+```python
+from ape.common import BaseGenerator, BaseMetric, DatasetItem, MetricResult, GlobalMetricResult
+from openai import AsyncOpenAI
+
+openai = AsyncOpenAI()
+class MathSolver(BaseGenerator):
+    async def generate(
+        self,
+        prompt: Prompt,
+        inputs: Dict[str, Any],
+    ) -> Union[Dict[str, Any], str]:
+        retry_count = 0
+        messages = prompt.format(**inputs).messages
+        model = prompt.model
+        response_format = prompt.response_format
+        while retry_count < 3:
+            try:
+                response = await openai.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    response_format=response_format,
+                    temperature=0.0,
+                )
+                return json.loads(response.choices[0].message.content)
+            except Exception as e:
+                print(e)
+                retry_count += 1
+        return {
+            "thought": "error",
+            "topic": "",
+        }
+
+class ExactMatchMetric(BaseMetric):
+    async def compute(
+        self,
+        dataset_item: DatasetItem,
+        pred: str,
+    ) -> MetricResult:
+        if dataset_item["outputs"] == pred:
+            return MetricResult(
+                score=1.0,
+            )
+        else:
+            return MetricResult(
+                score=0.0,
+            )
+```
+
+You can use any implemenation of llm usage in `Generator`'s `generate` method, and any metric implementation in `Metric`'s `compute` method.
+
+If you want to use sophisticated metric like MICRO-F1, not just average score from each dataset item's metric score, You can use `GlobalMetric` class.
+
+```python
+from ape.common import GlobalMetric, MetricResult
+
+class RecallMetric(BaseMetric):
+    async def compute(
+        self,
+        dataset_item: DatasetItem,
+        pred: Dict[str, Any], # pred = {"predictions": [a,b,c,...]}
+    ) -> MetricResult:
+        num_correct = 0
+        for item in pred["predictions"]:
+            if item in dataset_item["outputs"]["predictions"]:
+                num_correct += 1
+        recall = num_correct / len(dataset_item["outputs"]["predictions"]) if dataset_item["outputs"]["predictions"] else 0
+
+        return MetricResult(
+            score=recall,
+            trace={"num_items": len(dataset_item["outputs"]["predictions"])},
+        )
+
+class MICRORecallGlobalMetric(BaseGlobalMetric):
+    async def compute(
+        self,
+        results: List[MetricResult],
+    ) -> GlobalMetricResult:
+        total_num_items = 0
+        total_num_correct = 0
+        for result in results:
+            total_num_items += result.trace["num_items"]
+            total_num_correct += result.score * result.trace["num_items"]
+        return GlobalMetricResult(
+            score=total_num_correct / total_num_items,
+        )
+```
+
+### Select Trainer & Optimize
+
+Finally, select a trainer and optimize your prompt.
+
+```python
+from ape.trainer import DSPyMiproTrainer
+
+trainer = DSPyMiproTrainer(
+    generator=MathSolver(),
+    metric=ExactMatchMetric(),
+)
+
+optimized_prompt, report = await trainer(prompt=student_prompt, trainset=dataset, valset=[])
+```
+
+`optimized_prompt` is a `Prompt` object that contains the optimized prompt.
+`report` is a `Report` object that contains the training process and results.
+
+</Steps>

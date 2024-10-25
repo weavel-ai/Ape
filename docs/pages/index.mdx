@@ -1,11 +1,35 @@
 # Introduction
- 
-Welcome to Nextra! This is a basic docs template. You can use it as a starting point for your own project :)
 
-## What is Nextra?
+<div>
+  <img
+    src="https://www.dropbox.com/scl/fi/h7e7lunf2x8g0teeqlrlt/Ape-Logo.png?rlkey=fc9fzxye4mls00cluv08f4vus&st=pfjsapa3&raw=1"
+    title="Logo"
+    width="300"
+    height="auto"
+  />
+</div>
 
-A **simple**, **powerful** and **flexible** site generation framework with everything you love from Next.js.
+Welcome to Ape (AI Prompt Engineer) Docs!
 
-## Documentation
+## What is Ape?
 
-The documentation is available at [https://nextra.site](https://nextra.site).
+**Ape (AI prompt engineer)** is an open-source hub for prompt optimization algorithms.  
+Our goal is to provide easy-to-use implementations of various prompt engineering methods, facilitating benchmarking, experimentation, and collaborative research within the community.
+
+Unlike other open-source projects, Ape was developed to apply and analyze the strengths and weaknesses of various methods for optimizing single prompts.
+
+All prompt optimization techniques are implemented within a single file by inheriting from the `Trainer` class, following a **single-file policy**. These implementations are evaluated across multiple benchmarks using a unified testing format.
+
+The results obtained through this process are transparently shared, contributing to collaborative research within the community and academic studies in the field.
+
+## Is Ape right for me?
+
+Ape is a library focused solely on **prompt optimization, not an LLM framework**.
+
+Ape’s philosophy is to allow researchers and developers to concentrate exclusively on optimizing prompts without imposing any constraints on how they use LLMs. To achieve this, Ape **does not provide any abstractions for supporting LLM usage**, and users must directly implement LLM-related code within the `Generator` class. This design choice aims to maintain a structure that focuses solely on prompt optimization.
+
+Ape targets the optimization of individual prompts rather than complex LLM architectures or pipelines. While it can be easily integrated with various LLM frameworks like `Langchain` or `LlamaIndex`, this is achieved by implementing these frameworks within the `generate` method of the `Generator` class, without requiring any additional integration work. Prompt optimization can be effortlessly applied by adding the necessary logic to the generate method without modifying existing code.
+
+Following this philosophy, Ape utilizes a **one-file-policy** with the **`Trainer`** class to implement all prompt optimization methods in a unified format. This approach allows users to apply any optimization technique consistently, simplifying prompt optimization tasks across diverse use cases. As a result, researchers can easily conduct experiments across multiple benchmarks, and developers in production environments can apply various prompt optimizations without altering their existing code.
+
+Ape is suitable for users who value the simplicity and flexibility of single-prompt optimization. However, it may not be the best choice for those seeking End-to-End optimization. For instance, users needing full integration of production and research code, or the unification of service inference and training code, may find Ape less suitable. Ape does not support End-to-End optimization across complex LLM pipelines or architectures; it supports only individual prompt optimization for each LLM call.

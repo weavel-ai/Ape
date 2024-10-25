@@ -1,0 +1,47 @@
+---
+title: BaseGenerator
+description: Abstract base class for generation tasks.
+---
+
+## Overview
+
+The `BaseGenerator` class provides an abstract base for implementing generation tasks. It defines a common interface for generating responses from language models using prompts.
+
+## Methods
+
+### generate
+
+Abstract method to generate a response from the model.
+
+**Parameters:**
+
+- `prompt` (Prompt): The prompt to generate a response for.
+- `inputs` (Dict[str, Any], optional): The inputs to the prompt. Defaults to {}.
+
+**Returns:**
+Union[str, Dict[str, Any], Awaitable[Union[str, Dict[str, Any]]]]: The generated response.
+
+### \_\_call\_\_
+
+Unified method to compute the metric, handling both sync and async implementations.
+
+**Parameters:**
+
+- `prompt` (Prompt): The prompt to generate a response for.
+- `inputs` (Dict[str, Any], optional): The inputs to the prompt. Defaults to {}.
+
+**Returns:**
+Union[str, Dict[str, Any], Awaitable[Union[str, Dict[str, Any]]]]: The generated response.
+
+## Usage
+
+To use the `BaseGenerator` class, create a subclass and implement the `generate` method:
+
+```python
+from ape.common import BaseGenerator
+
+class MyGenerate(BaseGenerator):
+    def generate(self, prompt: Prompt, inputs: Dict[str, Any] = {}) -> Union[str, Dict[str, Any]]:
+        # Implement your generation logic here
+        return "Hello, world!"
+```

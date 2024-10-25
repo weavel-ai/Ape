@@ -1,18 +1,18 @@
-import React from 'react'
-import { DocsThemeConfig } from 'nextra-theme-docs'
+import React from "react";
+import { DocsThemeConfig } from "nextra-theme-docs";
 
 const config: DocsThemeConfig = {
-  logo: <span>My Project</span>,
+  logo: <span>Ape Docs</span>,
   project: {
-    link: 'https://github.com/shuding/nextra-docs-template',
+    link: "https://github.com/weavel-ai/Ape",
   },
   chat: {
-    link: 'https://discord.com',
+    link: "https://weavel.ai/discord",
   },
-  docsRepositoryBase: 'https://github.com/shuding/nextra-docs-template',
+  docsRepositoryBase: "https://github.com/weavel-ai/Ape",
   footer: {
-    text: 'Nextra Docs Template',
+    text: "Ape Docs",
   },
-}
+};
 
-export default config
+export default config;

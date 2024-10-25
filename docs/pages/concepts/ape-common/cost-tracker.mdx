@@ -1,0 +1,66 @@
+---
+title: CostTracker
+description: Utility class for tracking and managing API costs.
+---
+
+## Overview
+
+The `CostTracker` class is a singleton utility for tracking costs across different categories in an application. It provides methods to add costs, retrieve total cost, get a breakdown of costs by category, and reset the tracker. The class also supports context-based cost tracking.
+
+## Methods
+
+### add_cost
+
+Adds a cost to a specific category.
+
+**Parameters:**
+
+- `cost` (float): The cost to add.
+- `label` (str): The category label for the cost.
+
+### get_context_cost
+
+Returns the cost for the current context.
+
+**Returns:**
+Dict[str, float]: A dictionary of costs by category for the current context.
+
+### get_total_cost
+
+Returns the total accumulated cost.
+
+**Returns:**
+float: The total cost.
+
+### get_cost_breakdown
+
+Returns the breakdown of costs by category.
+
+**Returns:**
+Dict[str, float]: A dictionary of costs by category.
+
+### reset
+
+Resets the cost tracker to its initial state.
+
+### set_context
+
+Sets the context for cost tracking.
+
+**Parameters:**
+
+- `context_uuid` (str): The UUID for the context.
+
+## Usage
+
+The `CostTracker` is used internally by `Prompt` to track costs. If you are using a custom subclass of `Generate`, you can use the `CostTracker` to track costs by calling `CostTracker.add_cost` in your `generate` method.
+
+```python
+from ape.common.cost_tracker import CostTracker
+
+cost_tracker = CostTracker()
+cost_tracker.add_cost(1.0, "embedding")
+cost_tracker.add_cost(1.0, "embedding")
+cost_tracker.add_cost(1.0, "embedding")
+cost_tracker.add_cost(1.0, "embedding")
+```

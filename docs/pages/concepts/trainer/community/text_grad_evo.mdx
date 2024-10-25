@@ -1,0 +1,21 @@
+# TextGradEvoTrainer
+
+## Overview
+
+**TextGradEvoTrainer** is inspired by the papers [TextGrad](https://arxiv.org/abs/2406.07496) and [EvoPrompt](https://arxiv.org/abs/2309.08532), combining evolutionary algorithms with text gradient-based optimization.
+
+If you want to see more details like explanation of the algorithm and difference between implementation and paper, please refer to [here](https://github.com/weavel-ai/Ape/libs/ape-core/ape/core/trainer/community/text_grad_evo/README.md).
+
+## Methods
+
+### `__init__`
+
+It has the same parameters as [`Trainer`](../../trainer.mdx) class, but have some more unique parameters.
+
+**unique parameters:**
+
+- `max_evolution_per_step`: Maximum number of evolutionary generation for each dataset item.
+- `population_size`: Size of population for evolutionary algorithm.
+- `evolution_method`: Method of evolutionary algorithm. `"para"`, `"ga"`, `"de"` are supported.
+- `parent_selection_mode`: Method of parent selection for evolutionary algorithm. `"random"`, `"wheel"`, `"tour"` are supported.
+- `child_selection_mode`: Method of child selection for evolutionary algorithm. `"child"`, `"topk"` are supported.
