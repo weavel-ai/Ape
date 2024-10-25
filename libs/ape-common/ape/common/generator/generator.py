@@ -11,7 +11,7 @@ from litellm import acompletion
 
 
 class Generator(BaseGenerator):
-    def __init__(self, timeout: float = 25.0, stream_timeout: float = 5.0, frequency_penalty: float = 0.1, retry_count: int = 3):
+    def __init__(self, timeout: float = 25.0, stream_timeout: float = 5.0, frequency_penalty: float = 0.1, retry_count: int = 10):
         self.timeout = timeout
         self.stream_timeout = stream_timeout
         self.frequency_penalty = frequency_penalty
@@ -45,11 +45,17 @@ class Generator(BaseGenerator):
                 async for chunk in stream_response:
                     if time.time() - start_time > self.timeout:
                         logger.error(f"SLOW, {full_response}")
-                        raise Exception("TimeoutError")
+                        timeout_occurred = True
+                        break  # Exit the loop gracefully
                     if len(chunk.choices) == 0:
                         continue
                     if chunk.choices[0].delta.content is not None:
                         full_response += chunk.choices[0].delta.content
+                else:
+                    timeout_occurred = False  # No timeout occurred
+                
+                if timeout_occurred:
+                    raise Exception("TimeoutError")
                 
                 if response_format is not None:
                     return json.loads(full_response)
@@ -59,19 +65,9 @@ class Generator(BaseGenerator):
             except asyncio.TimeoutError:
                 logger.error("TimeoutError")
                 retry_count += 1
-                if retry_count == self.retry_count:
-                    if response_format is not None:
-                        return {}
-                    else:
-                        return ""
             except Exception as e:
                 logger.error(f"Other Error, {e}")
                 retry_count += 1
-                if retry_count == self.retry_count:
-                    if response_format is not None:
-                        return {}
-                    else:
-                        return ""
 
         if response_format is not None:
             return {}

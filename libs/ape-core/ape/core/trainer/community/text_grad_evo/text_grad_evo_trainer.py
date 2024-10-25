@@ -118,7 +118,6 @@ class TextGradEvoTrainer(BaseTrainer):
                     for j in range(self.population_size)
                 ]
             )  # TODO: fix the score threshold into dynamic)
-            text_gradients = [tg for tg in text_gradients if tg]  # Filter out empty gradients
             
             # TODO: start evolution loop here
             
