@@ -2,6 +2,8 @@
 
 ## Summary
 
+DSPy-MIPRO shows good performance in reasoning benchmarks like MATH and GPQA.
+
 ### Trainset Scores
 
 | Benchmarks \ Methods                   | Baseline | finetuned baseline | DSPy-MIPRO    |
@@ -23,8 +25,6 @@
 | New York Times Topics (Classification) | 0.794    | **0.818** (▲)      | 0.700 (▼)     |
 
 ## Benchmarks Results
-
-DSPy-MIPRO shows good performance in reasoning benchmarks like MATH and GPQA.
 
 ### BIRD-bench
 

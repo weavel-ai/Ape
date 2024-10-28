@@ -24,14 +24,12 @@ class TextGradientTrainer(BaseTrainer):
         metric: BaseMetric,
         global_metric: BaseGlobalMetric,
         batch_size: int = 4,
-        early_stopping_rounds: int = 10,
         random_seed: int = 42,
         max_proposals_per_step: int = 5,
         **kwargs,
     ):
         super().__init__(generator, metric, global_metric, **kwargs)
         self.batch_size = batch_size
-        self.early_stopping_rounds = early_stopping_rounds
         self.random_seed = random_seed
         self.max_proposals_per_step = max_proposals_per_step
 

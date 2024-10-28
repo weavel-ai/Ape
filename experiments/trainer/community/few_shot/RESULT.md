@@ -2,6 +2,8 @@
 
 ## Summary
 
+FewShotTrainer performs well in MATH benchmark, but not so well in other benchmarks.
+
 ### Trainset Scores
 
 | Benchmarks \ Methods                   | Baseline | finetuned baseline | FewShotTrainer |
@@ -23,8 +25,6 @@
 | New York Times Topics (Classification) | 0.794    | **0.818** (▲)      | 0.770 (▼)      |
 
 ## Benchmarks Results
-
-FewShotTrainer performs well in MATH benchmark, but not so well in other benchmarks.
 
 ### BIRD-bench
 

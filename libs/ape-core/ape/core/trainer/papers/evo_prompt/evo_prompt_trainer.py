@@ -244,7 +244,12 @@ class EvoPromptTrainer(BaseTrainer):
         fitness = np.array([self.evaluated_prompts[prompt_index] for prompt_index in self.population])
 
         if self.parent_selection_mode == "wheel":
-            probabilities = fitness / fitness.sum()
+            fitness_sum = fitness.sum()
+            if fitness_sum == 0:
+                # If all scores are 0, use uniform probability
+                probabilities = np.ones(k) / k
+            else:
+                probabilities = fitness / fitness_sum
             parent_indices = np.random.choice(
                 np.arange(k),
                 size=k * 2,  # Each child needs two parents

@@ -26,7 +26,7 @@ class OptunaTrainer(BaseTrainer):
         global_metric: BaseGlobalMetric,
         random_seed: int = 42,
         num_candidates: int = 10,
-        max_steps: int = 30,
+        max_steps: int = 20,
         minibatch_size: int = 25,
         **kwargs,
     ):
@@ -176,7 +176,7 @@ class OptunaTrainer(BaseTrainer):
             try:
                 preds, eval_results, global_result = run_async(
                     self._evaluate(
-                        random.sample(trainset, min(self.minibatch_size, len(trainset))),
+                        trainset,
                         candidate_prompt,
                     )
                 )
@@ -190,7 +190,7 @@ class OptunaTrainer(BaseTrainer):
             trial_logs[trial.number].update(
                 {
                     "score": score,
-                    "num_eval_calls": min(self.minibatch_size, len(trainset)),
+                    "num_eval_calls": len(trainset),
                 }
             )
 
