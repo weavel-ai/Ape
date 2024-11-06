@@ -32,3 +32,6 @@ key.key
 .gsm8k
 
 testfile
+
+**/node_modules
+**/.next

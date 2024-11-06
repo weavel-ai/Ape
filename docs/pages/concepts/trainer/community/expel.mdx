@@ -1,0 +1,23 @@
+---
+title: ExpelTrainer
+description: A class for optimizing prompts using the Expel algorithm.
+---
+
+# ExpelTrainer
+
+## Overview
+
+**ExpelTrainer** is inspired by the paper [Expel](https://arxiv.org/abs/2308.10144), but implemented as a prompt optimization algorithm.
+
+If you want to see more details like explanation of the algorithm and difference between implementation and paper, please refer to [here](https://github.com/weavel-ai/Ape/libs/ape-core/ape/core/trainer/community/expel/README.md).
+
+## Methods
+
+### `__init__`
+
+It has the same parameters as [`Trainer`](../../trainer.mdx) class, but have some more unique parameters.
+
+**unique parameters:**
+
+- `max_proposals_per_step`: Maximum number of proposals to generate per step. `ExpelTrainer` will retry generating optimized prompt `max_proposals_per_step` times for each batch of examples.
+- `target_subgroup`: Target subgroup to optimize for. `success`, `failure`, `all` are supported.

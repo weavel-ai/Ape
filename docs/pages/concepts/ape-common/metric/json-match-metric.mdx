@@ -1,0 +1,49 @@
+---
+title: JsonMatchMetric
+description: A metric class that computes the similarity between two JSON-like structures.
+---
+
+## Overview
+
+The `JsonMatchMetric` class provides a way to compute the similarity between two JSON-like structures. It compares two dictionaries or lists, considering the structure and content of nested objects. It can optionally consider list order and ignore specified keys.
+
+## Attributes
+
+- `consider_list_order` (bool): If True, list order is considered in comparisons. Defaults to False.
+- `ignore_keys` (List[str]): A list of keys to ignore during comparison. Keys are normalized to lowercase with spaces replaced by underscores.
+- `binary_judge` (Callable): An LLM-based binary judge for scoring non-exact matches.
+
+## Methods
+
+### compute
+
+Compute the similarity score between the gold standard and prediction.
+
+**Parameters:**
+
+- `pred` (Dict[str, Any]): The prediction to compare against the gold standard.
+- `gold` (Dict[str, Any]): The gold standard data item.
+- `inputs` (Dict[str, Any]): Additional input information (not used in this implementation).
+- `trace` (Optional[Dict]): Additional trace information (not used in this implementation).
+- `metadata` (Optional[Dict]): Additional metadata (not used in this implementation).
+
+**Returns:**
+MetricResult: The computed similarity score and any intermediate values.
+
+**Note:**
+This method normalizes both inputs, compares their structures recursively, and returns a MetricResult representing the overall similarity. It handles nested dictionaries and lists, applying special comparison logic based on the `consider_list_order` attribute.
+
+## Usage
+
+To use the `JsonMatchMetric` class, create an instance and call the `compute` method with the prediction and gold standard data items.
+
+Example:
+
+```python
+from ape.common.metrics import JsonMatchMetric
+
+metric = JsonMatchMetric()
+
+result = await metric.compute(inputs={"text1": "Hello, world!", "text2": "Greetings from the cosmos!"}, gold="Hello, world!", pred="Greetings from the cosmos!")
+print(result)
+```

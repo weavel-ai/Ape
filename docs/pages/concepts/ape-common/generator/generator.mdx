@@ -1,0 +1,41 @@
+---
+title: Generator
+description: Class for generating responses from language models using prompts.
+---
+
+# Generator
+
+## Overview
+
+The `Generator` class is used for generating responses from language models using prompts. It extends the `BaseGenerate` class and provides an implementation for the `generate` method.
+
+## Methods
+
+### generate
+
+Asynchronous method to generate a response from the model.
+
+**Parameters:**
+
+- `prompt` (Prompt): The prompt to generate a response for.
+- `inputs` (Dict[str, Any], optional): The inputs to the prompt. Defaults to {}.
+
+**Returns:**
+Union[str, Dict[str, Any], Type[BaseModel]]: The generated response.
+
+## Usage
+
+To use the `Generator` class, create an instance and call the `generate` method with the prompt and inputs:
+
+```python
+from ape.common import Generator
+
+generate = Generator()
+response = await generate(prompt, inputs)
+```
+
+The above is equivalent to:
+
+```python
+response = await prompt(**inputs)
+```

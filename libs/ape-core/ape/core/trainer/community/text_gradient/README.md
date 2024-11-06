@@ -1,7 +1,8 @@
 # TextGradientTrainer
 
-**TextGradientTrainer** is an implementation of the [TextGrad](https://arxiv.org/abs/2406.07496) paper, based on the [TextGrad](https://github.com/zou-group/textgrad) repository and the [adalflow](https://github.com/SylphAI-Inc/AdalFlow) project, as of 2024.10.21.  
- Although inspired by the original paper, this implementation has diverged significantly, so it is included in the community section.
+**TextGradientTrainer** is an implementation of the [TextGrad](https://arxiv.org/abs/2406.07496) paper, based on the [TextGrad](https://github.com/zou-group/textgrad) repository and the [adalflow](https://github.com/SylphAI-Inc/AdalFlow) project, as of 2024.10.21.
+
+Although inspired by the original paper, this implementation has diverged significantly, so it is included in the community section.
 
 ## Description
 

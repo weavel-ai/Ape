@@ -1,0 +1,25 @@
+---
+title: TextGradientTrainer
+description: A class for optimizing prompts using the TextGrad algorithm.
+---
+
+# TextGradientTrainer
+
+## Overview
+
+**TextGradientTrainer** is an implementation of the [TextGrad](https://arxiv.org/abs/2406.07496) paper, based on the [TextGrad](https://github.com/zou-group/textgrad) repository and the [adalflow](https://github.com/SylphAI-Inc/AdalFlow) project, as of 2024.10.21.
+
+Although inspired by the original paper, this implementation has diverged significantly, so it is included in the community section.
+
+If you want to see more details like explanation of the algorithm and difference between implementation and paper, please refer to [here](https://github.com/weavel-ai/Ape/libs/ape-core/ape/core/trainer/community/text_gradient/README.md).
+
+## Methods
+
+### `__init__`
+
+It has the same parameters as [`Trainer`](../../trainer.mdx) class, but have some more unique parameters.
+
+**unique parameters:**
+
+- `batch_size`: Size of minibatches for evaluation.
+- `max_proposals_per_step`: Maximum number of proposals to generate per step. `TextGradientTrainer` will retry generating optimized prompt `early_stopping_rounds` times for each batch.

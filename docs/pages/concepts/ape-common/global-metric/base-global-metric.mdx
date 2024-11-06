@@ -1,0 +1,47 @@
+---
+title: BaseGlobalMetric
+description: Abstract base class for global metrics in prompt evaluation.
+---
+
+# BaseGlobalMetric
+
+## Overview
+
+The `BaseGlobalMetric` class provides an abstract base for implementing global metrics in prompt evaluation. Global metrics are used to compute an overall score based on the results of individual metric evaluations.
+
+## Methods
+
+### compute
+
+Abstract method to compute the global metric.
+
+**Parameters:**
+
+- `results` (List[MetricResult]): The results from BaseMetric evaluations.
+
+**Returns:**
+GlobalMetricResult: The computed global metric value.
+
+### \_\_call\_\_
+
+Unified method to compute the global metric, handling both sync and async implementations.
+
+**Parameters:**
+
+- `results` (List[MetricResult]): The results from BaseMetric evaluations. Use `results[i].metadata` to access the local metric results.
+
+**Returns:**
+GlobalMetricResult: The computed global metric value.
+
+## Usage
+
+To use the `BaseGlobalMetric` class, create a subclass and implement the `compute` method:
+
+```python
+from ape.common.global_metrics import BaseGlobalMetric
+
+class MyGlobalMetric(BaseGlobalMetric):
+    def compute(self, results: List[MetricResult]) -> GlobalMetricResult:
+        # Implement your global metric computation here
+        return GlobalMetricResult(score=0.5)
+```
