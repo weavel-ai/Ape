@@ -160,10 +160,7 @@ class DspyMiproTrainer(BaseTrainer):
                 logger.debug(f"Evaluating candidate prompt for trial {trial.number}")
                 preds, eval_results, global_result = run_async(
                     self._evaluate(
-                        random.sample(
-                            trainset_without_fewshot,
-                            min(self.minibatch_size, len(trainset_without_fewshot)),
-                        ),
+                        trainset_without_fewshot,
                         candidate_prompt,
                     )
                 )
@@ -176,7 +173,7 @@ class DspyMiproTrainer(BaseTrainer):
             trial_logs[trial.number].update(
                 {
                     "score": score,
-                    "num_eval_calls": min(self.minibatch_size, len(trainset)),
+                    "num_eval_calls": len(trainset_without_fewshot),
                 }
             )
 

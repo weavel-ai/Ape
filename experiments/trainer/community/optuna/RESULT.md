@@ -2,6 +2,10 @@
 
 ## Summary
 
+The OptunaTrainer shows higher performance improvement on the training dataset compared to other methods, including the finetuned baseline.
+However, the performance improvement on the test set is not as clear.
+For some datasets like BIRD-bench, GPQA, and New York Times Topics, the OptunaTrainer optimized prompt's performance is even lower than the baseline. This suggests that the OptunaTrainer is prone to overfitting.
+
 ### Trainset Scores
 
 | Benchmarks \ Methods                   | Baseline | finetuned baseline | OptunaTrainer |
@@ -21,10 +25,6 @@
 | GPQA (Reasoning)                       | 0.146    | 0.080 (▼)          | 0.120 (▼)     |
 | MATH (Reasoning)                       | 0.610    | 0.426 (▼)          | **0.720** (▲) |
 | New York Times Topics (Classification) | 0.794    | **0.818** (▲)      | 0.710 (▼)     |
-
-The OptunaTrainer shows higher performance improvement on the training dataset compared to other methods, including the finetuned baseline.
-However, the performance improvement on the test set is not as clear.
-For some datasets like BIRD-bench, GPQA, and New York Times Topics, the OptunaTrainer optimized prompt's performance is even lower than the baseline. This suggests that the OptunaTrainer is prone to overfitting.
 
 ## Benchmarks Results
 

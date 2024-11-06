@@ -2,6 +2,8 @@
 
 ## Summary
 
+TextGradientTrainer shows good performance in MATH benchmark, but not so well in other benchmarks.
+
 ### Trainset Scores
 
 | Benchmarks \ Methods                   | Baseline | finetuned baseline | TextGradientTrainer |
@@ -23,8 +25,6 @@
 | New York Times Topics (Classification) | 0.794    | **0.818** (▲)      | 0.730 (▼)           |
 
 ## Benchmarks Results
-
-TextGradientTrainer shows good performance in MATH benchmark, but not so well in other benchmarks.
 
 ### BIRD-bench
 

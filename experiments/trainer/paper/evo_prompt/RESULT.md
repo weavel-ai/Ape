@@ -2,6 +2,11 @@
 
 ## Summary
 
+The frequency of performance improvements throughout the training process is notably low.
+For BoolQ, no performance improvements were observed, while BIRD-bench and MATH showed only one instance of improvement each.
+
+Furthermore, the performance improvements observed in the training dataset do not correlate well with those in the test dataset.
+
 ### Trainset Scores
 
 | Benchmarks \ Methods                   | Baseline | finetuned baseline | EvoPrompt     |
@@ -21,11 +26,6 @@
 | GPQA (Reasoning)                       | 0.146    | 0.080 (▼)          | 0.120 (▼)     |
 | MATH (Reasoning)                       | 0.610    | 0.426 (▼)          | **0.670** (▲) |
 | New York Times Topics (Classification) | 0.794    | **0.818** (▲)      | 0.600 (▼)     |
-
-The frequency of performance improvements throughout the training process is notably low.
-For BoolQ, no performance improvements were observed, while BIRD-bench and MATH showed only one instance of improvement each.
-
-Furthermore, the performance improvements observed in the training dataset do not correlate well with those in the test dataset.
 
 ## Benchmarks Results
 
