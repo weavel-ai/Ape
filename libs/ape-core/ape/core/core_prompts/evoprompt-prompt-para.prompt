@@ -1,0 +1,53 @@
+---
+model: gpt-4o
+inputs: 
+    base_prompt: The base prompt to start from
+temperature: 0.7
+response_format:
+    type: json_schema
+    json_schema:
+        name: prompt
+        description: Creates a prompt consisting of a list of messages.
+        strict: true
+        schema:
+            type: object
+            required:
+                - messages
+            properties:
+                messages:
+                    type: array
+                    description: List of messages in the prompt
+                    items:
+                        type: object
+                        properties:
+                            role:
+                                type: string
+                                description: Role of the message sender
+                                enum:
+                                    - system
+                                    - user
+                            content:
+                                type: string
+                                description: Content of the message
+                        required:
+                            - role
+                            - content
+                        additionalProperties: false
+            additionalProperties: false
+---
+<system>
+You are an expert prompt engineer tasked with paraphrasing a given prompt.
+
+A good way to structure the prompt is to add format/instructions to the system prompt, and user inputs to the user prompt.
+
+If the base prompt contains any specific response format instructions, preserve those instructions in your improved prompt. Do not modify or remove existing response format specifications.
+
+Generate a variation of the following prompt while keeping the semantic meaning.
+</system>
+<user>
+Generate a variation of the following prompt while keeping the semantic meaning:
+Base prompt:
+{base_prompt}
+
+Provide your new paraphrased prompt below:
+</user>

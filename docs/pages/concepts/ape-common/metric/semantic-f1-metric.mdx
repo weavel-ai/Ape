@@ -1,0 +1,51 @@
+---
+title: SemanticF1Metric
+description: A metric class that computes the Semantic F1 score between a prediction and a gold standard.
+---
+
+## Overview
+
+The `SemanticF1Metric` class computes the Semantic F1 score between a prediction and a gold standard. This metric uses semantic analysis to extract statements from both the prediction and gold standard, and then computes precision and recall based on these statements. The final F1 score is calculated using the harmonic mean of precision and recall.
+
+## Attributes
+
+- `inputs_question_key` (str): The key to access the question in the inputs dictionary.
+- `semantic_analysis` (Prompt): A prompt for extracting statements from text.
+- `semantic_precision` (Prompt): A prompt for computing semantic precision.
+- `semantic_recall` (Prompt): A prompt for computing semantic recall.
+- `segmenter` (Segmenter): A text segmenter for breaking text into sentences.
+
+## Methods
+
+### compute
+
+Compute the Semantic F1 score between the prediction and gold standard.
+
+**Parameters:**
+
+- `inputs` (Dict[str, Any]): Input dictionary containing the question.
+- `gold` (str): The gold standard text.
+- `pred` (str): The prediction text.
+- `trace` (Optional[Dict]): Additional trace information (not used in this implementation).
+- `metadata` (Optional[Dict]): Additional metadata (not used in this implementation).
+
+**Returns:**
+MetricResult: The computed Semantic F1 score between 0 and 1.
+
+**Note:**
+This method segments the prediction and gold standard texts into sentences, extracts statements using semantic analysis, and computes precision and recall. The F1 score is then calculated using the harmonic mean of precision and recall.
+
+## Usage
+
+To use the `SemanticF1Metric` class, create an instance and call the `compute` method with the prediction and gold standard data items.
+
+Example:
+
+```python
+from ape.common.metrics import SemanticF1Metric
+
+metric = SemanticF1Metric()
+
+result = await metric.compute(inputs={"question": "What is the capital of France?"}, gold="Paris is the capital of France.", pred="France's capital is Paris.")
+print(result)
+```

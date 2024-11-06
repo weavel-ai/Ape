@@ -1,7 +1,6 @@
 .venv
 venv
 .ipynb_checkpoints
-*.ipynb
 .env
 
 */__pycache__
@@ -33,3 +32,6 @@ key.key
 .gsm8k
 
 testfile
+
+**/node_modules
+**/.next

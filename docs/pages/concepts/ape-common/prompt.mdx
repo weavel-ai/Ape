@@ -1,0 +1,116 @@
+---
+title: Prompt
+description: Utility class for storing and managing prompts for language models.
+---
+
+# Prompt
+
+## Overview
+
+The `Prompt` class is an extension of the `Prompt` class from the [promptfile](https://github.com/weavel-ai/promptfile) library. It provides additional functionality for managing prompts, including response formats, few-shot examples, and cost tracking.
+
+## Attributes
+
+| Attribute       | Type                             | Description                                                                                                |
+| --------------- | -------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| model           | string                           | The name of the language model to use for this prompt.                                                     |
+| messages        | List[ChatCompletionMessageParam] | A list of messages that make up the prompt. Each message is a dictionary containing role and content.      |
+| response_format | Optional[ResponseFormat]         | Specifies the desired format for the model's response. Can be a dictionary or a custom pydantic BaseModel. |
+| fewshot         | Optional[List[DatasetItem]]      | A list of few-shot examples to be injected into the prompt template.                                       |
+| temperature     | Optional[float]                  | Controls the randomness of the model's output. Lower values make the output more deterministic.            |
+| name            | Optional[string]                 | An optional name for the prompt, useful for identification and cost tracking.                              |
+| inputs_desc     | Optional[Dict[str, str]]         | A dictionary describing the expected input parameters for the prompt.                                      |
+| outputs_desc    | Optional[Dict[str, str]]         | A dictionary describing the expected output format from the model.                                         |
+
+## Methods
+
+### `__call__`
+
+Asynchronously calls the language model with the configured prompt.
+
+**Parameters:**
+
+- `lm_config`: Optional dictionary for additional language model configuration.
+- `num_retries`: Number of retries for API calls (default: 3).
+- `**kwargs`: Additional keyword arguments for formatting the prompt.
+
+**Returns:**
+The response from the language model, either as a string or a dictionary.
+
+### `load`
+
+Loads a Prompt object from a string content.
+
+**Parameters:**
+
+- `content`: The string content to load the prompt from.
+
+**Returns:**
+A new Prompt object.
+
+### `load_file`
+
+Loads a Prompt object from a file.
+
+**Parameters:**
+
+- `file_path`: The path to the file to load the prompt from.
+
+**Returns:**
+A new Prompt object.
+
+### `format`
+
+Formats the prompt with given keyword arguments.
+
+**Parameters:**
+
+- `**kwargs`: Keyword arguments to format the prompt with.
+
+**Returns:**
+The formatted Prompt object.
+
+### `reset_copy`
+
+Creates a reset copy of the Prompt object with empty few-shot examples.
+
+**Returns:**
+A new Prompt object with reset few-shot examples.
+
+### `dump`
+
+Dumps the Prompt object to a string representation.
+
+**Returns:**
+A string representation of the Prompt object.
+
+## Usage
+
+```python
+import textwrap
+from pydantic import BaseModel
+from ape.common import Prompt
+
+class Response(BaseModel):
+  reasoning: str
+  answer: str
+
+base_prompt = Prompt(
+    messages=[
+        {
+            "role": "system",
+            "content": "You are a helpful assistant."
+        },
+        {
+            "role": "user",
+            "content": "Answer the following question: {question}"
+        }
+    ],
+    model="gpt-4o",
+    response_format=Response
+)
+
+response: Response = await prompt(
+  question="What is the meaning of life?"
+)
+```

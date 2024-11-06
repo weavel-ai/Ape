@@ -1,0 +1,31 @@
+---
+title: Evaluator
+description: A class for evaluating prompts using a given testset, metric, and global metric.
+---
+
+# Evaluator
+
+## Overview
+
+The `Evaluator` class provides a framework for evaluating prompts using a given testset, metric, and global metric. It handles the evaluation process, including error handling, progress tracking, and result presentation.
+
+## Methods
+
+### \_\_call\_\_
+
+Asynchronous method to evaluate a prompt using the configured testset and metrics.
+
+**Parameters:**
+
+- `prompt` (Prompt): Prompt object to be evaluated.
+- `testset` (Optional[List[DatasetItem]]): Optional testset to override the configured one.
+- `display_progress` (Optional[bool]): Whether to display a progress bar.
+- `display_table` (Optional[Union[bool, int]]): Whether and how to display results table.
+- `max_errors` (Optional[int]): Maximum number of errors allowed.
+- `batch_size` (Optional[int]): Number of concurrent tasks.
+- `return_only_score` (Optional[bool]): Whether to return only the final score.
+- `**kwargs`: Additional keyword arguments.
+
+**Returns:**
+Union[float, Tuple[List[Union[Dict, str]], List[MetricResult], GlobalMetricResult]]:
+Evaluation results, which can be a single score or more detailed results depending on configuration.

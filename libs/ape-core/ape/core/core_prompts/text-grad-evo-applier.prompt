@@ -1,0 +1,67 @@
+---
+model: gpt-4o
+inputs: 
+    task_description: The description of the task
+    base_prompt: The base prompt to start from
+    feedback: The feedback from the evaluation
+temperature: 0.7
+response_format:
+    type: json_schema
+    json_schema:
+        name: prompt
+        description: Creates a prompt consisting of a list of messages.
+        strict: true
+        schema:
+            type: object
+            required:
+                - messages
+            properties:
+                messages:
+                    type: array
+                    description: List of messages in the prompt
+                    items:
+                        type: object
+                        properties:
+                            role:
+                                type: string
+                                description: Role of the message sender
+                                enum:
+                                    - system
+                                    - user
+                            content:
+                                type: string
+                                description: Content of the message
+                        required:
+                            - role
+                            - content
+                        additionalProperties: false
+            additionalProperties: false
+---
+<system>
+You are part of an optimization system that refines prompt based on feedback.
+Your task: Propose a new prompt in response to the feedback.
+
+If the base prompt contains any specific response format instructions, preserve those instructions in your improved prompt. Do not modify or remove existing response format specifications.
+Address the concerns raised in the feedback while preserving positive aspects.
+
+Tips:
+1. Eliminate unnecessary words or phrases.
+2. Analyze the feedback for concrete examples of where the previous prompt failed. Create targeted instructions to address these specific failure cases.
+3. Instead of broad, general tips, provide precise, actionable directives that directly relate to the task and feedback.
+4. Be creative and present the instruction differently. But do not increase the length of the instruction a lot.
+</system>
+<user>
+Generate a new, improved prompt based on the following information:
+
+Task description:
+{task_description}
+
+Here are the context and feedback for the prompt:
+Base prompt:
+{base_prompt}
+
+Feedback:
+{feedback}
+
+Provide your new, improved prompt below:
+</user>
