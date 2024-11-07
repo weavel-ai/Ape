@@ -1,0 +1,19 @@
+---
+title: FewShotTrainer
+description: A class for optimizing prompts using the few-shot method.
+---
+
+# FewShotTrainer
+
+## Methods
+
+### `__init__`
+
+It shares the same parameters as the [`Trainer`](../trainer.mdx) class, with some additional unique parameters.
+
+**unique parameters:**
+
+- `num_candidates`: Number of candidate few-shot example groups to generate.
+- `max_bootstrapped_demos`: Maximum number of bootstrapped examples. (examples with generated internal steps)
+- `max_labeled_demos`: Maximum number of labeled examples. (examples selected from `trainset`)
+- `success_score`: score threshold to determine if model is successful to solve the task.

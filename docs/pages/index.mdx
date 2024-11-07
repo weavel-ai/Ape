@@ -1,40 +1,40 @@
 ---
-title: Introduction
-description: Introduction to Ape.
+title: Ape (AI Prompt Engineer)
+description: Ape is an open-source hub for prompt optimization algorithms.
 ---
 
-# Introduction
+import { ApeLogo } from '@/components/ApeLogo'
 
-<div>
-  <img
-    src="https://www.dropbox.com/scl/fi/h7e7lunf2x8g0teeqlrlt/Ape-Logo.png?rlkey=fc9fzxye4mls00cluv08f4vus&st=pfjsapa3&raw=1"
-    title="Logo"
-    width="300"
-    height="auto"
-  />
+# Ape (AI Prompt Engineer)
+
+<div className="flex justify-start mt-4 items-center gap-2">
+  <a href="https://www.ycombinator.com/companies/weavel">
+    <img
+      src="https://img.shields.io/badge/Y%20Combinator-S24-orange?style=flat-square"
+      alt="Y Combinator S24"
+    />
+  </a>
+  <a href="https://github.com/weavel-ai/Ape/blob/main/LICENSE" target="_blank">
+    <img src="https://img.shields.io/pypi/l/ape-common.svg" alt="License" />
+  </a>
+  <a href="https://github.com/weavel-ai/Ape" target="_blank">
+    <img
+      src="https://img.shields.io/github/stars/weavel-ai/Ape.svg?style=social"
+      alt="GitHub stars"
+    />
+  </a>
 </div>
 
-Welcome to Ape (AI Prompt Engineer) Docs!
+<ApeLogo width={300} height={300} className="my-10" />
 
-## What is Ape?
+**Ape (AI prompt engineer)** is a prompt optimization library with implementations of various state-of-the-art prompt optimization methods. **Ape** focuses on easier benchmarking, experimentation, and collaborative research of various techniques within the community. Ape makes it easy to apply and compare different prompt optimization techniques.
 
-**Ape (AI prompt engineer)** is an open-source hub for prompt optimization algorithms.  
-Our goal is to provide easy-to-use implementations of various prompt engineering methods, facilitating benchmarking, experimentation, and collaborative research within the community.
+All prompt optimization techniques are implemented within a **single file** by inheriting from the `Trainer` class. These implementations are evaluated across multiple benchmarks using a unified testing format. All results obtained through this process are shared transparently.
 
-Unlike other open-source projects, Ape was developed to apply and analyze the strengths and weaknesses of various methods for optimizing single prompts.
+## Philosophy
 
-All prompt optimization techniques are implemented within a single file by inheriting from the `Trainer` class, following a **single-file policy**. These implementations are evaluated across multiple benchmarks using a unified testing format.
+Ape is not an LLM framework. Rather, it is a **prompt optimization library** that makes it easy to apply and compare different prompt optimization techniques.
 
-The results obtained through this process are transparently shared, contributing to collaborative research within the community and academic studies in the field.
+Ape is designed to be **agnostic to the LLM framework** used. By subclassing the `BaseGenerator` class, you can easily plug in your LLM code, including libraries and frameworks like `Langchain` or `OpenAI Assistants API`.
 
-## Is Ape right for me?
-
-Ape is a library focused solely on **prompt optimization, not an LLM framework**.
-
-Ape’s philosophy is to allow researchers and developers to concentrate exclusively on optimizing prompts without imposing any constraints on how they use LLMs. To achieve this, Ape **does not provide any abstractions for supporting LLM usage**, and users must directly implement LLM-related code within the `Generator` class. This design choice aims to maintain a structure that focuses solely on prompt optimization.
-
-Ape targets the optimization of individual prompts rather than complex LLM architectures or pipelines. While it can be easily integrated with various LLM frameworks like `Langchain` or `LlamaIndex`, this is achieved by implementing these frameworks within the `generate` method of the `Generator` class, without requiring any additional integration work. Prompt optimization can be effortlessly applied by adding the necessary logic to the generate method without modifying existing code.
-
-Following this philosophy, Ape utilizes a **one-file-policy** with the **`Trainer`** class to implement all prompt optimization methods in a unified format. This approach allows users to apply any optimization technique consistently, simplifying prompt optimization tasks across diverse use cases. As a result, researchers can easily conduct experiments across multiple benchmarks, and developers in production environments can apply various prompt optimizations without altering their existing code.
-
-Ape is suitable for users who value the simplicity and flexibility of single-prompt optimization. However, it may not be the best choice for those seeking End-to-End optimization. For instance, users needing full integration of production and research code, or the unification of service inference and training code, may find Ape less suitable. Ape does not support End-to-End optimization across complex LLM pipelines or architectures; it supports only individual prompt optimization for each LLM call.
+Ape focuses on **optimizing individual prompts** rather than chained prompts or pipelines. The idea is that preparing datasets and optimizing each prompt separately makes the engineering process easier.

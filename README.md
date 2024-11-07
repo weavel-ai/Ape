@@ -3,7 +3,16 @@
         <img src="https://www.dropbox.com/scl/fi/h7e7lunf2x8g0teeqlrlt/Ape-Logo.png?rlkey=fc9fzxye4mls00cluv08f4vus&st=pfjsapa3&raw=1" title="Logo" style="width:200px; padding: 20px;" />
     </a>
     <h1>Ape: Open-Source Hub for AI Prompt Engineering</h1>
-    <div>
+    <div style="display: flex; justify-content: center; gap: 10px;">
+        <a href="https://www.ycombinator.com/companies/weavel">
+            <img
+                src="https://img.shields.io/badge/Y%20Combinator-S24-orange?style=flat-square"
+                alt="Y Combinator S24"
+            />
+        </a>
+        <a href="https://github.com/weavel-ai/Ape/blob/main/LICENSE" target="_blank">
+            <img src="https://img.shields.io/pypi/l/ape-common.svg" alt="License" />
+        </a>
         <a href="https://pypi.org/project/ape-core" target="_blank">
             <img src="https://img.shields.io/pypi/v/ape-core.svg" alt="PyPI Version"/>
         </a>
@@ -12,8 +21,10 @@
 
 ## About
 
-**Ape(AI prompt engineer)** is an open-source hub for prompt optimization algorithms.  
-Our goal is to provide easy-to-use implementations of various prompt engineering methods, facilitating benchmarking, experimentation, and collaborative research within the community.
+**Ape (AI prompt engineer)** is a prompt optimization library with implementations of various state-of-the-art prompt optimization methods.  
+**Ape** focuses on easier benchmarking, experimentation, and collaborative research of various techniques within the community. Ape makes it easy to apply and compare different prompt optimization techniques.
+
+[Read the docs →](https://ape-prompts.vercel.app)
 
 ## Features
 

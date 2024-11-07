@@ -1,0 +1,79 @@
+---
+title: EvoPromptTrainer
+description: A class for optimizing prompts using the EvoPrompt algorithm.
+---
+
+# EvoPrompt
+
+**EvoPrompt** is an algorithm described in the paper [EvoPrompt](https://arxiv.org/abs/2309.08532) and its accompanying GitHub repository [EvoPrompt](https://github.com/beeevita/EvoPrompt), implemented as of 2024.10.21.
+
+## Description
+
+EvoPrompt is a prompt optimization method based on evolutionary algorithms. In each generation, the prompt evolves in one of three ways: paraphrasing, genetic algorithms, or differential evolution. For genetic algorithms and differential evolution, the improved portions of each prompt are extracted and used in the evolution process.
+
+## Differences Between Implementation and Paper
+
+The original implementation in the paper is based on the Text Completion API, whereas Ape’s implementation is adapted for the Chat Completion API.
+
+## Unique Insights/Techniques from the Paper
+
+The paper highlights that evolutionary algorithm-based paraphrasing is significantly more effective than simple random paraphrasing. This insight can be applied to other prompt optimization methods by introducing additional paraphrasing steps for each improvement.
+
+## Potential Limitations
+
+### Limited Suggestion Space
+
+Since the next generation of prompts is generated only through the LLM's paraphrasing, it doesn't directly learn from the training dataset, leading to limited diversity. Due to this limitation, the average performance within each generation gradually improves with each generation, but the peak performance doesn't show significant improvement.
+
+## Benchmark Performance
+
+### Summary
+
+The frequency of performance improvements throughout the training process is notably low.
+For BoolQ, no performance improvements were observed, while BIRD-bench and MATH showed only one instance of improvement each.
+
+Furthermore, the performance improvements observed in the training dataset do not correlate well with those in the test dataset.
+
+[View in GitHub](https://github.com/weavel-ai/Ape/blob/main/experiments/trainer/paper/evo_prompt/RESULT.md)
+
+#### Trainset Scores
+
+| Benchmarks \ Methods                   | Baseline | finetuned baseline | EvoPrompt     |
+| -------------------------------------- | -------- | ------------------ | ------------- |
+| BIRD-bench (SQL)                       | 0.291    | **0.449** (▲)      | 0.368 (▲)     |
+| BoolQ (QA)                             | 0.906    | **1.000** (▲)      | 0.900 (▼)     |
+| GPQA (Reasoning)                       | 0.186    | 0.184 (▼)          | **0.190** (▲) |
+| MATH (Reasoning)                       | 0.626    | 0.566 (▼)          | **0.680** (▲) |
+| New York Times Topics (Classification) | 0.836    | **0.914** (▲)      | 0.840 (▲)     |
+
+#### Testset Scores
+
+| Benchmarks \ Methods                   | Baseline | finetuned baseline | EvoPrompt     |
+| -------------------------------------- | -------- | ------------------ | ------------- |
+| BIRD-bench (SQL)                       | 0.307    | **0.473** (▲)      | 0.292 (▼)     |
+| BoolQ (QA)                             | 0.850    | **0.892** (▲)      | 0.870 (▲)     |
+| GPQA (Reasoning)                       | 0.146    | 0.080 (▼)          | 0.120 (▼)     |
+| MATH (Reasoning)                       | 0.610    | 0.426 (▼)          | **0.670** (▲) |
+| New York Times Topics (Classification) | 0.794    | **0.818** (▲)      | 0.600 (▼)     |
+
+### Benchmarks Results
+
+#### BIRD-bench
+
+![BIRD-bench](https://github.com/weavel-ai/Ape/blob/main/images/trainer/paper/evo_prompt/bird_bench_result.png?raw=true)
+
+#### BoolQ
+
+![BoolQ](https://github.com/weavel-ai/Ape/blob/main/images/trainer/paper/evo_prompt/boolq_result.png?raw=true)
+
+#### GPQA
+
+![GPQA](https://github.com/weavel-ai/Ape/blob/main/images/trainer/paper/evo_prompt/gpqa_result.png?raw=true)
+
+#### MATH
+
+![MATH](https://github.com/weavel-ai/Ape/blob/main/images/trainer/paper/evo_prompt/math_result.png?raw=true)
+
+#### New York Times Topics
+
+![New York Times Topics](https://github.com/weavel-ai/Ape/blob/main/images/trainer/paper/evo_prompt/new_york_times_topics_result.png?raw=true)

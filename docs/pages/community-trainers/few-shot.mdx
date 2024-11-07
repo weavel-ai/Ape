@@ -1,0 +1,78 @@
+---
+title: FewShotTrainer
+description: A class for optimizing prompts using the few-shot method.
+---
+
+# FewShotTrainer
+
+## Overview
+
+**FewShotTrainer** is a few-shot optimization method inspired by [DSPy](https://github.com/stanfordnlp/DSPy) and [adalflow](https://github.com/SylphAI-Inc/AdalFlow).
+
+## Description
+
+FewShotTrainer combines concepts from DSPy's MIPRO algorithm and adalflow's few-shot optimization techniques.
+
+In DSPy's MIPRO, few-shot examples are optimized by running the BootstrapFewshot optimization in parallel and selecting the best group of examples.
+
+Adalflow introduces a different few-shot selection algorithm. For bootstrap few-shot examples (those with intermediate steps like chain-of-thought reasoning), it selects examples with the highest score difference between the student and teacher models. For raw examples, it selects difficult ones by weighting the student model's score.
+
+FewShotTrainer integrates these two approaches by selecting examples using adalflow's algorithm and optimizing them with DSPy MIPRO's method.
+
+## Motivation for developing this method
+
+While DSPy's MIPRO method for generating few-shot candidates is strict and effective, its selection algorithm is not ideal for prompt optimization in state-of-the-art models, as it relies on training a student model based on a teacher model’s behavior.
+
+Adalflow’s few-shot selection algorithm addresses this issue, but since adalflow's goal is to integrate text-gradient optimization into production and focus on end-to-end prompt chain optimization, we developed FewShotTrainer to blend both approaches for better few-shot prompt optimization.
+
+## Key Differences
+
+FewShotTrainer separates the few-shot candidate generation from DSPy MIPRO and adds a final selection process based on training dataset scores for each few-shot candidate. Additionally, we replace DSPy's BootstrapFewshot selection algorithm with adalflow's selection algorithm.
+
+## Benchmark Performance
+
+### Summary
+
+FewShotTrainer performs well in MATH benchmark, but not so well in other benchmarks.
+
+#### Trainset Scores
+
+| Benchmarks \ Methods                   | Baseline | finetuned baseline | FewShotTrainer |
+| -------------------------------------- | -------- | ------------------ | -------------- |
+| BIRD-bench (SQL)                       | 0.291    | **0.449** (▲)      | 0.357 (▲)      |
+| BoolQ (QA)                             | 0.906    | **1.000** (▲)      | 0.947 (▲)      |
+| GPQA (Reasoning)                       | 0.186    | 0.184 (▼)          | 0.105 (▼)      |
+| MATH (Reasoning)                       | 0.626    | 0.566 (▼)          | **0.681** (▲)  |
+| New York Times Topics (Classification) | 0.836    | **0.914** (▲)      | 0.830 (▼)      |
+
+#### Testset Scores
+
+| Benchmarks \ Methods                   | Baseline | finetuned baseline | FewShotTrainer |
+| -------------------------------------- | -------- | ------------------ | -------------- |
+| BIRD-bench (SQL)                       | 0.307    | **0.473** (▲)      | 0.083 (▼)      |
+| BoolQ (QA)                             | 0.850    | 0.892 (▲)          | **0.900** (▲)  |
+| GPQA (Reasoning)                       | 0.146    | 0.080 (▼)          | 0.110 (▼)      |
+| MATH (Reasoning)                       | 0.610    | 0.426 (▼)          | **0.670** (▲)  |
+| New York Times Topics (Classification) | 0.794    | **0.818** (▲)      | 0.770 (▼)      |
+
+### Benchmark Results
+
+#### BIRD-bench
+
+![BIRD-bench](https://github.com/weavel-ai/Ape/blob/main/images/trainer/community/few_shot/bird_bench_result.png?raw=true)
+
+#### BoolQ
+
+![BoolQ](https://github.com/weavel-ai/Ape/blob/main/images/trainer/community/few_shot/boolq_result.png?raw=true)
+
+#### GPQA
+
+![GPQA](https://github.com/weavel-ai/Ape/blob/main/images/trainer/community/few_shot/gpqa_result.png?raw=true)
+
+#### MATH
+
+![MATH](https://github.com/weavel-ai/Ape/blob/main/images/trainer/community/few_shot/math_result.png?raw=true)
+
+#### New York Times Topics
+
+![New York Times Topics](https://github.com/weavel-ai/Ape/blob/main/images/trainer/community/few_shot/new_york_times_topics_result.png?raw=true)

@@ -1,0 +1,17 @@
+---
+title: TextGradientTrainer
+description: A class for optimizing prompts using the TextGrad algorithm.
+---
+
+# TextGradientTrainer
+
+## Methods
+
+### `__init__`
+
+It shares the same parameters as the [`Trainer`](../trainer.mdx) class, with some additional unique parameters.
+
+**unique parameters:**
+
+- `batch_size`: Size of minibatches for evaluation.
+- `max_proposals_per_step`: Maximum number of proposals to generate per step. `TextGradientTrainer` will retry generating optimized prompt `early_stopping_rounds` times for each batch.

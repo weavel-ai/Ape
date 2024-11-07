@@ -1,0 +1,149 @@
+---
+title: Getting Started
+description: How to use ape.
+---
+
+import { Steps } from 'nextra/components'
+
+# Getting Started
+
+<Steps>
+### Installation
+
+```bash
+pip install ape-core
+```
+
+### Preparing the prompt template
+
+Prepare your prompt template as a [`Prompt`](./ape-common/prompt.mdx) object.
+Brackets `{var_1}` can be used as placeholders for variables.
+
+```python
+
+from ape.common import Prompt
+
+student_prompt = Prompt(
+    name="MathSolver",
+    messages=[
+        {"role": "system", "content": "Solve math problem."},
+        {"role": "user", "content": "{problem}"},
+    ],
+    model="gpt-4o-mini",
+    temperature=0.0,
+    response_format=None,
+)
+```
+
+### Preparing the dataset
+
+Prepare your dataset as a list of [`DatasetItem`](./ape-common/dataset-item.mdx)s (which is a TypedDict).
+
+```python
+from ape.common import DatasetItem
+
+dataset = [
+    DatasetItem(inputs={"problem": "1+1"}, outputs="2"),
+]
+```
+
+### Preparing the generator and metric
+
+By default, Ape uses [`Generator`](./ape-common/generator/generator.mdx) under the hood, which uses [LiteLLM](https://github.com/BerriAI/litellm) to support multiple models.
+
+By subclassing [`BaseGenerator`](./ape-common/generator/base-generator.mdx), you can implement your own generator to support custom use cases (e.g. Langchain, OpenAI Assistants API).
+
+Ape provides multiple metrics out of the box ([`CosineSimilarityMetric`](./ape-common/metric/cosine-similarity-metric.mdx), [`JsonMatchMetric`](./ape-common/metric/json-match-metric.mdx), [`SemanticF1Metric`](./ape-common/metric/semantic-f1-metric.mdx)), but you can also subclass [`BaseMetric`](./ape-common/metric/base-metric.mdx) to implement your own metric.
+
+```python
+from ape.common import BaseGenerator, BaseMetric, DatasetItem, MetricResult, GlobalMetricResult
+from openai import AsyncOpenAI
+
+openai = AsyncOpenAI()
+class MathSolver(BaseGenerator):
+    async def generate(
+        self,
+        prompt: Prompt,
+        inputs: Dict[str, Any],
+    ) -> Union[Dict[str, Any], str]:
+        # Call your LLM here
+        output = {
+            "thought": "...",
+            "answer": "...",
+        }
+        return output
+
+class ExactMatchMetric(BaseMetric):
+    async def compute(
+        self,
+        dataset_item: DatasetItem,
+        pred: Union[Dict[str, Any], str],
+    ) -> MetricResult:
+        if dataset_item["outputs"]["answer"] == pred["answer"]:
+            return MetricResult(
+                score=1.0,
+            )
+        else:
+            return MetricResult(
+                score=0.0,
+            )
+```
+
+You can further configure the evaluation by subclassing [`BaseGlobalMetric`](./ape-common/global-metric/base-global-metric.mdx). By default, Ape uses [`AverageGlobalMetric`](./ape-common/global-metric/average-global-metric.mdx), which computes the average of all the metric results as the final score.
+
+Below is an example of a custom metric that computes the recall score.
+
+```python
+from ape.common import BaseMetric, BaseGlobalMetric, DatasetItem, MetricResult, GlobalMetricResult
+
+class RecallMetric(BaseMetric):
+    async def compute(
+        self,
+        dataset_item: DatasetItem,
+        pred: Dict[str, Any], # pred = {"predictions": [a,b,c,...]}
+    ) -> MetricResult:
+        num_correct = 0
+        for item in pred["predictions"]:
+            if item in dataset_item["outputs"]["predictions"]:
+                num_correct += 1
+        recall = num_correct / len(dataset_item["outputs"]["predictions"]) if dataset_item["outputs"]["predictions"] else 0
+
+        return MetricResult(
+            score=recall,
+            trace={"num_items": len(dataset_item["outputs"]["predictions"])},
+        )
+
+class MICRORecallGlobalMetric(BaseGlobalMetric):
+    async def compute(
+        self,
+        results: List[MetricResult],
+    ) -> GlobalMetricResult:
+        total_num_items = 0
+        total_num_correct = 0
+        for result in results:
+            total_num_items += result.trace["num_items"]
+            total_num_correct += result.score * result.trace["num_items"]
+        return GlobalMetricResult(
+            score=total_num_correct / total_num_items,
+        )
+```
+
+### Optimization
+
+Select a trainer and optimize your prompt.
+
+```python
+from ape.trainer import DSPyMiproTrainer
+
+trainer = DSPyMiproTrainer(
+    generator=MathSolver(),
+    metric=ExactMatchMetric(),
+)
+
+optimized_prompt, report = await trainer(prompt=student_prompt, trainset=dataset, valset=[])
+```
+
+`optimized_prompt` is a [`Prompt`](./ape-common/prompt.mdx) object that contains the optimized prompt.
+`report` is a `Report` object that contains the training process and results.
+
+</Steps>

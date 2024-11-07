@@ -1,7 +1,0 @@
-{
-  "text_gradient": "TextGradientTrainer",
-  "few_shot": "FewShotTrainer",
-  "optuna": "OptunaTrainer",
-  "expel": "ExpelTrainer",
-  "text_grad_evo": "TextGradEvoTrainer"
-}

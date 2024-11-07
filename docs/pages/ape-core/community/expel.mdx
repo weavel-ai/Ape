@@ -1,0 +1,17 @@
+---
+title: ExpelTrainer
+description: A class for optimizing prompts using the Expel algorithm.
+---
+
+# ExpelTrainer
+
+## Methods
+
+### `__init__`
+
+It shares the same parameters as the [`Trainer`](../trainer.mdx) class, with some additional unique parameters.
+
+**unique parameters:**
+
+- `max_proposals_per_step`: Maximum number of proposals to generate per step. `ExpelTrainer` will retry generating optimized prompt `max_proposals_per_step` times for each batch of examples.
+- `target_subgroup`: Target subgroup to optimize for. `success`, `failure`, `all` are supported.

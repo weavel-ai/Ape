@@ -1,0 +1,95 @@
+---
+title: TextGradEvoTrainer
+description: A class for optimizing prompts using the TextGradEvo algorithm.
+---
+
+# TextGradEvoTrainer
+
+## Overview
+
+**TextGradEvoTrainer** is inspired by the papers [TextGrad](https://arxiv.org/abs/2406.07496) and [EvoPrompt](https://arxiv.org/abs/2309.08532), combining evolutionary algorithms with text gradient-based optimization.
+
+## Description
+
+TextGradEvoTrainer is a method that combines the strengths of both TextGrad and EvoPrompt to optimize prompts. It leverages the learning capabilities of TextGrad from the training dataset and the search efficiency of EvoPrompt’s evolutionary algorithm.
+
+## Motivation for developing this method
+
+While TextGrad learns significantly from the training dataset by extracting textual gradients, the success rate of those gradients in improving performance is low—less than 10%. On the other hand, EvoPrompt uses an evolutionary algorithm to effectively search the prompt space, but it does not learn directly from the training dataset, limiting peak performance improvement.
+
+TextGradEvoTrainer integrates these two methods. It first extracts textual gradients from the training dataset and then uses an evolutionary algorithm to optimize prompts, with the gradient guiding the evolutionary process.
+
+## Key Differences
+
+### Running on Each Example
+
+TextGradientTrainer operates on batches of examples, while TextGradEvoTrainer runs on individual examples.  
+To use the evolutionary algorithm, a population of candidate prompts needs to be created. If run on batches, the number of textual gradients can vary across batches, requiring different population generation algorithms for each batch. To avoid this complexity, TextGradEvoTrainer processes one example at a time, generating a population by extracting various textual gradients from each example concurrently.
+
+### Validation Step with Evolutionary Algorithm
+
+In TextGrad, the validation step checks whether the optimized prompt is truly improved across the entire training dataset. Since textual gradients are much more unstable compared to tensor gradients, the original TextGrad simply attempts multiple iterations (N times) to extract and apply textual gradients until it succeeds.
+
+TextGradEvoTrainer improves on this by using an evolutionary algorithm during the validation step. It first generates a population of candidate prompts and evaluates them against the training dataset. Then, the evolutionary algorithm is applied to this population, refining the prompts until one successfully validates (i.e., improves performance across the training dataset).
+
+## Benchmark Performance
+
+### Summary
+
+Compare to `TextGradientTrainer`
+
+- It shows more stable performance in training dataset.
+- It shows better performance in reasoning benchmarks in test set, but worse performance in classification and QA benchmarks in test set.
+- Its hit count of textual gradient improvement is higher than `TextGradientTrainer`.
+
+#### Trainset Scores
+
+| Benchmarks \ Methods                   | Baseline | finetuned baseline | TextGradEvoTrainer |
+| -------------------------------------- | -------- | ------------------ | ------------------ |
+| BIRD-bench (SQL)                       | 0.291    | **0.449** (▲)      | -                  |
+| BoolQ (QA)                             | 0.906    | **1.000** (▲)      | 0.960 (▲)          |
+| GPQA (Reasoning)                       | 0.186    | 0.184 (▼)          | **0.230** (▲)      |
+| MATH (Reasoning)                       | 0.626    | 0.566 (▼)          | **0.750** (▲)      |
+| New York Times Topics (Classification) | 0.836    | 0.914 (▲)          | **0.930** (▲)      |
+
+#### Testset Scores
+
+| Benchmarks \ Methods                   | Baseline | finetuned baseline | TextGradEvoTrainer |
+| -------------------------------------- | -------- | ------------------ | ------------------ |
+| BIRD-bench (SQL)                       | 0.307    | **0.473** (▲)      | -                  |
+| BoolQ (QA)                             | 0.850    | **0.892** (▲)      | 0.890 (▲)          |
+| GPQA (Reasoning)                       | 0.146    | 0.080 (▼)          | 0.110 (▼)          |
+| MATH (Reasoning)                       | 0.610    | 0.426 (▼)          | **0.660** (▲)      |
+| New York Times Topics (Classification) | 0.794    | **0.818** (▲)      | 0.780 (▼)          |
+
+#### Hit Count Improvement
+
+"Hit count" means the number of textual gradient that really improve the performance.
+
+| Benchmarks \ Methods                   | TextGradientTrainer | TextGradEvoTrainer |
+| -------------------------------------- | ------------------- | ------------------ |
+| BIRD-bench (SQL)                       | 5                   | -                  |
+| BoolQ (QA)                             | 0                   | 4 (▲)              |
+| GPQA (Reasoning)                       | 3                   | 2 (▼)              |
+| MATH (Reasoning)                       | 0                   | 7 (▲)              |
+| New York Times Topics (Classification) | 2                   | 9 (▲)              |
+
+### Benchmarks Results
+
+#### BIRD-bench
+
+#### BoolQ
+
+![BoolQ](https://github.com/weavel-ai/Ape/blob/main/images/trainer/community/text_grad_evo/boolq_result.png?raw=true)
+
+#### GPQA
+
+![GPQA](https://github.com/weavel-ai/Ape/blob/main/images/trainer/community/text_grad_evo/gpqa_result.png?raw=true)
+
+#### MATH
+
+![MATH](https://github.com/weavel-ai/Ape/blob/main/images/trainer/community/text_grad_evo/math_result.png?raw=true)
+
+#### New York Times Topics
+
+![New York Times Topics](https://github.com/weavel-ai/Ape/blob/main/images/trainer/community/text_grad_evo/new_york_times_topics_result.png?raw=true)

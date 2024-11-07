@@ -1,0 +1,20 @@
+---
+title: TextGradEvoTrainer
+description: A class for optimizing prompts using the TextGradEvo algorithm.
+---
+
+# TextGradEvoTrainer
+
+## Methods
+
+### `__init__`
+
+It shares the same parameters as the [`Trainer`](../trainer.mdx) class, with some additional unique parameters.
+
+**unique parameters:**
+
+- `max_evolution_per_step`: Maximum number of evolutionary generation for each dataset item.
+- `population_size`: Size of population for evolutionary algorithm.
+- `evolution_method`: Method of evolutionary algorithm. `"para"`, `"ga"`, `"de"` are supported.
+- `parent_selection_mode`: Method of parent selection for evolutionary algorithm. `"random"`, `"wheel"`, `"tour"` are supported.
+- `child_selection_mode`: Method of child selection for evolutionary algorithm. `"child"`, `"topk"` are supported.

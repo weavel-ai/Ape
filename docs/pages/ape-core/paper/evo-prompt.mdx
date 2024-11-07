@@ -1,0 +1,28 @@
+---
+title: EvoPromptTrainer
+description: A class for optimizing prompts using the EvoPrompt algorithm.
+---
+
+# EvoPrompt
+
+## Methods
+
+### `__init__`
+
+It shares the same parameters as the [`Trainer`](../trainer.mdx) class, with some additional unique parameters.
+
+**unique parameters:**
+
+- `evolution_method`: Evolution method to use. `para`, `ga`, `de` are supported.
+  - `para`: Paraphrasing
+  - `ga`: Genetic Algorithms
+  - `de`: Differential Evolution
+- `popsize`: Population size.
+- `epoch`: Number of generations.
+- `parent_selection_mode`: Parent selection mode. `random`, `wheel`, `tour` are supported. only used when `evolution_method` is `ga`.
+  - `random`: Random selection
+  - `wheel`: Wheel selection, where the probability of selection is proportional to the fitness.
+  - `tour`: Tournament selection
+- `child_selection_mode`: Child selection mode. `child`, `topk` are supported.
+  - `child`: always update the generation with the next generation children.
+  - `topk`: Top-k selection. Select the top `k` prompts based on the fitness within parent and children generations.

@@ -1,0 +1,44 @@
+---
+title: ape-core
+description: Core algorithms for Ape.
+---
+
+import { Cards, Callout } from 'nextra/components'
+import { BrainCircuitIcon } from 'lucide-react'
+
+# ape-core
+
+<div className="flex flex-row items-center gap-2 my-4">
+  <div className="w-fit">
+    <a href="https://pypi.org/project/ape-core/" target="_blank">
+      <img
+        src="https://img.shields.io/pypi/v/ape-core.svg"
+        alt="PyPI version"
+        noZoom
+      />
+    </a>
+  </div>
+  <div className="w-fit">
+    <a href="https://pepy.tech/project/ape-core" target="_blank">
+      <img
+        src="https://static.pepy.tech/badge/ape-core"
+        alt="Downloads"
+        noZoom
+      />
+    </a>
+  </div>
+</div>
+
+## Overview
+
+`ape-core` contains the core abstractions for implementing prompt optimization algorithms, as well as multiple paper/community implementations of state-of-the-art prompt optimization methods.
+
+## Classes
+
+<Cards>
+  <Cards.Card
+    title="Trainer"
+    href="/ape-core/trainer"
+    icon={<BrainCircuitIcon />}
+  />
+</Cards>

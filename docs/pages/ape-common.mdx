@@ -1,0 +1,74 @@
+---
+sidebarTitle: Overview
+title: ape-common
+description: Common types and utilities for programmatic prompt engineering.
+---
+
+import { Cards } from 'nextra/components'
+import {
+  FileTextIcon,
+  CodeIcon,
+  ChartColumnIcon,
+  ChartLineIcon,
+  ClipboardCheckIcon,
+  CircleDollarSignIcon
+} from 'lucide-react'
+
+# ape-common
+
+<div className="flex flex-wrap gap-2 items-center my-4">
+  <a href="https://pypi.org/project/ape-common/" target="_blank">
+    <img
+      src="https://img.shields.io/pypi/v/ape-common.svg"
+      alt="PyPI version"
+      style={{ display: 'inline-block' }}
+    />
+  </a>
+  <a href="https://pepy.tech/project/ape-common" target="_blank">
+    <img
+      src="https://static.pepy.tech/badge/ape-common"
+      alt="Downloads"
+      style={{ display: 'inline-block' }}
+    />
+  </a>
+
+</div>
+
+## Overview
+
+Testing and evaluating prompts is a _must_ to ensure that your prompts are working as expected. `ape-common` provides a set of common types and classes for data-driven prompt engineering. This library is included within `ape-core` and does not need to be installed separately.
+
+## Classes
+
+<Cards>
+  <Cards.Card
+    title="Prompt"
+    href="/ape-common/prompt"
+    icon={<FileTextIcon />}
+  />
+  <Cards.Card
+    title="BaseGenerate"
+    href="/ape-common/generator/base-generator"
+    icon={<CodeIcon />}
+  />
+  <Cards.Card
+    title="BaseMetric"
+    href="/ape-common/metric/base-metric"
+    icon={<ChartColumnIcon />}
+  />
+  <Cards.Card
+    title="BaseGlobalMetric"
+    href="/ape-common/global-metric/base-global-metric"
+    icon={<ChartLineIcon />}
+  />
+  <Cards.Card
+    title="BaseEvaluator"
+    href="/ape-common/evaluator"
+    icon={<ClipboardCheckIcon />}
+  />
+  <Cards.Card
+    title="CostTracker"
+    href="/ape-common/cost-tracker"
+    icon={<CircleDollarSignIcon />}
+  />
+</Cards>
