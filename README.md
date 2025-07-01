@@ -24,7 +24,7 @@
 **Ape (AI prompt engineer)** is a prompt optimization library with implementations of various state-of-the-art prompt optimization methods.  
 **Ape** focuses on easier benchmarking, experimentation, and collaborative research of various techniques within the community. Ape makes it easy to apply and compare different prompt optimization techniques.
 
-[Read the docs →](https://ape-prompts.vercel.app)
+[Read the docs →](https://ape-prompt.vercel.app)
 
 ## Features
 
